@@ -1,3 +1,7 @@
+typedef struct Point {
+	unsigned int x, y;
+} Point;
+
 int strlen(const char *str) {
 	int len = 0;
 	const char *p = str;
@@ -6,6 +10,30 @@ int strlen(const char *str) {
 	}
 
 	return len;
+}
+
+void clrscr(void) {
+   unsigned char *videoram = (unsigned char *) 0xb8000;
+
+	int i = 0;
+	for (i = 0; i < 80*25 * 2; i++) {
+		videoram[i] = 0;
+	}
+}
+
+void print(const Point *position, const char *str) {
+   unsigned char *videoram = (unsigned char *) 0xb8000;
+
+	int len = strlen(str);
+
+	int i = 0;
+
+	// FIXME: prints at the wrong coordinates
+
+	for (i = 0; i < len; i++) {
+		videoram[2*i +   2*(position->y*25 + position->x)] = str[i];
+		videoram[2*i+1 + 2*(position->y*25 + position->x)] = 0x07;
+	}
 }
 
 void panic(const char *str) {
@@ -63,5 +91,10 @@ void kmain( void* mbd, unsigned int magic )
 	}
 	*/
 
-   panic("Hello, world! I panic!");
+   Point cursor;
+   cursor.x = 1;
+   cursor.y = 2;
+
+   clrscr();
+   print(&cursor, "Hello, world! print()!");
 }
