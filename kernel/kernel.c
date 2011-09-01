@@ -29,9 +29,9 @@ void clrscr(void) {
 void print(Point *position, const char *str) {
 	const int len = strlen(str);
 
-	const int offset = position->y*80*2 + position->x*2;
+	const unsigned int offset = position->y*80*2 + position->x*2;
 
-	for (int i = 0; i < len; i++) {
+	for (unsigned int i = 0; i < len; i++) {
 		videoram[2*i +   offset] = str[i];
 		videoram[2*i+1 + offset] = 0x07;
 	}
@@ -70,5 +70,5 @@ void kmain( void* mbd, unsigned int magic )
    cursor.y = 1;
 
    clrscr();
-   print(&cursor, "Hello EL TORITO!!!");
+   print(&cursor, "Hello EL TORITO!!! + New Makefile");
 }
