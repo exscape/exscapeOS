@@ -37,12 +37,12 @@ todolist:
 %.o: %.c Makefile
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-run:
+run: all
 	@cp kernel.bin isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
-	@/Applications/Q.app/Contents/MacOS/i386-softmmu.app/Contents/MacOS/i386-softmmu -cdrom bootable.iso -boot d1 -cocoanodialogs -monitor stdio
+	@qemu -cdrom bootable.iso -monitor stdio
 
-debug:
+debug: all
 	@cp kernel.bin isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
-	@/Applications/Q.app/Contents/MacOS/i386-softmmu.app/Contents/MacOS/i386-softmmu -cdrom bootable.iso -boot d1 -cocoanodialogs -s -S -monitor stdio
+	@qemu -cdrom bootable.iso -s -S -monitor stdio
