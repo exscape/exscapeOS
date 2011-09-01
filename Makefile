@@ -23,8 +23,8 @@ WARNINGS := -Wall -Werror
 CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -std=gnu99 $(WARNINGS)
 
 all: $(OBJFILES)
-	nasm -o loader.o loader.s -f elf
-	i586-elf-ld -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
+	@nasm -o loader.o loader.s -f elf
+	@i586-elf-ld -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso) loader.o
@@ -35,4 +35,9 @@ todolist:
 	-@for file in $(ALLFILES); do fgrep -H -e TODO -e FIXME $$file; done; true
 
 %.o: %.c Makefile
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+run:
+	@cp kernel.bin isofiles/boot
+	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
+	@/Applications/Q.app/Contents/MacOS/i386-softmmu.app/Contents/MacOS/i386-softmmu -cdrom bootable.iso -boot d1 -cocoanodialogs
