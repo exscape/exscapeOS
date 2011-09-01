@@ -4,10 +4,11 @@ static unsigned char *videoram = (unsigned char *) 0xb8000;
 static Point cursor;
 
 void *memset(void *addr, int c, size_t n);
-int strlen(const char *str);
+size_t strlen(const char *str);
 void panic(const char *str);
 void print(const char *str);
 void clrscr(void);
+void kmain(void* mbd, unsigned int magic);
 
 void *memset(void *addr, int c, size_t n) {
 	unsigned char *p = addr;
@@ -19,8 +20,8 @@ void *memset(void *addr, int c, size_t n) {
 	return addr;
 }
 
-int strlen(const char *str) {
-	int len = 0;
+size_t strlen(const char *str) {
+	size_t len = 0;
 
 	while (*str++ != 0) {
 		len++;
@@ -34,12 +35,12 @@ void clrscr(void) {
 }
 
 void print(const char *str) {
-	const int len = strlen(str);
+	const size_t len = strlen(str);
 
 	const unsigned int offset = cursor.y*80*2 + cursor.x*2;
 
-	for (unsigned int i = 0; i < len; i++) {
-		videoram[2*i +   offset] = str[i];
+	for (size_t i = 0; i < len; i++) {
+		videoram[2*i +   offset] = (unsigned char)str[i]; // FIXME: does this work as expected?
 		videoram[2*i+1 + offset] = 0x07;
 	}
 
@@ -53,8 +54,7 @@ void panic(const char *str) {
 	// FIXME: halt, somehow
 }
 
-void kmain( void* mbd, unsigned int magic )
-{
+void kmain(void* mbd, unsigned int magic) {
    if ( magic != 0x2BADB002 )
    {
       /* Something went not according to specs. Print an error */

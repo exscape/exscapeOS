@@ -15,11 +15,11 @@ DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 # All files to end up in a distribution tarball
 ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES)
 
-#WARNINGS := -Wall -Wextra -pedantic -Wshadow -Wpointer-arith -Wcast-align \
+WARNINGS := -Wall -Wextra -pedantic -Wshadow -Wpointer-arith -Wcast-align \
                 -Wwrite-strings -Wmissing-prototypes -Wmissing-declarations \
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
                 -Wuninitialized -Wconversion -Wstrict-prototypes -Werror
-WARNINGS := -Wall -Werror
+#WARNINGS := -Wall -Werror
 CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -std=gnu99 $(WARNINGS)
 
 all: $(OBJFILES)
