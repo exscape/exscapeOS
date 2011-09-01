@@ -51,9 +51,32 @@ void clrscr(void) {
 }
 
 int putchar(int c) {
-	char out[2] = {0};
-	out[0] = (unsigned char)c;
-	print(out);
+	const unsigned int offset = cursor.y*80*2 + cursor.x*2;
+
+	if (c != '\n') {
+		// Write the character
+		videoram[offset] = (unsigned char)c; // FIXME: does this work as expected?
+		videoram[offset+1] = 0x07;
+
+		if (cursor.x + 1 == 80) {
+			// Wrap to the next line
+			cursor.y++;
+			cursor.x = 0;
+		}
+		else {
+			// Don't wrap
+			cursor.x++;
+		}
+	}
+	else {
+		// c == newline
+		cursor.x = 0;
+		cursor.y++;
+	}
+
+	// Move the cursor
+	videoram[cursor.y*80*2 + cursor.x*2] = 178;
+	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 
 	return c;
 }
@@ -62,42 +85,8 @@ void print(const char *str) {
 	size_t len = strlen(str);
 
 	for (size_t i = 0; i < len; i++) {
-		const unsigned int offset = cursor.y*80*2 + cursor.x*2;
-
-		if (str[i] != '\n') {
-			videoram[2*i +   offset] = (unsigned char)str[i]; // FIXME: does this work as expected?
-			videoram[2*i+1 + offset] = 0x07;
-		}
-		else {
-			cursor.x = 0;
-			cursor.y++;
-			continue;
-		}
+		putchar(str[i]);
 	}
-
-	// Remove newline characters from the calculations
-	for (size_t i = len-1; i >= 0; i--) {
-		if (i == (size_t)-1)
-			break;
-		if (str[i] == '\n')
-			len--;
-	}
-
-	if (cursor.x + len > 80) {
-		cursor.y += (cursor.x+len)/80;
-	}
-	
-	cursor.x += len;
-
-	if (cursor.x > 80)
-		cursor.x = cursor.x % 80;
-
-	videoram[cursor.y*80*2 + cursor.x*2] = 178;
-	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
-
-	// TODO:
-	// Wrapping!
-	// Track cursor position, w/ wrapping
 }
 
 void panic(const char *str) {
@@ -155,7 +144,8 @@ void kmain(void* mbd, unsigned int magic) {
 
    print("Hello world! Printing works, and keeping track of the cursor as well! Blah blah");
    print("\nThis is on a new line.\n");
-   print("This is also on a new line.\n this too!");
+   print("This is also on a new line.\nThis too!");
+   print("Different print, SAME line!\nNEW line.");
 
    Time t;
    memset(&t, 0, sizeof(t));
