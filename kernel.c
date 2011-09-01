@@ -1,4 +1,5 @@
 #include <types.h>
+
 static unsigned char *videoram = (unsigned char *) 0xb8000;
 
 void *memset(void *addr, int c, size_t n) {
@@ -26,9 +27,9 @@ void clrscr(void) {
 }
 
 void print(Point *position, const char *str) {
-	int len = strlen(str);
+	const int len = strlen(str);
 
-	int offset = position->y*80*2 + position->x*2;
+	const int offset = position->y*80*2 + position->x*2;
 
 	for (int i = 0; i < len; i++) {
 		videoram[2*i +   offset] = str[i];
@@ -40,7 +41,7 @@ void panic(const char *str) {
 	// Clear screen
    clrscr();
 
-	int len = strlen(str);
+	const int len = strlen(str);
 	for (int i = 0; i < len; i++) {
 		videoram[2*i] = str[i];
 		videoram[2*i+1] = 0x07;
