@@ -1,0 +1,6 @@
+default 0
+hiddenmenu
+timeout 0
+
+title exscapeOS
+kernel /boot/kernel.bin

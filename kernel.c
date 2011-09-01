@@ -70,5 +70,5 @@ void kmain( void* mbd, unsigned int magic )
    cursor.y = 1;
 
    clrscr();
-   print(&cursor, "Hello, world! print()!");
+   print(&cursor, "Hello EL TORITO!!!");
 }
