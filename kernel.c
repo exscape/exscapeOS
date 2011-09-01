@@ -1,12 +1,9 @@
-typedef struct Point {
-	unsigned int x, y;
-} Point;
-
-
-typedef unsigned long size_t;
+#include <types.h>
+static unsigned char *videoram = (unsigned char *) 0xb8000;
 
 void *memset(void *addr, int c, size_t n) {
 	unsigned char *p = addr;
+
 	for (size_t i = 0; i < n; i++) {
 		*p++ = (unsigned char)c;
 	}
@@ -16,6 +13,7 @@ void *memset(void *addr, int c, size_t n) {
 
 int strlen(const char *str) {
 	int len = 0;
+
 	while (*str++ != 0) {
 		len++;
 	}
@@ -24,18 +22,10 @@ int strlen(const char *str) {
 }
 
 void clrscr(void) {
-   unsigned char *videoram = (unsigned char *) 0xb8000;
-
-/*	int i = 0;
-	for (i = 0; i < 80*25 * 2; i++) {
-		videoram[i] = 0;
-	} */
 	memset(videoram, 0, 80*25*2);
 }
 
-void print(const Point *position, const char *str) {
-   unsigned char *videoram = (unsigned char *) 0xb8000;
-
+void print(Point *position, const char *str) {
 	int len = strlen(str);
 
 	int offset = position->y*80*2 + position->x*2;
@@ -47,8 +37,6 @@ void print(const Point *position, const char *str) {
 }
 
 void panic(const char *str) {
-   unsigned char *videoram = (unsigned char *) 0xb8000;
-
 	// Clear screen
    clrscr();
 
