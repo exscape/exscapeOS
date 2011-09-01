@@ -5,4 +5,3 @@ typedef struct Point {
 	unsigned int x;
 	unsigned int y;
 } Point;
-

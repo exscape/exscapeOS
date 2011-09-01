@@ -1,6 +1,13 @@
 #include <types.h>
 
 static unsigned char *videoram = (unsigned char *) 0xb8000;
+static Point cursor;
+
+void *memset(void *addr, int c, size_t n);
+int strlen(const char *str);
+void panic(const char *str);
+void print(const char *str);
+void clrscr(void);
 
 void *memset(void *addr, int c, size_t n) {
 	unsigned char *p = addr;
@@ -26,29 +33,26 @@ void clrscr(void) {
 	memset(videoram, 0, 80*25*2);
 }
 
-void print(Point *position, const char *str) {
+void print(const char *str) {
 	const int len = strlen(str);
 
-	const unsigned int offset = position->y*80*2 + position->x*2;
+	const unsigned int offset = cursor.y*80*2 + cursor.x*2;
 
 	for (unsigned int i = 0; i < len; i++) {
 		videoram[2*i +   offset] = str[i];
 		videoram[2*i+1 + offset] = 0x07;
 	}
+
+	cursor.x += len;
 }
 
 void panic(const char *str) {
-	// Clear screen
-   clrscr();
-
-	const int len = strlen(str);
-	for (int i = 0; i < len; i++) {
-		videoram[2*i] = str[i];
-		videoram[2*i+1] = 0x07;
-	}
-
+	clrscr();
+	print("PANIC: ");
+	print(str);
 	// FIXME: halt, somehow
 }
+
 void kmain( void* mbd, unsigned int magic )
 {
    if ( magic != 0x2BADB002 )
@@ -64,11 +68,11 @@ void kmain( void* mbd, unsigned int magic )
    /* (http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh) */
    /* or do your offsets yourself. The following is merely an example. */ 
    //char * boot_loader_name =(char*) ((long*)mbd)[16];
- 
-   Point cursor;
-   cursor.x = 2;
-   cursor.y = 1;
-
    clrscr();
-   print(&cursor, "Hello EL TORITO!!! + New Makefile");
+
+   // Initialize cursor
+   cursor.x = 0;
+   cursor.y = 0;
+
+	print("Hello world!");
 }
