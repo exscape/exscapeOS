@@ -165,6 +165,11 @@ void get_time(Time *t) {
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
 
+	static unsigned char old_sec = 255;
+	if (old_sec == t->second)
+		return;
+	old_sec = t->second;
+
 	// Since print() is the easy way...
 	Point p;
 	// TODO: memcpy()
@@ -173,6 +178,9 @@ void print_time(const Time *t) {
 
 	cursor.y = 24;
 	cursor.x = 0;
+
+	// clear the area
+	memset(videoram + 24*80*2, 0, 40);
 
 	char buf[16] = {0};
 
@@ -198,7 +206,6 @@ void print_time(const Time *t) {
 
 	itoa(t->second, buf);
 	print(buf);
-	print("     "); // clear any trailing junk; worst. code. ever.
 
 	// Restore the cursor
 	cursor.x = p.x;
