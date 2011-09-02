@@ -23,7 +23,7 @@ WARNINGS := -Wall -Werror
 CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -std=gnu99 $(WARNINGS)
 
 all: $(OBJFILES)
-	@nasm -o loader.o loader.s -f elf
+	@nasm -o loader.o loader.s -f elf -F dwarf -g
 	@i586-elf-ld -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
 
 clean:
