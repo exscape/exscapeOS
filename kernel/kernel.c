@@ -1,47 +1,18 @@
 #include <types.h>
+#include <stdlib.h> /* itoa(), reverse() */
+#include <string.h> /* memset(), strlen() */
 
 // TODO: Proper makefile for .s -> .o and linking
 
 static unsigned char *videoram = (unsigned char *) 0xb8000;
 static Point cursor;
 
-typedef struct Time {
-	unsigned short year;
-	unsigned char month;
-	unsigned char day;
-	unsigned char hour;
-	unsigned char minute;
-	unsigned char second;
-} Time;
-
 int putchar(int c);
-void *memset(void *addr, int c, size_t n);
-size_t strlen(const char *str);
 void panic(const char *str);
 void print(const char *str);
 void clrscr(void);
 void kmain(void* mbd, unsigned int magic);
 void get_time(Time *);
-
-void *memset(void *addr, int c, size_t n) {
-	unsigned char *p = addr;
-
-	for (size_t i = 0; i < n; i++) {
-		*p++ = (unsigned char)c;
-	}
-
-	return addr;
-}
-
-size_t strlen(const char *str) {
-	size_t len = 0;
-
-	while (*str++ != 0) {
-		len++;
-	}
-
-	return len;
-}
 
 void clrscr(void) {
 	memset(videoram, 0, 80*25*2);
@@ -210,9 +181,6 @@ void kmain(void* mbd, unsigned int magic) {
    cursor.y = 0;
 
    print("Hello world! Printing works, and keeping track of the cursor as well! Blah blah");
-   print("\nThis is on a new line.\n");
-   print("This is also on a new line.\nThis too!");
-   print("Different print, SAME line!\nNEW line.");
 
    Time t;
    memset(&t, 0, sizeof(t));
