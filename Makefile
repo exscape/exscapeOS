@@ -24,7 +24,7 @@ CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./i
 
 all: $(OBJFILES)
 	@nasm -o loader.o loader.s -f elf -F dwarf -g
-	@i586-elf-ld -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
+	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso) loader.o

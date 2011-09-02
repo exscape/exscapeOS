@@ -69,12 +69,7 @@ int putchar(int c) {
 	}
 
 	scroll(); // Scroll down, if need be
-
 //	update_cursor();
-
-	// Move the cursor "image"
-//	videoram[cursor.y*80*2 + cursor.x*2] = 178;
-//	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 
 	return c;
 }
@@ -89,6 +84,10 @@ void update_cursor(void) {
 	outb(0x3d5, high);
 	outb(0x3d4, 15);
 	outb(0x3d5, low);
+
+	// Impraper, software version:
+//	videoram[cursor.y*80*2 + cursor.x*2] = 178;
+//	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 }
 
 void print(const char *str) {
