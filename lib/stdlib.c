@@ -21,6 +21,11 @@ void itoa(signed long n, char *out) {
 
 	if (n < 0)
 		n = -n;
+	else if (n == 0) {
+		out[0] = 0x30;
+		out[1] = 0;
+		return;
+	}
 
 	signed long i;
 	for (i = 0; n > 0 /* [sic] */; i++) {

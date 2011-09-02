@@ -14,6 +14,8 @@ void clrscr(void);
 void kmain(void* mbd, unsigned int magic);
 void get_time(Time *);
 
+void print_time(const Time *t);
+
 void clrscr(void) {
 	memset(videoram, 0, 80*25*2);
 	cursor.x = 0;
@@ -44,9 +46,9 @@ int putchar(int c) {
 		cursor.y++;
 	}
 
-	// Move the cursor
-	videoram[cursor.y*80*2 + cursor.x*2] = 178;
-	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
+	// Move the cursor "image"
+//	videoram[cursor.y*80*2 + cursor.x*2] = 178;
+//	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 
 	return c;
 }
@@ -160,6 +162,49 @@ void get_time(Time *t) {
 	t->year = 2000 + yeartmp; // TODO: get century from RTC (in case this lives on for 89+ years! ;)
 }
 
+void print_time(const Time *t) {
+	// Prints the time in the bottom corner.
+
+	// Since print() is the easy way...
+	Point p;
+	// TODO: memcpy()
+	p.x = cursor.x;
+	p.y = cursor.y;
+
+	cursor.y = 24;
+	cursor.x = 0;
+
+	char buf[16] = {0};
+
+	/* This is going to be very ugly! */
+	
+	itoa(t->year, buf);
+	print(buf);
+	print("-");
+	itoa(t->month, buf);
+	print(buf);
+	print("-");
+	itoa(t->day, buf);
+	print(buf);
+	print(" ");
+	
+	itoa(t->hour, buf);
+	print(buf);
+	print(":");
+
+	itoa(t->minute, buf);
+	print(buf);
+	print(":");
+
+	itoa(t->second, buf);
+	print(buf);
+	print("     "); // clear any trailing junk; worst. code. ever.
+
+	// Restore the cursor
+	cursor.x = p.x;
+	cursor.y = p.y;
+}
+
 void kmain(void* mbd, unsigned int magic) {
    if ( magic != 0x2BADB002 )
    {
@@ -180,9 +225,14 @@ void kmain(void* mbd, unsigned int magic) {
    cursor.x = 0;
    cursor.y = 0;
 
-   print("Hello world! Printing works, and keeping track of the cursor as well! Blah blah");
+   print("Hello world! There's a clock in the bottom corner!");
 
    Time t;
    memset(&t, 0, sizeof(t));
    get_time(&t);
+
+   for (;;) {
+	   get_time(&t);
+	   print_time(&t);
+   }
 }
