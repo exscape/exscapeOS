@@ -15,10 +15,7 @@ void print_time(const Time *t) {
 	old_sec = t->second;
 
 	// Since print() is the easy way...
-	Point p;
-	// TODO: memcpy()
-	p.x = cursor.x;
-	p.y = cursor.y;
+	Point p = cursor;
 
 	cursor.y = 24;
 	cursor.x = 0;
