@@ -3,6 +3,7 @@
 #include <string.h> /* memset(), strlen() */
 #include <kernutil.h> /* inb, inw, outw */
 #include <monitor.h> /* printing, scrolling etc. */
+#include <stdio.h>
 
 // TODO: Proper makefile for .s -> .o and linking
 
@@ -129,6 +130,10 @@ void kmain(void* mbd, unsigned int magic) {
    print("Hello world! There's a clock in the bottom corner!");
    print("\nLine two.\n");
    print("Line three.");
+
+   char buf[64] = {0};
+   sprintf(buf, "Test! %d", 10);
+   print(buf);
 
    Time t;
    memset(&t, 0, sizeof(t));

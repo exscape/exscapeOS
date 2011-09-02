@@ -35,7 +35,7 @@ todolist:
 	-@for file in $(ALLFILES); do fgrep -H -e TODO -e FIXME $$file; done; true
 
 %.o: %.c Makefile
-	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin-vsprintf
 
 run: all
 	@cp kernel.bin isofiles/boot

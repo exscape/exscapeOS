@@ -23,29 +23,10 @@ void print_time(const Time *t) {
 	// clear the area
 	memset(videoram + 24*80*2, 0, 40);
 
-	char buf[16] = {0};
+	char buf[24] = {0};
 
-	/* This is going to be very ugly! */
-	
-	itoa(t->year, buf);
-	print(buf);
-	print("-");
-	itoa(t->month, buf);
-	print(buf);
-	print("-");
-	itoa(t->day, buf);
-	print(buf);
-	print(" ");
-	
-	itoa(t->hour, buf);
-	print(buf);
-	print(":");
-
-	itoa(t->minute, buf);
-	print(buf);
-	print(":");
-
-	itoa(t->second, buf);
+	sprintf(buf, "%d-%02d-%02d %02d:%02d:%02d", 
+			t->year, t->month, t->day, t->hour, t->minute, t->second);
 	print(buf);
 
 	// Restore the cursor
