@@ -25,12 +25,31 @@ void clrscr(void) {
 	cursor.y = 0;
 }
 
+void scroll(void);
+void scroll(void) {
+	if (cursor.y < 25)
+		return;
+
+	uint16 *vram16 = (uint16 *)videoram;
+
+	for (int i = 0; i < 24*80; i++) {
+		vram16[i] = vram16[i+80];
+	}
+
+	// Blank the last line
+	memset(videoram + 80*24*2, 0, 80*2);
+
+	// Move the cursor
+	cursor.y = 24;
+//	update_cursor();
+}
+
 int putchar(int c) {
 	const unsigned int offset = cursor.y*80*2 + cursor.x*2;
 
 	if (c != '\n') {
 		// Write the character
-		videoram[offset] = (unsigned char)c; // FIXME: does this work as expected?
+		videoram[offset] = (unsigned char)c;
 		videoram[offset+1] = 0x07;
 
 		if (cursor.x + 1 == 80) {
@@ -48,6 +67,8 @@ int putchar(int c) {
 		cursor.x = 0;
 		cursor.y++;
 	}
+
+	scroll(); // Scroll down, if need be
 
 //	update_cursor();
 
@@ -83,7 +104,7 @@ void panic(const char *str) {
 	print("PANIC: ");
 	print(str);
 	asm("hangloop: hlt ; jmp hangloop");
-	// FIXME: halt, somehow
+	// TODO: Does the halt work properly?
 }
 
 void get_time(Time *t) {
