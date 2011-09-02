@@ -5,7 +5,7 @@ CC = i586-elf-gcc
 LD = i586-elf-ld
 
 AUXFILES := run.sh # isofiles osv också!
-PROJDIRS := include kernel
+PROJDIRS := kernel lib
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
 HDRFILES := $(shell find $(PROJDIRS) -type f -name '*.h')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
