@@ -1,6 +1,7 @@
 #include <types.h>
 #include <stdlib.h> /* itoa(), reverse() */
 #include <string.h> /* memset(), strlen() */
+#include <kernutil.h> /* inb, inw, outw */
 
 // TODO: Proper makefile for .s -> .o and linking
 
@@ -15,6 +16,8 @@ void kmain(void* mbd, unsigned int magic);
 void get_time(Time *);
 
 void print_time(const Time *t);
+
+void update_cursor(void);
 
 void clrscr(void) {
 	memset(videoram, 0, 80*25*2);
@@ -46,11 +49,25 @@ int putchar(int c) {
 		cursor.y++;
 	}
 
+//	update_cursor();
+
 	// Move the cursor "image"
 //	videoram[cursor.y*80*2 + cursor.x*2] = 178;
 //	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 
 	return c;
+}
+
+void update_cursor(void) {
+	// Moves the hardware cursor to the current position specified by the cursor struct
+	uint16 loc = cursor.y * 80 + cursor.x;
+
+	uint8 high = (uint8)((loc >> 8) & 0xff);
+	uint8 low  = (uint8)(loc & 0xff);
+	outb(0x3d4, 14);
+	outb(0x3d5, high);
+	outb(0x3d4, 15);
+	outb(0x3d5, low);
 }
 
 void print(const char *str) {
