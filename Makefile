@@ -4,7 +4,7 @@
 CC = i586-elf-gcc
 LD = i586-elf-ld
 
-AUXFILES := run.sh # isofiles osv också!
+AUXFILES := # FIXME: isofiles osv
 PROJDIRS := kernel lib
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
 HDRFILES := $(shell find $(PROJDIRS) -type f -name '*.h')
@@ -24,10 +24,11 @@ CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./i
 
 all: $(OBJFILES)
 	@nasm -o loader.o loader.s -f elf -F dwarf -g
-	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES} loader.o # FIXME
+	@nasm -o kernel_asm.o kernel.s -f elf -F dwarf -g
+	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES} loader.o kernel_asm.o # FIXME
 
 clean:
-	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso) loader.o
+	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso) loader.o kernel_asm.o
 
 -include $(DEPFILES)
 

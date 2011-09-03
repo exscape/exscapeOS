@@ -3,7 +3,10 @@
 #include <string.h> /* memset(), strlen() */
 #include <kernutil.h> /* inb, inw, outw */
 #include <monitor.h> /* printing, scrolling etc. */
+#include <gdtidt.h> /* GDT / IDT functions */
 #include <stdio.h>
+
+#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
 // TODO: Proper makefile for .s -> .o and linking
 
@@ -104,6 +107,14 @@ void get_time(Time *t) {
 		t->second = bcd_to_bin(t->second);
 	}
 
+/* Used to debug exception handling */
+#ifdef DIVZERO_10_SEC
+	if (t->second % 10 == 0) {
+		asm("mov $0, %ebx;"
+			"div %ebx;"); 
+	}
+#endif
+
 	if (!is_24_hour) {
 		// TODO: Get PM flag and adjust t->hour
 	}
@@ -112,19 +123,21 @@ void get_time(Time *t) {
 }
 
 void kmain(void* mbd, unsigned int magic) {
-	if ( magic != 0x2BADB002 )
-	{
-		/* Something went not according to specs. Print an error */
-		/* message and halt, but do *not* rely on the multiboot */
-		/* data structure. */
+	if (magic != 0x2BADB002) {
+		panic("Invalid magic received from bootloader!");
 	}
+	/*
+	 * The multiboot header structure, mbd, is defined here:
+	 * http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh
+	 */
 
-	mbd = mbd; // silence warning
+	mbd = mbd; // Silence warning
 
-	/* You could either use multiboot.h */
-	/* (http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh) */
-	/* or do your offsets yourself. The following is merely an example. */ 
-	//char * boot_loader_name =(char*) ((long*)mbd)[16];
+	/* Time to get started initializing things! */
+	gdt_install();
+
+	/* Load the IDT */
+	idt_install();
 
 	clrscr();
 

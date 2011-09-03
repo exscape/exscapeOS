@@ -3,6 +3,18 @@ ENTRY (loader)
 SECTIONS{
     . = 0x00100000;
 
+
+	/* The following header is to be used instead of the uncommented one
+	 * whenever the higher half kernel is implemented!
+	 */
+	/* .__mbHeader : AT( ADDR(.__mbHeader) - KERNEL'S_VIRTUAL_OFFSET_HERE ) {
+	   *(.__mbHeader)
+	   }
+	*/
+	.__mbHeader : {
+		*(.__mbHeader)
+	}
+
     .text :{
         *(.text)
     }
