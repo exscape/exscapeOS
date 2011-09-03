@@ -8,5 +8,6 @@ void clrscr(void);
 void update_cursor(void);
 void scroll(void);
 void print_time(const Time *t);
+size_t printk(const char *fmt, ...);
 
 #endif

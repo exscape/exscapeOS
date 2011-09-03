@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <kernutil.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 static unsigned char *videoram = (unsigned char *) 0xb8000;
 static Point cursor;
@@ -110,6 +112,36 @@ void update_cursor(void) {
 	// Impraper, software version:
 //	videoram[cursor.y*80*2 + cursor.x*2] = 178;
 //	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
+}
+
+static char buf[1024];
+
+size_t printk(const char *fmt, ...) {
+	va_list args;
+	int i;
+
+	va_start(args, fmt);
+	i=vsprintf(buf,fmt,args);
+	va_end(args);
+
+	if (i > 0)
+		print(buf);
+
+	// PRINT IT
+	/*
+	__asm__("push %%fs\n\t"
+		"push %%ds\n\t"
+		"pop %%fs\n\t"
+		"pushl %0\n\t"
+		"pushl $_buf\n\t"
+		"pushl $0\n\t"
+		"call _tty_write\n\t"
+		"addl $8,%%esp\n\t"
+		"popl %0\n\t"
+		"pop %%fs"
+		::"r" (i):"ax","cx","dx");
+		*/
+	return i;
 }
 
 void print(const char *str) {

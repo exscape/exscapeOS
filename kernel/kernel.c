@@ -112,35 +112,30 @@ void get_time(Time *t) {
 }
 
 void kmain(void* mbd, unsigned int magic) {
-   if ( magic != 0x2BADB002 )
-   {
-      /* Something went not according to specs. Print an error */
-      /* message and halt, but do *not* rely on the multiboot */
-      /* data structure. */
-   }
- 
-   mbd = mbd; // silence warning
+	if ( magic != 0x2BADB002 )
+	{
+		/* Something went not according to specs. Print an error */
+		/* message and halt, but do *not* rely on the multiboot */
+		/* data structure. */
+	}
 
-   /* You could either use multiboot.h */
-   /* (http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh) */
-   /* or do your offsets yourself. The following is merely an example. */ 
-   //char * boot_loader_name =(char*) ((long*)mbd)[16];
-   clrscr();
+	mbd = mbd; // silence warning
 
-   print("Hello world! There's a clock in the bottom corner!");
-   print("\nLine two.\n");
-   print("Line three.");
+	/* You could either use multiboot.h */
+	/* (http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh) */
+	/* or do your offsets yourself. The following is merely an example. */ 
+	//char * boot_loader_name =(char*) ((long*)mbd)[16];
 
-   char buf[64] = {0};
-   sprintf(buf, "Test! %d", 10);
-   print(buf);
+	clrscr();
 
-   Time t;
-   memset(&t, 0, sizeof(t));
-   get_time(&t);
+	printk("Hello, world! %s() in action!\n", "printk");
 
-   for (;;) {
-	   get_time(&t);
-	   print_time(&t);
-   }
+	Time t;
+	memset(&t, 0, sizeof(t));
+	get_time(&t);
+
+	for (;;) {
+		get_time(&t);
+		print_time(&t);
+	}
 }
