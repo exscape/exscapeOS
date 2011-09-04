@@ -178,6 +178,9 @@ void keyboard_callback(registers_t regs) {
 		// Shift + key
 		c = kbdse_shift[scancode];
 	}
+
+/* TODO: alt + number keys for @, [, ] etc. */
+
 	else if ( !(scancode & 0x80) ) { // scancode isn't simply a supported key being released
 		printk("Not implemented (scancode = %02x)\n", scancode);
 		return;

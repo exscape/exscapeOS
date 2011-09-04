@@ -3,7 +3,6 @@
 #include <types.h>
 
 int putchar(int c);
-void print(const char *str);
 void clrscr(void);
 void update_cursor(void);
 void scroll(void);
