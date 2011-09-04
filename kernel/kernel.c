@@ -72,7 +72,7 @@ void get_time(Time *t) {
 		[second]"=m"(t->second)
 		: : "%al", "memory");
 
-
+	/* Fetch CMOS status register B */
 	unsigned char regb;
 	asm("movb $0xb, %%al;" // status reg B
 		"outb %%al, $0x70;"
@@ -82,6 +82,9 @@ void get_time(Time *t) {
 		[regb]"=m"(regb)
 		: : "%al", "memory");
 
+	/* These bits describe the output from the RTC - whether the data is
+	 * in BCD or binary form, and whether the clock is 12-hour or 24-hour.
+	 */
 	unsigned char is_bcd, is_24_hour;
 	is_bcd     = (regb & 4) ? 0 : 1; /* [sic] */
 	is_24_hour = (regb & 2) ? 1 : 0; 
