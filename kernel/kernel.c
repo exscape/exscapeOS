@@ -10,16 +10,7 @@
 
 // TODO: Proper makefile for .s -> .o and linking
 
-void panic(const char *str);
 void get_time(Time *);
-
-void panic(const char *str) {
-	clrscr();
-	print("PANIC: ");
-	print(str);
-	asm("hangloop: hlt ; jmp hangloop");
-	// TODO: Does the halt work properly?
-}
 
 void get_time(Time *t) {
 	/* This function isn't pretty, at all, but it didn't appear very easy to share
