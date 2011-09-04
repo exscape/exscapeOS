@@ -5,12 +5,16 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-static unsigned char *videoram = (unsigned char *) 0xb8000;
+/* A character representing empty space on the screen */
+static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
+
+static uint16 *videoram = (uint16 *) 0xb8000;
 Point cursor;
 
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
 
+	/* Guard to make sure we only print once per update */
 	static unsigned char old_sec = 255;
 	if (old_sec == t->second)
 		return;
@@ -23,13 +27,12 @@ void print_time(const Time *t) {
 	cursor.x = 0;
 
 	// clear the area
-	memset(videoram + 24*80*2, 0, 40); // FIXME!!!!!!
+	for (int i = 24*80; i < 25*80; i++) {
+		videoram[i] = blank;
+	}
 
-	char buf[24] = {0};
-
-	sprintf(buf, "%d-%02d-%02d %02d:%02d:%02d", 
+	printk("%d-%02d-%02d %02d:%02d:%02d", 
 			t->year, t->month, t->day, t->hour, t->minute, t->second);
-	print(buf);
 
 	// Restore the cursor
 	cursor.x = p.x;
@@ -37,11 +40,8 @@ void print_time(const Time *t) {
 }
 
 void clrscr(void) {
-	uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
-	uint16 *vram16 = (uint16 *)videoram;
-
 	for (int i = 0; i < 80*25; i++) {
-		vram16[i] = blank;
+		videoram[i] = blank;
 	}
 
 	cursor.x = 0;
@@ -53,14 +53,16 @@ void scroll(void) {
 	if (cursor.y < 25)
 		return;
 
-	uint16 *vram16 = (uint16 *)videoram;
-
+	// Move all the lines one line upwards
+	// (or: replace each line with the next line)
 	for (int i = 0; i < 24*80; i++) {
-		vram16[i] = vram16[i+80];
+		videoram[i] = videoram[i+80];
 	}
 
 	// Blank the last line
-	memset(videoram + 80*24*2, 0, 80*2);
+	for (int i = 24*80; i < 25*80; i++) {
+		videoram[i] = blank;
+	}
 
 	// Move the cursor
 	cursor.y = 24;
@@ -68,8 +70,6 @@ void scroll(void) {
 }
 
 int putchar(int c) {
-	const unsigned int offset = cursor.y*80*2 + cursor.x*2;
-
 	if (c == '\n') {
 		// c == newline
 		cursor.x = 0;
@@ -84,8 +84,8 @@ int putchar(int c) {
 	else if (c >= 0x20) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
-		videoram[offset] = (unsigned char)c;
-		videoram[offset+1] = 0x07;
+		const unsigned int offset = cursor.y*80 + cursor.x;
+		videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 
 		if (cursor.x + 1 == 80) {
 			// Wrap to the next line
@@ -114,12 +114,9 @@ void update_cursor(void) {
 	outb(0x3d5, high);
 	outb(0x3d4, 0xf);
 	outb(0x3d5, low);
-
-	// Impraper, software version:
-//	videoram[cursor.y*80*2 + cursor.x*2] = 178;
-//	videoram[cursor.y*80*2 + cursor.x*2 + 1] = 0x7;
 }
 
+/* The buffer used by printk */
 static char buf[1024];
 
 size_t printk(const char *fmt, ...) {
@@ -127,29 +124,20 @@ size_t printk(const char *fmt, ...) {
 	int i;
 
 	va_start(args, fmt);
-	i=vsprintf(buf,fmt,args);
+	i=vsprintf(buf, fmt, args);
 	va_end(args);
 
-	if (i > 0)
-		print(buf);
+	if (i > 0) {
+		size_t len = strlen(buf);
+		for (size_t j = 0; j < len; j++) {
+			putchar(buf[j]);
+		}
+	}
+	update_cursor();
 
-	// PRINT IT
-	/*
-	__asm__("push %%fs\n\t"
-		"push %%ds\n\t"
-		"pop %%fs\n\t"
-		"pushl %0\n\t"
-		"pushl $_buf\n\t"
-		"pushl $0\n\t"
-		"call _tty_write\n\t"
-		"addl $8,%%esp\n\t"
-		"popl %0\n\t"
-		"pop %%fs"
-		::"r" (i):"ax","cx","dx");
-		*/
 	return i;
 }
-
+/*
 void print(const char *str) {
 	size_t len = strlen(str);
 
@@ -157,7 +145,7 @@ void print(const char *str) {
 		putchar(str[i]);
 	}
 }
-
+*/
 int sprintf(char *buf, const char *fmt, ...)
 {
 	va_list args;
@@ -166,18 +154,6 @@ int sprintf(char *buf, const char *fmt, ...)
 	va_start(args, fmt);
 	i=vsprintf(buf,fmt,args);
 	va_end(args);
-	/*
-	__asm__("push %%fs\n\t"
-		"push %%ds\n\t"
-		"pop %%fs\n\t"
-		"pushl %0\n\t"
-		"pushl $_buf\n\t"
-		"pushl $0\n\t"
-		"call _tty_write\n\t"
-		"addl $8,%%esp\n\t"
-		"popl %0\n\t"
-		"pop %%fs"
-		::"r" (i):"ax","cx","dx");
-		*/
+
 	return i;
 }

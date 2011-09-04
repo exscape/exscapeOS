@@ -191,6 +191,17 @@ void keyboard_callback(registers_t regs) {
 
 	if (!(scancode & 0x80) && c != 0) {
 		putchar(c);
+
+		if (c == 0x08) {
+			/* 
+			 * If this is a backspace, remove the previous character.
+			 * The cursor is decremented only because putchar increments it!
+			 * This isn't done in putchar() because printing a \b should only
+			 * move the cursor, not actually delete anything.
+			 */
+			putchar(' '); 
+			cursor.x--;
+		}
 		update_cursor(); /* as of right now, putchar() doesn't call this to save resources */
 	}
 }
