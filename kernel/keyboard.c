@@ -5,12 +5,6 @@
 
 void register_interrupt_handler(uint8 n, isr_t handler);
 
-typedef struct keyboard_mod_state {
-	uint8 shift;
-	uint8 ctrl;
-	uint8 alt;
-} keyboard_mod_state;
-
 static unsigned char mod_keys = 0;
 #define MOD_NONE  0
 #define MOD_CTRL  (1 << 0)
