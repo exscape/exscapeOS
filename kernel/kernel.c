@@ -143,6 +143,8 @@ void kmain(void* mbd, unsigned int magic) {
 
 	printk("Hello, world! %s() in action!\n", "printk");
 
+	for(;;);
+/*
 	Time t;
 	memset(&t, 0, sizeof(t));
 	get_time(&t);
@@ -151,4 +153,5 @@ void kmain(void* mbd, unsigned int magic) {
 		get_time(&t);
 		print_time(&t);
 	}
+*/
 }
