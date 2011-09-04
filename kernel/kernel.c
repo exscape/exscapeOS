@@ -5,8 +5,9 @@
 #include <monitor.h> /* printing, scrolling etc. */
 #include <gdtidt.h> /* GDT / IDT functions */
 #include <stdio.h>
+#include <keyboard.h>
 
-#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
+//#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
 // TODO: Proper makefile for .s -> .o and linking
 
@@ -16,8 +17,6 @@ void get_time(Time *t) {
 	/* This function isn't pretty, at all, but it didn't appear very easy to share
 	   structs between nasm and C... So I chose inline assembly. */
 	unsigned char yeartmp = 0;
-
-//	memset(t, 0, sizeof(Time));
 
 	asm(
 		/* make sure the update flag isn't set */
@@ -130,6 +129,12 @@ void kmain(void* mbd, unsigned int magic) {
 
 	/* Load the IDT */
 	idt_install();
+
+	/* Enable interrupts */
+	enable_interrupts();
+
+	/* Set up the keyboard callback */
+	register_interrupt_handler(IRQ1, keyboard_callback);
 
 	clrscr();
 

@@ -4,6 +4,14 @@
 #include <monitor.h>
 #include <kernutil.h>
 
+void disable_interrupts(void) {
+	asm("cli");
+}
+
+void enable_interrupts(void) {
+	asm("sti");
+}
+
 struct idt_entry {
 	uint16 base_lo;
 	uint16 sel;
@@ -17,6 +25,7 @@ struct idt_ptr {
 	uint32 base;
 } __attribute__((packed));
 
+/* All of these are defined in kernel.s using NASM macros */
 extern void isr0();
 extern void isr1();
 extern void isr2();
@@ -49,6 +58,29 @@ extern void isr28();
 extern void isr29();
 extern void isr30();
 extern void isr31();
+extern void irq0();
+extern void irq1();
+extern void irq2();
+extern void irq3();
+extern void irq4();
+extern void irq5();
+extern void irq6();
+extern void irq7();
+extern void irq8();
+extern void irq9();
+extern void irq10();
+extern void irq11();
+extern void irq12();
+extern void irq13();
+extern void irq14();
+extern void irq15();
+
+/* The array of ISR handlers */
+isr_t interrupt_handlers[256];
+
+void register_interrupt_handler(uint8 n, isr_t handler) {
+	interrupt_handlers[n] = handler;
+}
 
 /*
  * Declare an IDT of 256 entries. The first 32 are reserved for CPU exceptions,
@@ -113,6 +145,36 @@ void idt_install(void) {
 	idt_set_gate(30, (uint32)isr30, 0x08, 0x8e);
 	idt_set_gate(31, (uint32)isr31, 0x08, 0x8e);
 
+	/* Reprogram the PICs, so that IRQs don't overlop with CPU exception interrupts */
+	outb(0x20, 0x11);
+	outb(0xA0, 0x11);
+	outb(0x21, 0x20);
+	outb(0xA1, 0x28);
+	outb(0x21, 0x04);
+	outb(0xA1, 0x02);
+	outb(0x21, 0x01);
+	outb(0xA1, 0x01);
+	outb(0x21, 0x0);
+	outb(0xA1, 0x0);
+ 
+	/* Add IRQ handlers to our IDT */
+	idt_set_gate(32, (uint32)irq0, 0x08, 0x8e);
+    idt_set_gate(33, (uint32)irq1, 0x08, 0x8e);
+    idt_set_gate(34, (uint32)irq2, 0x08, 0x8e);
+    idt_set_gate(35, (uint32)irq3, 0x08, 0x8e);
+    idt_set_gate(36, (uint32)irq4, 0x08, 0x8e);
+    idt_set_gate(37, (uint32)irq5, 0x08, 0x8e);
+    idt_set_gate(38, (uint32)irq6, 0x08, 0x8e);
+    idt_set_gate(39, (uint32)irq7, 0x08, 0x8e);
+    idt_set_gate(40, (uint32)irq8, 0x08, 0x8e);
+    idt_set_gate(41, (uint32)irq9, 0x08, 0x8e);
+    idt_set_gate(42, (uint32)irq10, 0x08, 0x8e);
+    idt_set_gate(43, (uint32)irq11, 0x08, 0x8e);
+    idt_set_gate(44, (uint32)irq12, 0x08, 0x8e);
+    idt_set_gate(45, (uint32)irq13, 0x08, 0x8e);
+    idt_set_gate(46, (uint32)irq14, 0x08, 0x8e);
+    idt_set_gate(47, (uint32)irq15, 0x08, 0x8e);
+
 	/* Load the new IDT */
 	idt_load();
 }
@@ -164,4 +226,22 @@ void isr_handler(registers_t regs) {
 	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs.cs, regs.eip, regs.eflags, regs.useresp);
 	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs.int_no, regs.err_code, regs.ds);
 	panic("Interrupt not handled");
+}
+
+void irq_handler(registers_t regs) {
+	/* If this interrupt came from the slave PIC, send an
+	   EOI (End Of Interrupt) ta it */
+	if (regs.int_no >= IRQ8) {
+		outb(0xa0, 0x20);
+	}
+
+	/* Send an EOI to the master PIC in either case, since slave IRQs goes through it anyway */
+	outb(0x20, 0x20);
+
+	/* Call the interrupt handler, if there is one. */
+	/* TODO: if there ISN'T one, wouldn't this crash? */
+	if (interrupt_handlers[regs.int_no] != 0) {
+		isr_t handler = interrupt_handlers[regs.int_no];
+		handler(regs);
+	}
 }
