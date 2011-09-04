@@ -121,13 +121,14 @@ void keyboard_callback(registers_t regs) {
 		return; // For now
 
 	if (mod_keys == (MOD_CTRL | MOD_ALT) && scancode == 0xd3) {
+		// Ctrl+Alt+Delete!
 		// I'm not sure about the proper keycode here.
 		// 0xd3 is sent when Fn+backspace is released (0x53 on press).
 		// There doesn't appear to BE a keycode sent on keydown with ctrl+alt+fn pressed.
 		reset();
 	}
 
-	printk("in: %02x\n", scancode);
+//	printk("in: %02x\n", scancode);
 
 
 	/*
@@ -188,11 +189,8 @@ void keyboard_callback(registers_t regs) {
 
 //	printk("%02x ", scancode);
 
-	if (! (scancode & 0x80) && c != 0) {
-/*	   if (c == 0x08) {
-		   cursor.x--; putchar(' '); cursor.x--;
-	   } 
-	   else { */
-		printk("%c", c);
-	   }
+	if (!(scancode & 0x80) && c != 0) {
+		putchar(c);
+		update_cursor(); /* as of right now, putchar() doesn't call this to save resources */
+	}
 }

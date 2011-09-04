@@ -10,4 +10,6 @@ void scroll(void);
 void print_time(const Time *t);
 size_t printk(const char *fmt, ...);
 
+extern Point cursor;
+
 #endif

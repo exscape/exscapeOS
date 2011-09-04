@@ -6,7 +6,7 @@
 #include <stdarg.h>
 
 static unsigned char *videoram = (unsigned char *) 0xb8000;
-static Point cursor;
+Point cursor;
 
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
@@ -23,7 +23,7 @@ void print_time(const Time *t) {
 	cursor.x = 0;
 
 	// clear the area
-	memset(videoram + 24*80*2, 0, 40);
+	memset(videoram + 24*80*2, 0, 40); // FIXME!!!!!!
 
 	char buf[24] = {0};
 
@@ -36,11 +36,17 @@ void print_time(const Time *t) {
 	cursor.y = p.y;
 }
 
-
 void clrscr(void) {
-	memset(videoram, 0, 80*25*2);
+	uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
+	uint16 *vram16 = (uint16 *)videoram;
+
+	for (int i = 0; i < 80*25; i++) {
+		vram16[i] = blank;
+	}
+
 	cursor.x = 0;
 	cursor.y = 0;
+	update_cursor();
 }
 
 void scroll(void) {
@@ -104,9 +110,9 @@ void update_cursor(void) {
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
-	outb(0x3d4, 14);
+	outb(0x3d4, 0xe);
 	outb(0x3d5, high);
-	outb(0x3d4, 15);
+	outb(0x3d4, 0xf);
 	outb(0x3d5, low);
 
 	// Impraper, software version:
