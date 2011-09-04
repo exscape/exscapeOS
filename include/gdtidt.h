@@ -10,6 +10,19 @@ void idt_install(void);
 void disable_interrupts(void);
 void enable_interrupts(void);
 
+struct idt_entry {
+	uint16 base_lo;
+	uint16 sel;
+	uint8 always0;
+	uint8 flags;
+	uint16 base_hi;
+} __attribute__((packed));
+
+struct idt_ptr {
+	uint16 limit;
+	uint32 base;
+} __attribute__((packed));
+
 typedef struct registers
 {
    uint32 ds;

@@ -1,6 +1,7 @@
 #include <kernutil.h>
 #include <stdio.h>
 #include <monitor.h>
+#include <gdtidt.h>
 
 // Write a byte to the specified port
 void outb(uint16 port, uint8 value)
@@ -27,4 +28,12 @@ void panic(const char *str) {
 	printk("\nPANIC: %s", str);
 	asm("hangloop: hlt ; jmp hangloop");
 	// TODO: Does the halt work properly?
+}
+
+void reset(void) {
+	// Resets the CPU by causing a triple fault.
+	struct idt_ptr p = {0};
+	asm("lgdt (%0);"
+		"int $3;"
+		: : "r"(&p));
 }

@@ -11,7 +11,11 @@ typedef struct keyboard_mod_state {
 	uint8 alt;
 } keyboard_mod_state;
 
-static keyboard_mod_state mod_keys = {0};
+static unsigned char mod_keys = 0;
+#define MOD_NONE  0
+#define MOD_CTRL  (1 << 0)
+#define MOD_SHIFT (1 << 1)
+#define MOD_ALT   (1 << 2)
 
 /* A US keymap, courtesy of Bran's tutorial */
 unsigned char kbdus[128] =
@@ -106,17 +110,7 @@ unsigned char kbdse_shift[128] =
     0,	/* All other keys are undefined */
 };		
 
-
-
 void keyboard_callback(registers_t regs) {
-	regs = regs; // avoid a warning
-	unsigned char scancode = inb(0x60);
-	unsigned char c;
-	if (scancode == 0xe0)
-		return; // For now
-
-//	printk("in: %02x\n", scancode);
-
 	/* 
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
 	 * After looking through a table of possibilities, none of them
@@ -125,33 +119,53 @@ void keyboard_callback(registers_t regs) {
 	 * Since there's no current support for arrow keys/the keypad,
 	 * ignoring the 0xe0 byte means nothing bad.
 	 */
+
+	regs = regs; // avoid a warning
+	unsigned char scancode = inb(0x60);
+	unsigned char c;
+	if (scancode == 0xe0)
+		return; // For now
+
+	if (mod_keys == (MOD_CTRL | MOD_ALT) && scancode == 0xd3) {
+		// I'm not sure about the proper keycode here.
+		// 0xd3 is sent when Fn+backspace is released (0x53 on press).
+		// There doesn't appear to BE a keycode sent on keydown with ctrl+alt+fn pressed.
+		reset();
+	}
+
+	printk("in: %02x\n", scancode);
+
+
+	/*
+	 * Check for modifier keycodes. If present, toggle their state (if necessary).
+	 */
 	switch (scancode) {
 		case 0x2a: /* shift down */
 		case 0x36: /* right shift down */
-			mod_keys.shift = 1;
+			mod_keys |= MOD_SHIFT;
 			return;
 			break;
 		case 0xaa: /* shift up */
 		case 0xb6: /* right shift up */
-			mod_keys.shift = 0;
+			mod_keys &= ~MOD_SHIFT;
 			return;
 			break;
 
 		case 0x1d: /* ctrl down */
-			mod_keys.ctrl = 1;
+			mod_keys |= MOD_CTRL;
 			return;
 			break;
 		case 0x9d: /* ctrl up */
-			mod_keys.ctrl = 0;
+			mod_keys &= ~MOD_CTRL;
 			return;
 			break;
 
 		case 0x38: /* alt down */
-			mod_keys.alt = 1;
+			mod_keys |= MOD_ALT;
 			return;
 			break;
 		case 0xb8: /* alt up */
-			mod_keys.alt = 0;
+			mod_keys &= ~MOD_ALT;
 			return;
 			break;
 
@@ -161,11 +175,11 @@ void keyboard_callback(registers_t regs) {
 
 	/* We're still here, so the scancode wasn't a modifier key changing state */
 
-	if (!mod_keys.shift && !mod_keys.alt && !mod_keys.ctrl && !(scancode & 0x80)) {
+	if (mod_keys == MOD_NONE && !(scancode & 0x80)) {
 		// No modifiers
 		c = kbdus[scancode];
 	}
-	else if (mod_keys.shift && !mod_keys.alt && !mod_keys.ctrl && !(scancode & 0x80)) {
+	else if (mod_keys == MOD_SHIFT && !(scancode & 0x80)) {
 		// Shift + key
 		c = kbdse_shift[scancode];
 	}
