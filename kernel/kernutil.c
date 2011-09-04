@@ -27,7 +27,6 @@ void panic(const char *str) {
 //	clrscr();
 	printk("\nPANIC: %s", str);
 	asm("hangloop: hlt ; jmp hangloop");
-	// TODO: Does the halt work properly?
 }
 
 void reset(void) {

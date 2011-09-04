@@ -63,7 +63,7 @@ extern void irq14();
 extern void irq15();
 
 /* The array of ISR handlers */
-isr_t interrupt_handlers[256];
+isr_t interrupt_handlers[256] = {0};
 
 void register_interrupt_handler(uint8 n, isr_t handler) {
 	interrupt_handlers[n] = handler;
@@ -204,8 +204,8 @@ char *exception_name[] = {
     "Reserved" // 31
 };
 
+/* Called from the assembly code in kernel.s */
 void isr_handler(registers_t regs) {
-	// FIXME: Print the registers_t struct!
 	printk("Received interrupt: %d (%s)\n", regs.int_no, exception_name[regs.int_no]);
 
 	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs.eax, regs.ebx, regs.ecx, regs.edx);
@@ -215,6 +215,7 @@ void isr_handler(registers_t regs) {
 	panic("Interrupt not handled");
 }
 
+/* Called from the assembly code in kernel.s */
 void irq_handler(registers_t regs) {
 	/* If this interrupt came from the slave PIC, send an
 	   EOI (End Of Interrupt) ta it */
@@ -226,7 +227,6 @@ void irq_handler(registers_t regs) {
 	outb(0x20, 0x20);
 
 	/* Call the interrupt handler, if there is one. */
-	/* TODO: if there ISN'T one, wouldn't this crash? */
 	if (interrupt_handlers[regs.int_no] != 0) {
 		isr_t handler = interrupt_handlers[regs.int_no];
 		handler(regs);
