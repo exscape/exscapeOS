@@ -101,7 +101,8 @@ void get_time(Time *t) {
 /* Used to debug exception handling */
 #ifdef DIVZERO_10_SEC
 	if (t->second % 10 == 0) {
-		asm("mov $0, %ebx;"
+		asm("mov $0xDEADBEEF, %eax;"
+			"mov $0, %ebx;"
 			"div %ebx;"); 
 	}
 #endif

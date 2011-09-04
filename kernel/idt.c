@@ -117,7 +117,23 @@ void idt_install(void) {
 	idt_load();
 }
 
+/*
+typedef struct registers
+{
+   uint32 ds;
+   uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax;
+   uint32 int_no, err_code;
+   uint32 eip, cs, eflags, useresp, ss; // Pushed by the processor automatically.
+} registers_t;
+*/
+
 void isr_handler(registers_t regs) {
+	// FIXME: Print the registers_t struct!
 	printk("Received interrupt: %d\n", regs.int_no);
-	panic("See above");
+
+	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs.eax, regs.ebx, regs.ecx, regs.edx);
+	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs.esi, regs.edi, regs.esp, regs.ebp);
+	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs.cs, regs.eip, regs.eflags, regs.useresp);
+	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs.int_no, regs.err_code, regs.ds);
+	panic("Interrupt not handled");
 }
