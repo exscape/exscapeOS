@@ -117,19 +117,47 @@ void idt_install(void) {
 	idt_load();
 }
 
-/*
-typedef struct registers
-{
-   uint32 ds;
-   uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax;
-   uint32 int_no, err_code;
-   uint32 eip, cs, eflags, useresp, ss; // Pushed by the processor automatically.
-} registers_t;
-*/
+char *exception_name[] = {
+	"Division by Zero (#DE)", // 0
+	"Debug/Reserved (#DB)", // 1
+	"NMI Interrupt", // 2
+	"Breakpoint (#BP)", // 3
+	"Overflow (#OF)", // 4
+    "Out of Bounds (#BR)",
+    "Invalid Opcode (#UD)",
+    "No Coprocessor (#NM)",
+
+    "Double Fault (#DF)", // 8
+    "Coprocessor Segment Overrun",
+    "Bad TSS (#TS)",
+    "Segment Not Present (#NP)",
+    "Stack Fault (#SS)",
+    "General Protection Fault (#GP)",
+    "Page Fault (#PF)",
+    "Unknown Interrupt/Reserved",
+
+    "x86 FPU Error/Math Fault (#MF)", // 16
+    "Alignment Check (#AC)",
+    "Machine Check (#MC)",
+    "SIMD Floating-Point Exception (#XM)", // 19
+    "Reserved", // 20
+    "Reserved",
+    "Reserved",
+    "Reserved",
+
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved" // 31
+};
 
 void isr_handler(registers_t regs) {
 	// FIXME: Print the registers_t struct!
-	printk("Received interrupt: %d\n", regs.int_no);
+	printk("Received interrupt: %d (%s)\n", regs.int_no, exception_name[regs.int_no]);
 
 	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs.eax, regs.ebx, regs.ecx, regs.edx);
 	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs.esi, regs.edi, regs.esp, regs.ebp);
