@@ -6,6 +6,7 @@
 #include <gdtidt.h> /* GDT / IDT functions */
 #include <stdio.h>
 #include <keyboard.h>
+#include <timer.h>
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
@@ -222,8 +223,13 @@ void kmain(void* mbd, unsigned int magic) {
 
 	printk("Hello, world! %s() in action!\n", "printk");
 
-//	for(;;);
+	timer_install();
+	printk("Sleeping 3 seconds...");
+	sleep(3000);
+	printk(" done!");
 
+	for(;;);
+/*
 	Time t;
 	memset(&t, 0, sizeof(t));
 	get_time(&t);
@@ -232,4 +238,5 @@ void kmain(void* mbd, unsigned int magic) {
 		get_time(&t);
 		print_time(&t);
 	}
+	*/
 }

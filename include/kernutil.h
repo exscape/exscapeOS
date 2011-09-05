@@ -9,4 +9,7 @@ uint16 inw(uint16 port);
 void panic(const char *str);
 void reset(void);
 
+/* timer.c */
+void timer_install(void);
+
 #endif
