@@ -112,6 +112,8 @@ void free_frame(page_t *page) {
 	if (page->frame == 0)
 		return;
 
+	panic("remember to check the logic in {alloc,free}_frame and the bitmap - index * 0x1000 and all that...");
+
 	clear_frame(page->frame);
 	page->frame = 0;
 }
