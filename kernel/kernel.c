@@ -8,6 +8,7 @@
 #include <keyboard.h>
 #include <timer.h>
 #include <kheap.h>
+#include <paging.h>
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
@@ -220,14 +221,20 @@ void kmain(void* mbd, unsigned int magic) {
 	/* Set up the keyboard callback */
 	register_interrupt_handler(IRQ1, keyboard_callback);
 
+	timer_install();
+
+	init_paging();
+
 	clrscr();
 
-	printk("Hello, world! %s() in action!\n", "printk");
+	printk("Initialization complete! (GDT, IDT, interrupts, keyboard, timer, paging)!\n");
 
-	timer_install();
-	printk("Sleeping 3 seconds...");
-	sleep(3000);
-	printk(" done!");
+	printk("Creating a page fault...");
+	uint32 *ptr = (uint32 *)0xa0000000;
+	uint32 do_page_fault = *ptr;
+	do_page_fault++; // silence warning
+
+	printk("If this is printed, the page fault handler failed!");
 
 	for(;;);
 /*

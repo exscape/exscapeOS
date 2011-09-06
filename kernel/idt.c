@@ -212,7 +212,14 @@ void isr_handler(registers_t regs) {
 	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs.esi, regs.edi, regs.esp, regs.ebp);
 	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs.cs, regs.eip, regs.eflags, regs.useresp);
 	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs.int_no, regs.err_code, regs.ds);
-	panic("Interrupt not handled");
+
+	if (interrupt_handlers[regs.int_no] != 0) {
+		isr_t handler = interrupt_handlers[regs.int_no];
+		handler(regs);
+	}
+	else {
+		panic("Interrupt not handled (no handler registered for interrupt number)");
+	}
 }
 
 /* Called from the assembly code in kernel.s */
