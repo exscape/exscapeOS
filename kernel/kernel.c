@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <keyboard.h>
 #include <timer.h>
+#include <kheap.h>
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
