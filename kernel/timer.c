@@ -41,7 +41,6 @@ void timer_handler(registers_t regs) {
  * TODO: calculate the timer drift properly.
  * I *think* the error comes to ~1.3 seconds per 24 hours, but
  * I don't feel too certain about the calculations...
- * (1 / 99.9985)
  */
 
 void timer_install(void) {
