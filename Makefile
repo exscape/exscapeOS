@@ -34,6 +34,7 @@ clean:
 
 todolist:
 	-@for file in $(ALLFILES); do fgrep -H -e TODO -e FIXME $$file; done; true
+	@cat TODO
 
 %.o: %.c Makefile
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin-vsprintf
