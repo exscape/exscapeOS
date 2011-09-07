@@ -17,7 +17,7 @@ page_directory_t *current_directory = 0;
 uint32 *used_frames;
 uint32 nframes;
 
-/* kheap.c */
+/* defined in kheap.c */
 extern uint32 placement_address;
 
 /* Bitmap macros */
@@ -60,7 +60,7 @@ static bool test_frame(uint32 frame_addr) {
 /* Returns the first free frame */
 static uint32 first_free_frame(void) {
 	uint32 index, offset;
-	for (index = 0; index < INDEX_FROM_BIT(nframes); index++) {
+	for (index = 0; index < nframes / 32; index++) {
 		if (used_frames[index] == 0xffffffff) {
 			/* No bits are free among the 32 tested; try the next index */
 			continue;
@@ -182,7 +182,7 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 
 	/* Check whether this address/page already has a table; if so, just return the page */
 	if (dir->tables[table_idx] != NULL) {
-		return & dir->tables[table_idx]->pages[addr % 1024];
+		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
 	else if (create == true) {
 		/* It doesn't exist, but are told to create it if not, so let's create it. */
@@ -193,7 +193,7 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 		memset(dir->tables[table_idx], 0, 0x1000);
 		dir->tables_physical[table_idx] = phys_addr | 0x7; /* PRESENT, RW, US */ /* FIXME: why do we simply OR the full address...? */
 
-		return & dir->tables[table_idx]->pages[addr % 1024];
+		return & dir->tables[table_idx]->pages[addr % 1024]; /* again, adr%1024 is the affset into the page table */
 	}
 	else {
 		/* Page doesn't already have a table, AND we shouldn't create one */

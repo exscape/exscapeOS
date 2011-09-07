@@ -19,7 +19,7 @@ uint32 kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	}
 
 	if (phys != 0) {
-		/* The caller wants to know the placement address. */
+		/* The caller wants to know the physical placement address. */
 		*phys = placement_address;
 	}
 
