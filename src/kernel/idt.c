@@ -5,11 +5,17 @@
 #include <kernutil.h>
 
 void disable_interrupts(void) {
+	/* disable NMI */
+	outb(0x70, inb(0x70) & 0x7f);
+
 	asm("cli");
 }
 
 void enable_interrupts(void) {
 	asm("sti");
+
+	/*enable NMI */
+	outb(0x70, inb(0x70) | 0x80);
 }
 
 /* All of these are defined in kernel.s using NASM macros */

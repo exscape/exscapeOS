@@ -231,8 +231,7 @@ void kmain(void* mbd, unsigned int magic) {
 
 	printk("Creating a page fault...");
 	uint32 *ptr = (uint32 *)0xa0000000;
-	uint32 do_page_fault = *ptr;
-	do_page_fault++; // silence warning
+	*ptr = 10;
 
 	printk("If this is printed, the page fault handler failed!");
 
