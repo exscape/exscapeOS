@@ -11,7 +11,10 @@ sint8 standard_lessthan_predicate(type_t a, type_t b) {
 /* Create an ordered array */
 ordered_array_t create_ordered_array(uint32 max_size, lessthan_predicate_t less_than) {
 	ordered_array_t arr;
-	arr.array = (void *)kmalloc(max_size * sizeof(type_t));
+
+	/* allocate one element extra; remove_ordered_array accesses one element past the end.
+	 * ugly, but easier (and prettier code, even if the idea is dirty) than changing the algorithm. */
+	arr.array = (void *)kmalloc( (max_size + 1) * sizeof(type_t));
 	memset(arr.array, 0, max_size * sizeof(type_t));
 	arr.size = 0;
 	arr.max_size = max_size;
@@ -57,8 +60,8 @@ void insert_ordered_array(type_t item, ordered_array_t *array) {
 
 		array->array[i] = item;
 
+		/* Move the rest of the array one step forwards */
 		while (i < array->size) {
-			assert("TODO: look at this in gdb" == 0);
 			i++;
 			type_t tmp2 = array->array[i];
 			array->array[i] = tmp;
@@ -78,9 +81,8 @@ type_t lookup_ordered_array(uint32 i, ordered_array_t *array) {
 void remove_ordered_array(uint32 i, ordered_array_t *array) {
 	/* Shrink the array, overrwriting the element to remove */
 	while (i < array->size) {
-		assert("TODO: look at this in gdb" == 0);
-		// FIXME: Doesn't this access one element past the array...?
 		array->array[i] = array->array[i+1];
+		i++;
 	}
 
 	array->size--;
