@@ -25,8 +25,16 @@ uint16 inw(uint16 port)
 
 void panic(const char *str) {
 //	clrscr();
+	asm volatile("cli");
 	printk("\nPANIC: %s", str);
 	asm("hangloop: hlt ; jmp hangloop");
+}
+
+extern void panic_assert(const char *file, uint32 line, const char *desc) {
+	asm volatile("cli");
+
+	printk("PANIC: Assertion failed: %s (%s:%d)\n", desc, file, line);
+	asm("asserthang: hlt; jmp asserthang");
 }
 
 void reset(void) {
