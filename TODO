@@ -1,3 +1,2 @@
-* TODO: Move kernel headers to kernel/* to reduce bloat in the include dir
 * TODO: MAKE SURE that the calls to clear_frame()/set_frame() are correct, AND that the logic of those functions (and test_frame) is correct! The current implementations differ from JamesM's code, because that didn't make much sense (unless other code or the CPU for some reason modify page->frame by dividing it by 0x1000...)
 * TODO: set up a separate double fault handler (see OSDev / Triple_Fault)
