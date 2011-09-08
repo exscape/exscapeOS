@@ -15,7 +15,7 @@ static unsigned char mod_keys = 0;
 unsigned char kbdmix[128] =
 {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8',	/* 9 */
-  '9', '0', '+', /*'´' FIXME */0, '\b',	/* Backspace */
+  '9', '0', '+', /*'´' */0, '\b',	/* Backspace */
   '\t',			/* Tab */
   'q', 'w', 'e', 'r',	/* 19 */
   't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',	/* Enter key */
@@ -51,7 +51,6 @@ unsigned char kbdmix[128] =
     0,	/* F12 Key */
     0,	/* All other keys are undefined */
 };		
-
 
 // Excerpt from the US no-modifier key-table
   //'q', 'w', 'e', 'r',	/* 19 */
@@ -222,9 +221,6 @@ void keyboard_callback(registers_t regs) {
 		// Alt + key
 		c = kbdse_alt[scancode];
 	}
-
-/* TODO: alt + number keys for @, [, ] etc. */
-
 	else if ( !(scancode & 0x80) ) { // scancode isn't simply a supported key being released
 		printk("Not implemented (scancode = %02x)\n", scancode);
 		return;
