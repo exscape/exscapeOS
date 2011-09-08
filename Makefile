@@ -8,7 +8,9 @@ AUXFILES := # FIXME: isofiles osv
 PROJDIRS := src/kernel src/lib
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
 HDRFILES := $(shell find $(PROJDIRS) -type f -name '*.h')
+ASMFILES := $(shell find $(PROJDIRS) -type f -name '*.s')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
+OBJFILES += $(patsubst %.s,%.o,$(ASMFILES))
 
 DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 
@@ -20,15 +22,13 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES)
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
                 -Wuninitialized -Wconversion -Wstrict-prototypes -Werror
 WARNINGS := -Wall -Werror
-CFLAGS := -ggdb3 -std=c99 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
+CFLAGS := -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
 
 all: $(OBJFILES)
-	@nasm -o loader.o src/kernel/loader.s -f elf -F dwarf -g
-	@nasm -o kernel_asm.o src/kernel/kernel.s -f elf -F dwarf -g
-	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES} loader.o kernel_asm.o # FIXME
+	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
 
 clean:
-	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso) loader.o kernel_asm.o
+	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso)
 
 -include $(DEPFILES)
 
@@ -38,6 +38,9 @@ todolist:
 
 %.o: %.c Makefile
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin-vsprintf
+
+%.o: %.s Makefile
+	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
 	@cp kernel.bin isofiles/boot

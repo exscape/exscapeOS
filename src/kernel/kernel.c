@@ -12,8 +12,6 @@
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
-// TODO: Proper makefile for .s -> .o and linking
-
 void get_time(Time *);
 
 void get_time(Time *t) {
