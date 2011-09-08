@@ -1,7 +1,7 @@
 #include <types.h>
-#include <gdtidt.h> /* isr_t, registers_t */
-#include <kernutil.h> /* panic */
-#include <monitor.h>
+#include <kernel/gdtidt.h> /* isr_t, registers_t */
+#include <kernel/kernutil.h> /* panic */
+#include <kernel/monitor.h>
 
 void register_interrupt_handler(uint8 n, isr_t handler);
 

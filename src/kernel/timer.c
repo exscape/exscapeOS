@@ -1,6 +1,6 @@
-#include <kernutil.h>
-#include <gdtidt.h> /* register_interrupt_handler */
-#include <monitor.h>
+#include <kernel/kernutil.h>
+#include <kernel/gdtidt.h> /* register_interrupt_handler */
+#include <kernel/monitor.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */
 uint32 timer_ticks = 0;

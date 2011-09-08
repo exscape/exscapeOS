@@ -1,7 +1,7 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
-#include <gdtidt.h>
+#include <kernel/gdtidt.h>
 #include <types.h>
 
 /* Represents a page entry in memory */

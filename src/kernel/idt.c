@@ -1,8 +1,8 @@
 #include <types.h>
 #include <string.h>
-#include <gdtidt.h>
-#include <monitor.h>
-#include <kernutil.h>
+#include <kernel/gdtidt.h>
+#include <kernel/monitor.h>
+#include <kernel/kernutil.h>
 
 void disable_interrupts(void) {
 	/* disable NMI */

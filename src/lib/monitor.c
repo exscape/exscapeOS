@@ -1,7 +1,7 @@
-#include <monitor.h>
+#include <kernel/monitor.h>
 #include <string.h>
 #include <stdlib.h>
-#include <kernutil.h>
+#include <kernel/kernutil.h>
 #include <stdio.h>
 #include <stdarg.h>
 

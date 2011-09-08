@@ -1,14 +1,14 @@
 #include <types.h>
 #include <stdlib.h> /* itoa(), reverse() */
 #include <string.h> /* memset(), strlen() */
-#include <kernutil.h> /* inb, inw, outw */
-#include <monitor.h> /* printing, scrolling etc. */
-#include <gdtidt.h> /* GDT / IDT functions */
+#include <kernel/kernutil.h> /* inb, inw, outw */
+#include <kernel/monitor.h> /* printing, scrolling etc. */
+#include <kernel/gdtidt.h> /* GDT / IDT functions */
 #include <stdio.h>
-#include <keyboard.h>
-#include <timer.h>
-#include <kheap.h>
-#include <paging.h>
+#include <kernel/keyboard.h>
+#include <kernel/timer.h>
+#include <kernel/kheap.h>
+#include <kernel/paging.h>
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 

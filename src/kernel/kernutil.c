@@ -1,7 +1,7 @@
-#include <kernutil.h>
+#include <kernel/kernutil.h>
 #include <stdio.h>
-#include <monitor.h>
-#include <gdtidt.h>
+#include <kernel/monitor.h>
+#include <kernel/gdtidt.h>
 
 // Write a byte to the specified port
 void outb(uint16 port, uint8 value)

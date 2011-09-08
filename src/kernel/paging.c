@@ -1,10 +1,10 @@
-#include <paging.h>
-#include <gdtidt.h>
+#include <kernel/paging.h>
+#include <kernel/gdtidt.h>
 #include <types.h>
 #include <string.h> /* memset */
-#include <kernutil.h> /* panic */
-#include <kheap.h>
-#include <monitor.h> /* printk */
+#include <kernel/kernutil.h> /* panic */
+#include <kernel/kheap.h>
+#include <kernel/monitor.h> /* printk */
 
 #define PAGE_SIZE 0x1000
 
