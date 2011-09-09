@@ -4,6 +4,7 @@
 #include <kernel/paging.h>
 
 /* The kernel heap */
+
 heap_t *kheap = NULL;
 
 /* paging.c */

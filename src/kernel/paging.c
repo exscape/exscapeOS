@@ -47,7 +47,6 @@ static void clear_frame(uint32 frame_addr) {
 }
 
 /* Test whether a bit is set in the used_frames bitmap */
-/*
 static bool test_frame(uint32 frame_addr) {
 	uint32 frame = frame_addr; // frame_addr / PAGE_SIZE
 	uint32 index = INDEX_FROM_BIT(frame);
@@ -57,7 +56,7 @@ static bool test_frame(uint32 frame_addr) {
 	else
 		return false;
 }
-*/
+
 /* Returns the first free frame */
 static uint32 first_free_frame(void) {
 	uint32 index, offset;
@@ -99,6 +98,7 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 
 		/* Claim the frame */
 		/* FIXME: this was index * PAGE_SIZE in JamesM's code, which I've modified because it appeared incorrect. */
+		assert(test_frame(index) == false);
 		set_frame(index);
 
 		page->present = 1;
@@ -113,6 +113,7 @@ void free_frame(page_t *page) {
 	if (page->frame == 0)
 		return;
 
+	assert(test_frame(page->frame) == true);
 	clear_frame(page->frame);
 	page->frame = 0;
 }
