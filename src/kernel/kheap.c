@@ -133,14 +133,65 @@ static uint32 contract(uint32 new_size, heap_t *heap) {
 /* Now, for the more involved functions... */
 
 /* Allocates memory on the specified heap, taking care of unification etc. */
-void *alloc(uint32 size, uint8 page_align, heap_t *heap) {
+void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 	/* Take the header and footer size into account */
 	uint32 new_size = size + sizeof(header_t) + sizeof(footer_t);
 
 	sint32 iterator = find_smallest_hole(new_size, page_align, heap);
 
 	if (iterator == -1) {
-		/* TODO */
+		 /* There was no hole large enough available, so we need to expand the heap. */
+
+		/* Save some stuff */
+		uint32 old_length = heap->end_address - heap->start_address;
+		uint32 old_end_address = heap->end_address;
+
+		/* We need to allocate more space for this heap. */
+		/* TODO: is it really optimal to grow it this little (every future alloc is likely to need an expand())? */
+		expand(old_length + new_size, heap);
+		uint32 new_length = heap->end_address - heap->start_address;
+
+		/* Find the last/rightmost header in the heap */
+		iterator = 0;
+
+		/* Vars to hold the index + value of the endmost header found so far. */
+		/* TODO: think through this and comment better */
+		uint32 idx = -1;
+		uint32 value = 0;
+
+		while (iterator < heap->index.size) {
+			uint32 tmp = (uint32)lookup_ordered_array(iterator, &heap->index);
+			if (tmp > value) {
+				value = tmp;
+				idx = iterator;
+			}
+			iterator++;
+		}
+
+		/* If we didn't find ANY headers, we need to add one. */
+		if (idx == -1) {
+			header_t *header = (header_t *)old_end_address;
+			header->magic = HEAP_MAGIC;
+			header->size = new_length - old_length;
+			header->is_hole = 1;
+			footer_t *footer = (footer_t *) (old_end_address + header->size - sizeof(footer_t));
+			footer->magic = HEAP_MAGIC;
+			footer->header = header;
+
+			insert_ordered_array((void *)header, &heap->index);
+		}
+		else {
+			/* The last header needs adjusting */
+			header_t *header = lookup_ordered_array(idx, &heap->index);
+			header->size += new_length - old_length;
+			/* Rewrite the footer (since its location is now inside the now-resized data block) */
+			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t));
+			footer->header = header;
+			footer->magic = HEAP_MAGIC;
+		}
+
+		/* We now have enough space. Recurse, and call the function again. */
+		return alloc(size, page_align, heap);
 	}
 
 	header_t *orig_hole_header = (header_t *)lookup_ordered_array(iterator, &heap->index);
