@@ -260,7 +260,107 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 	return (void *) ( (uint32)block_header + sizeof(header_t) );
 }
 
+void free(void *p, heap_t *heap) {
+	if (p == NULL)
+		return;
 
+	header_t *header = (header_t *) ( (uint32)p - sizeof(header_t) );
+	footer_t *footer = (footer_t *) ( (uint32)header + header->size - sizeof(footer_t) );
+
+	assert(header->magic == HEAP_MAGIC);
+	assert(footer->magic == HEAP_MAGIC);
+
+	/* Mark this as a hole */
+	header->is_hole = 1;
+
+	/* Should we add this to the index of "free holes" later? */
+	bool add_to_index = true;
+
+	/* Unify left if the thing immediately to the left of us is a footer... */
+	footer_t *test_footer = (footer_t *)( (uint32)header - sizeof(footer_t) );
+	if (test_footer->magic == HEAP_MAGIC && 
+		test_footer->header->magic == HEAP_MAGIC &&
+		test_footer->header->is_hole == 1)
+	{
+		/* With all the criteria above met, it appears extremely likely that there is a valid block to our left.
+		 * Merge the two blocks, leaving the other block's header and our footer, though with corrected values. */
+		uint32 cache_size = header->size; /* our current size */
+		header = test_footer->header; /* since we're to the right, use the other header */
+		footer->header = header;      /* rewrite our footer to use the new header */
+		header->size += cache_size;   /* update the header's size */
+		add_to_index = false;         /* since we're now merged with another hole, don't add us to the index! */
+	}
+
+	/* Unify right if the thing immediately to our right is a header... */
+	header_t *test_header = (header_t *)( (uint32)footer + sizeof(footer_t) );
+	if (test_header->magic == HEAP_MAGIC && test_header->is_hole == 1) 
+	{
+		/* Extra verification */
+		test_footer = (footer_t *) ( (uint32)test_header + test_header->size - sizeof(footer_t) );
+		if (test_footer->magic != HEAP_MAGIC || test_footer->header != test_header) {
+			/* Looks like this wasn't valid after all! */
+			panic("Found a valid header magic in right unification, but the footer was invalid. "
+				  "Since this is unlikely, make sure the code is correct, especially if this happens more than once.");
+			goto no_right_unify; /* ugghh; well, at least it's the only goto in ~2000 lines so far */
+		}
+
+		/* Grow this hole to include the other one */
+		header->size += test_header->size;
+		/* Replace the footer with the rightmost one (which is calculated and verified above */
+		footer = test_footer;
+		footer->header = test_header;
+
+		/* Remove this header from the index */
+		uint32 iterator = 0;
+		while ( (iterator < heap->index.size) && (lookup_ordered_array(iterator, &heap->index) != (void *)test_header) )
+			iterator++;
+
+		/* Did we find it? If so, remove it. */
+		if (iterator < heap->index.size)
+			remove_ordered_array(iterator, &heap->index);
+
+	}
+	/* end unify right */
+
+no_right_unify:
+
+	/* If the footer location is the end address, we can contract the heap. */
+	/* TODO: is it really a good idea to expand and contract the heap every time it's *possible*? */
+	if ( (uint32)footer + sizeof(footer_t) == heap->end_address) {
+		uint32 old_length = heap->end_address - heap->start_address;
+		uint32 new_length = contract( (uint32)header - heap->start_address, heap);
+
+		/* Check how big this hole will be after resizing the heap */
+		if (header->size - (old_length - new_length) > 0) {
+			/* This hole will still exist (i.e. contract() stopped a bit early), so resize it */
+			header->size -= old_length - new_length;
+			footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
+			footer->magic = HEAP_MAGIC;
+			footer->header = header;
+
+			/* TODO: clear the old magic value (in the old footer)? */
+		}
+		else {
+			/* This hole will no longer exist, so remove it from the index. */
+			uint32 iterator = 0;
+			while ( (iterator < heap->index.size) &&
+					(lookup_ordered_array(iterator, &heap->index) != (void *)test_header) )
+			{
+				iterator++;
+			}
+
+			/* If we didn't find anything, we don't have anything to remove. */
+			if (iterator < heap->index.size)
+				remove_ordered_array(iterator, &heap->index);
+		}
+	}
+	/* end contract check */
+
+	/* Add us to the index, if that's what we should do */
+	if (add_to_index)
+		insert_ordered_array((void *)header, &heap->index);
+
+}
 
 
 
