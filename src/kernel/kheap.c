@@ -77,6 +77,14 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	initial_hole->size = end_addr - start;
 	initial_hole->magic = HEAP_MAGIC;
 	initial_hole->is_hole = 1;
+
+	/* TODO: does this work properly? This wasn't in the tutorial, but seems like a good idea...
+	 * This way, all allocations have a proper header and footer, not "all except one".
+	 */
+	footer_t *initial_footer = (footer_t *)( (uint32)start + initial_hole->size - sizeof(footer_t));
+	initial_footer->magic = HEAP_MAGIC;
+	initial_footer->header = initial_hole;
+
 	insert_ordered_array((void *)initial_hole, &heap->index);
 
 	return heap;
@@ -250,7 +258,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		/* This is a mess... At this point I'm not completely sure what orig_hole_size and new_size refer to! */
 		footer_t *hole_footer = (footer_t *) ( (uint32)hole_header + orig_hole_size - new_size - sizeof(footer_t) );
 
-		if ((uint32)hole_footer + sizeof(footer_t) < heap->end_address) {
+		if ((uint32)hole_footer + sizeof(footer_t) <= heap->end_address) {
 			/* TODO: I added the "+ sizeof(footer_t) above myself. Should work to prevent overwriting past the end of the heap. */
 			hole_footer->magic = HEAP_MAGIC;
 			hole_footer->header = hole_header;

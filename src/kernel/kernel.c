@@ -207,6 +207,8 @@ void kmain(void* mbd, unsigned int magic) {
 
 	mbd = mbd; // Silence warning
 
+	clrscr();
+
 	/* Time to get started initializing things! */
 	gdt_install();
 
@@ -221,20 +223,35 @@ void kmain(void* mbd, unsigned int magic) {
 
 	timer_install();
 
+
+
+	uint32 a = kmalloc(8);
+
 	init_paging();
 
-	clrscr();
+	uint32 b = kmalloc(8);
+	uint32 c = kmalloc(8);
 
-	printk("Initialization complete! (GDT, IDT, interrupts, keyboard, timer, paging)!\n");
+	printk("a: %p, b: %p\n", a, b);
+	printk("c: %p", c);
+
+	kfree((void *)c);
+	kfree((void *)b);
+	uint32 d = kmalloc(12);
+	printk(", d: %p", d);
+
+
+
+
+
+//	clrscr();
+
+//	printk("Initialization complete! (GDT, IDT, interrupts, keyboard, timer, paging)!\n");
 /*
 	printk("Creating a page fault...");
 	uint32 *ptr = (uint32 *)0xa0000000;
 	*ptr = 10;
 */
-
-	extern uint32 end;
-	printk("%x\n", end);
-	printk("If this is printed, the page fault handler failed!");
 
 	for(;;);
 /*
