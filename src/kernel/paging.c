@@ -19,6 +19,7 @@ uint32 nframes;
 
 /* defined in kheap.c */
 extern uint32 placement_address;
+extern heap_t *kheap;
 
 /* Bitmap macros */
 /* 32 == sizeof(uint32) in bits */
@@ -135,6 +136,18 @@ void init_paging() {
 	current_directory = kernel_directory;
 
 	/*
+	 * Map some pages in the kernel heap area.
+	 * We call get_page but not alloc_frame, which causes page_table_t's 
+	 * to be created where necessary. We can't allocate frames yet because they
+	 * need to be identity mapped first (below), and yet we can't increase 
+	 * placement_address between identity mapping and enabling the kernel heap.
+	 */
+	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+		get_page(i, 1, kernel_directory);
+		/* TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC */
+	}
+
+	/*
 	 * Identity map from the beginning (0x0) of memory to
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
@@ -150,11 +163,19 @@ void init_paging() {
 		i += 0x1000;
 	}
 
+	/* Allocate the pages we mapped for the kernel heap just before the identity mapping */
+	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+		alloc_frame( get_page(i, 1, kernel_directory), 0, 0);
+	}
+
 	/* Register the page fault handler */
 	register_interrupt_handler(14 /* TODO: exception #defines? */, page_fault_handler);
 
 	/* Enable paging! */
 	switch_page_directory(kernel_directory);
+
+	/* Initialize the kernel heap */
+	kheap = create_heap(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
 }
 
 /* Loads the page directory at /new/ into the CR3 register. */

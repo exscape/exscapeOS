@@ -58,3 +58,6 @@ uint32 kmalloc_p(uint32 size, uint32 *phys);
 
 /* Returns the physical address in phys, and page aligns. */
 uint32 kmalloc_ap(uint32 size, uint32 *phys);
+
+/* Frees memory allocated by alloc(), which is used by kmalloc() after the heap is set up */
+void kfree(void *p);
