@@ -226,11 +226,14 @@ void kmain(void* mbd, unsigned int magic) {
 	clrscr();
 
 	printk("Initialization complete! (GDT, IDT, interrupts, keyboard, timer, paging)!\n");
-
+/*
 	printk("Creating a page fault...");
 	uint32 *ptr = (uint32 *)0xa0000000;
 	*ptr = 10;
+*/
 
+	extern uint32 end;
+	printk("%x\n", end);
 	printk("If this is printed, the page fault handler failed!");
 
 	for(;;);

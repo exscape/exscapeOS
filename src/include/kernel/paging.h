@@ -47,4 +47,7 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir);
 /* The page fault interrupt handler. */
 void page_fault_handler(registers_t regs);
 
+void alloc_frame(page_t *page, bool kernelmode, bool writable);
+void free_frame(page_t *page);
+
 #endif /* header guard */
