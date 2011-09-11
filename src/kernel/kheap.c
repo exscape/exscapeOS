@@ -270,7 +270,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 
 	/* If we need to page-align the data, do so, and make a new hole in front of this block. */
 	if (page_align && (orig_hole_pos & 0xfffff000) != 0 &&
-			 (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t)) > 32) {
+			 (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t)) >= (8 + sizeof(header_t) + sizeof(footer_t))) {
 		/* Go the next page boundary, and subtract the size of the header */
 		uint32 new_location = orig_hole_pos + 0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t);
 
@@ -296,8 +296,9 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 			int iterator = 0;
 			while (iterator < heap->index.size && lookup_ordered_array(iterator, &heap->index) != (void *)orig_hole_pos)
 				iterator++;
-			if (iterator < heap->index.size)
+			if (iterator < heap->index.size) {
 				remove_ordered_array(iterator, &heap->index);
+			}
 	}
 	else {
 		/* We don't need this hole any more, delete it from the index. */
