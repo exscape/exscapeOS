@@ -2,6 +2,7 @@
 #include <kernel/kheap.h>
 #include <kernel/kernutil.h>
 #include <kernel/paging.h>
+#include <kernel/monitor.h> /* for print_heap_index() */
 
 /* The kernel heap */
 
@@ -22,12 +23,12 @@ static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
 
 			/* calculate the offset required to have the block itself page-aligned,
 			 * rather than the block header_t */
-			if ( ((location + sizeof(header_t)) & 0xfffff000) != 0) 
-					offset = 0x1000 - (location + sizeof(header_t)) % 0x1000;
+			if ( ((location + sizeof(header_t)) & 0xfffff000) != 0)
+				   offset = 0x1000 - (location + sizeof(header_t)) % 0x1000;
 
 			sint32 hole_size = (sint32)header->size - offset;
 
-			if (hole_size >= (sint32)size)
+			if (hole_size >= ((sint32)size))
 				break;
 		}
 		else if (header->size >= size) {
@@ -91,6 +92,38 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	return heap;
 }
 
+void print_heap_index(void) {
+	/* A debug function that prints the heap map, that is, shows the blocks and holes. */
+
+	if (kheap == NULL) {
+		printk("print_heap_index() called with a NULL kheap! Returning early.\n");
+		return;
+	}
+
+	int i = 0;
+	printk("------\n");
+	while (i < kheap->index.size) {
+		header_t *header = (header_t *)lookup_ordered_array(i, &kheap->index);
+		if (header != NULL) {
+			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
+
+			printk("%s: %p to %p (%d bytes); %s header magic, %s footer magic\n",
+					(header->is_hole ? "hole" : "block"),
+					header,
+					(uint32)header + header->size,
+					header->size,
+					(header->magic == HEAP_MAGIC ? "valid" : "INVALID"),
+					(footer->magic == HEAP_MAGIC ? "valid" : "INVALID"));
+#include <kernel/timer.h>
+			if (header->magic != HEAP_MAGIC || footer->magic != HEAP_MAGIC)
+				sleep(1000);
+
+			i++;
+		}
+	}
+	printk("------\n");
+}
+
 /* Allow resizing of the heap, in case we run out of space. */
 static void expand(uint32 new_size, heap_t *heap) {
 	uint32 old_size = heap->end_address - heap->start_address;
@@ -108,7 +141,7 @@ static void expand(uint32 new_size, heap_t *heap) {
 
 	/* Physically allocate the new pages */
 	uint32 i = old_size;
-	while (i < new_size) {
+	while (i < new_size + 0x1000) {
 		alloc_frame( get_page(heap->start_address + i, 1, kernel_directory), (heap->supervisor) ? 1 : 0, (heap->readonly) ? 0 : 1);
 		i += 0x1000;
 	}
@@ -196,6 +229,21 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 			/* The last header needs adjusting */
 			header_t *header = lookup_ordered_array(idx, &heap->index);
 			header->size += new_length - old_length;
+/*
+			printk("end_address: %p\n", heap->end_address);
+			printk("header at  : %p\n", (uint32)header);
+			printk("footer at  : %p\n", ( (uint32)header + header->size - sizeof(footer_t) ));
+*/
+
+			if ((uint32)header + header->size > heap->end_address) {
+				/* Uh oh! This must never happen! */
+				header->size = (uint32)heap->end_address - (uint32)header;
+			}
+
+			assert((uint32)header + header->size <= heap->end_address);
+			assert(addr_is_mapped((uint32)header));
+			assert(addr_is_mapped((uint32)header + header->size));
+
 			/* Rewrite the footer (since its location is now inside the now-resized data block) */
 			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t));
 			footer->header = header;
@@ -205,6 +253,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		/* We now have enough space. Recurse, and call the function again. */
 		return alloc(size, page_align, heap);
 	}
+	/* end of if (iterator == -1) */
 
 	header_t *orig_hole_header = (header_t *)lookup_ordered_array(iterator, &heap->index);
 	uint32 orig_hole_pos = (uint32)orig_hole_header;
@@ -220,9 +269,11 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 	/* If we do need to split, that is done a bit further down. */
 
 	/* If we need to page-align the data, do so, and make a new hole in front of this block. */
-	if (page_align && (orig_hole_pos & 0xfffff000) != 0) {
+	if (page_align && (orig_hole_pos & 0xfffff000) != 0 &&
+			 (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t)) > 32) {
 		/* Go the next page boundary, and subtract the size of the header */
 		uint32 new_location = orig_hole_pos + 0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t);
+
 		/* This is the header for the hole we found - so we can assign to it to change it, in-place. */
 		header_t *hole_header = (header_t *)orig_hole_pos;
 		hole_header->size     = 0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t);
@@ -232,8 +283,21 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		footer_t *hole_footer = (footer_t *) ( (uint32)new_location - sizeof(footer_t) );
 		hole_footer->magic    = HEAP_MAGIC;
 		hole_footer->header   = hole_header;
+
 		orig_hole_pos         = new_location;
 		orig_hole_size        = orig_hole_size - hole_header->size;
+	}
+	else if (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t) <= 32) {
+			/* Don't bother if the storage size is less than 8 bytes.
+			 * Also fixes a super-annoying corruption issue that took days to fix.
+			 */
+
+			/* Remove from the index */
+			int iterator = 0;
+			while (iterator < heap->index.size && lookup_ordered_array(iterator, &heap->index) != (void *)orig_hole_pos)
+				iterator++;
+			if (iterator < heap->index.size)
+				remove_ordered_array(iterator, &heap->index);
 	}
 	else {
 		/* We don't need this hole any more, delete it from the index. */
@@ -256,6 +320,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		hole_header->magic   = HEAP_MAGIC;
 		hole_header->is_hole = 1;
 		hole_header->size   = orig_hole_size - new_size; /* TODO: does this take sizeof(header_t) + sizeof(footer_t) into account? */
+
 		/* This is a mess... At this point I'm not completely sure what orig_hole_size and new_size refer to! */
 		footer_t *hole_footer = (footer_t *) ( (uint32)hole_header + orig_hole_size - new_size - sizeof(footer_t) );
 
@@ -311,8 +376,7 @@ void free(void *p, heap_t *heap) {
 		test_footer = (footer_t *) ( (uint32)test_header + test_header->size - sizeof(footer_t) );
 		if (test_footer->magic != HEAP_MAGIC || test_footer->header != test_header) {
 			/* Looks like this wasn't valid after all! */
-			panic("Found a valid header magic in right unification, but the footer was invalid. "
-				  "Since this is unlikely, make sure the code is correct, especially if this happens more than once.");
+			panic("Invalid footer magic (when trying to perform right unification)!");
 			goto no_right_unify; /* ugghh; well, at least it's the only goto in ~2000 lines so far */
 		}
 

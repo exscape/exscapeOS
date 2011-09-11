@@ -50,4 +50,6 @@ void page_fault_handler(registers_t regs);
 void alloc_frame(page_t *page, bool kernelmode, bool writable);
 void free_frame(page_t *page);
 
+bool addr_is_mapped(uint32 addr);
+
 #endif /* header guard */

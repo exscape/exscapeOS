@@ -120,8 +120,8 @@ void free_frame(page_t *page) {
 
 /* Sets up everything required and activates paging. */
 void init_paging() {
-	/* The size of physical memory. Let's assume it's 16MB for the moment. */
-	uint32 mem_end_page = 0x1000000;
+	/* The size of physical memory. Let's assume it's 32MB for the moment. */
+	uint32 mem_end_page = 0x2000000;
 
 	nframes = mem_end_page / PAGE_SIZE; /* divide by page size */
 
@@ -175,6 +175,10 @@ void init_paging() {
 
 	/* Initialize the kernel heap */
 	kheap = create_heap(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
+
+#ifdef KHEAP_DEBUG
+	print_heap_index();
+#endif
 }
 
 /* Loads the page directory at /new/ into the CR3 register. */
@@ -193,6 +197,17 @@ void switch_page_directory(page_directory_t *dir) {
  * If create is true, the page table to which the page should belong
  * will be created, if it doesn't already exist.
  */
+
+bool addr_is_mapped(uint32 addr) {
+	/* TODO: this function may or may not DO WHAT IT IS CALLED.
+	 * Hopefully, it does work... */
+	page_t *page = get_page(addr, /*create = */ false, kernel_directory);
+	if (page == NULL)
+		return false;
+	else
+		return true;
+}
+
 page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	/* Turn the address into an index. */
 	addr /= 0x1000;

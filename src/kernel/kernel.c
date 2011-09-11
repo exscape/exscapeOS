@@ -240,6 +240,37 @@ void kmain(void* mbd, unsigned int magic) {
 	uint32 d = kmalloc(12);
 	printk(", d: %p", d);
 
+	printk("\n\n");
+
+	/* stress test a little */
+#define NUM 1000
+	uint32 p[NUM];
+	uint32 total = 0;
+while(1) {
+	total = 0;
+
+	for (int i = 0; i < NUM; i++) {
+
+		if ((i+1)*32 == 15296)
+			printk("About to crash...\n");
+
+		p[i] = kmalloc((i+1) * 32);
+		total += (i+1) * 32;
+
+		assert(total < 30*1024*1024);
+		print_heap_index();
+	}
+	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
+
+
+	print_heap_index();
+//	kmalloc((479+1) * 32);
+
+	for (int i = 0; i < NUM; i++) {
+		kfree((void *)p[i]);
+	}
+	printk("%d frees done\n", NUM);
+}
 
 
 

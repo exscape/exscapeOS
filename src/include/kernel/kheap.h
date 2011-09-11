@@ -61,3 +61,6 @@ uint32 kmalloc_ap(uint32 size, uint32 *phys);
 
 /* Frees memory allocated by alloc(), which is used by kmalloc() after the heap is set up */
 void kfree(void *p);
+
+/* A debug function that prints the heap's index. */
+void print_heap_index(void);
