@@ -45,7 +45,7 @@ todolist:
 run: all
 	@cp kernel.bin isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
-	@qemu -cdrom bootable.iso -monitor stdio
+	@qemu -cdrom bootable.iso -monitor stdio -s
 
 debug: all
 	@cp kernel.bin isofiles/boot
