@@ -287,8 +287,8 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		orig_hole_pos         = new_location;
 		orig_hole_size        = orig_hole_size - hole_header->size;
 	}
-	else if (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t) <= 32) {
-			/* Don't bother if the storage size is less than 8 bytes.
+	else if (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t) <= (8 + sizeof(header_t) + sizeof(footer_t)) ) {
+			/* Don't bother if the storage size is 8 bytes or less.
 			 * Also fixes a super-annoying corruption issue that took days to fix.
 			 */
 

@@ -250,10 +250,6 @@ while(1) {
 	total = 0;
 
 	for (int i = 0; i < NUM; i++) {
-
-		if ((i+1)*32 == 15296)
-			printk("About to crash...\n");
-
 		p[i] = kmalloc((i+1) * 32);
 		total += (i+1) * 32;
 
