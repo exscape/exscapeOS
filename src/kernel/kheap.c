@@ -3,6 +3,7 @@
 #include <kernel/kernutil.h>
 #include <kernel/paging.h>
 #include <kernel/monitor.h> /* for print_heap_index() */
+#include <stdio.h> /* sprintf */
 
 /* The kernel heap */
 
@@ -84,6 +85,7 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	 * This way, all allocations have a proper header and footer, not "all except one".
 	 */
 	footer_t *initial_footer = (footer_t *)( (uint32)start + initial_hole->size - sizeof(footer_t));
+	assert ((uint32)initial_footer + sizeof(footer_t) <= heap->end_address);
 	initial_footer->magic = HEAP_MAGIC;
 	initial_footer->header = initial_hole;
 
@@ -122,6 +124,35 @@ void print_heap_index(void) {
 		}
 	}
 	printk("------\n");
+}
+
+void validate_heap_index(void) {
+	if (kheap == NULL) {
+		return;
+	}
+
+	int i = 0;
+	while (i < kheap->index.size) {
+		header_t *header = (header_t *)lookup_ordered_array(i, &kheap->index);
+		if (header != NULL) {
+			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
+
+			if (header->magic != HEAP_MAGIC || footer->magic != HEAP_MAGIC) {
+				char buf[128];
+				sprintf(buf, "validate_heap_index: invalid magic! header=%u, footer=%u\n", header->magic, footer->magic);
+				panic(buf);
+			}
+			if (footer->header != header) {
+				char buf[128];
+				sprintf(buf, "validate_heap_index: /header/ pointer in footer structure is invalid! Pointer says %p, actual header at %p", footer->header, header);
+				panic(buf);
+			}
+
+			/* I would validate the size compared to (footer_addr - header_addr), but the footer is calculated pretty much that way! */
+
+			i++;
+		}
+	}
 }
 
 /* Allow resizing of the heap, in case we run out of space. */
@@ -345,6 +376,7 @@ void free(void *p, heap_t *heap) {
 
 	assert(header->magic == HEAP_MAGIC);
 	assert(footer->magic == HEAP_MAGIC);
+	assert(footer->header == header);
 
 	/* Mark this as a hole */
 	header->is_hole = 1;
@@ -383,7 +415,8 @@ void free(void *p, heap_t *heap) {
 		header->size += test_header->size;
 		/* Replace the footer with the rightmost one (which is calculated and verified above */
 		footer = test_footer;
-		footer->header = test_header;
+		footer->header = header;
+		assert( ((uint32)header + header->size - sizeof(footer_t)) == (uint32)footer);
 
 		/* Remove this header from the index */
 		uint32 iterator = 0;

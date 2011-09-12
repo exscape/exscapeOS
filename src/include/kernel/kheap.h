@@ -64,3 +64,6 @@ void kfree(void *p);
 
 /* A debug function that prints the heap's index. */
 void print_heap_index(void);
+
+/* A debug function that walks through the heap's index and validates it. */
+void validate_heap_index(void);

@@ -246,7 +246,7 @@ void kmain(void* mbd, unsigned int magic) {
 #define NUM 1000
 	uint32 p[NUM];
 	uint32 total = 0;
-while(1) {
+//while(1) {
 	total = 0;
 
 	for (int i = 0; i < NUM; i++) {
@@ -254,19 +254,29 @@ while(1) {
 		total += (i+1) * 32;
 
 		assert(total < 30*1024*1024);
-		print_heap_index();
+//		print_heap_index();
+		validate_heap_index();
 	}
 	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
 
 
-	print_heap_index();
+	kfree((void *)p[100]);
+	p[100] = NULL;
+
+	validate_heap_index();
+//	print_heap_index();
 //	kmalloc((479+1) * 32);
 
 	for (int i = 0; i < NUM; i++) {
 		kfree((void *)p[i]);
+		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(header_t));
+		validate_heap_index();
 	}
 	printk("%d frees done\n", NUM);
-}
+
+//}
+//	print_heap_index();
+	validate_heap_index();
 
 
 
