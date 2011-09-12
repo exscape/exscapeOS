@@ -12,7 +12,7 @@ heap_t *kheap = NULL;
 extern page_directory_t *kernel_directory;
 
 static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
-	sint32 i = 0; /* FIXME: tutorial has uint, but since the return value is signed... */
+	sint32 i = 0;
 
 	while (i < heap->index.size) {
 		header_t *header = (header_t *)lookup_ordered_array(i, &heap->index);
@@ -28,7 +28,7 @@ static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
 
 			sint32 hole_size = (sint32)header->size - offset;
 
-			if (hole_size >= ((sint32)size))
+			if (hole_size >= (sint32)size)
 				break;
 		}
 		else if (header->size >= size) {
@@ -156,7 +156,6 @@ static uint32 contract(uint32 new_size, heap_t *heap) {
    
    /* Page align */
    if ((new_size & 0xfffff000) != 0) {
-	   /* FIXME: the tutorial uses 0x1000 everywhere here, not 0xfffff000. I assume that's a typo! */
 	   new_size &= 0xfffff000;
 	   new_size += 0x1000;
    }
@@ -200,13 +199,14 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		iterator = 0;
 
 		/* Vars to hold the index + value of the endmost header found so far. */
-		/* TODO: think through this and comment better */
 		uint32 idx = -1;
 		uint32 value = 0;
 
+		/* Loop through all the headers... */
 		while (iterator < heap->index.size) {
 			uint32 tmp = (uint32)lookup_ordered_array(iterator, &heap->index);
 			if (tmp > value) {
+				/* This *address* is larger than the previously highest one found */
 				value = tmp;
 				idx = iterator;
 			}
@@ -320,13 +320,11 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		header_t *hole_header = (header_t *) (orig_hole_pos + size + sizeof(header_t) + sizeof(footer_t));
 		hole_header->magic   = HEAP_MAGIC;
 		hole_header->is_hole = 1;
-		hole_header->size   = orig_hole_size - new_size; /* TODO: does this take sizeof(header_t) + sizeof(footer_t) into account? */
+		hole_header->size   = orig_hole_size - new_size;
 
-		/* This is a mess... At this point I'm not completely sure what orig_hole_size and new_size refer to! */
 		footer_t *hole_footer = (footer_t *) ( (uint32)hole_header + orig_hole_size - new_size - sizeof(footer_t) );
 
 		if ((uint32)hole_footer + sizeof(footer_t) <= heap->end_address) {
-			/* TODO: I added the "+ sizeof(footer_t) above myself. Should work to prevent overwriting past the end of the heap. */
 			hole_footer->magic = HEAP_MAGIC;
 			hole_footer->header = hole_header;
 		}

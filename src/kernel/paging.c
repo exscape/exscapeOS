@@ -189,7 +189,7 @@ void switch_page_directory(page_directory_t *dir) {
 				 "or $0x80000000, %%eax;" /* PG = 1! */
 				 "mov %%eax, %%cr0"
 				 : /* no outputs */
-				 : "r"(& dir->tables_physical) /* FIXME: is the & correct? */
+				 : "r"(&dir->tables_physical)
 				 : "%eax");
 }
 
@@ -202,10 +202,8 @@ bool addr_is_mapped(uint32 addr) {
 	/* TODO: this function may or may not DO WHAT IT IS CALLED.
 	 * Hopefully, it does work... */
 	page_t *page = get_page(addr, /*create = */ false, kernel_directory);
-	if (page == NULL)
-		return false;
-	else
-		return true;
+
+	return (page != NULL);
 }
 
 page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
