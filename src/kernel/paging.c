@@ -241,21 +241,21 @@ void page_fault_handler(registers_t regs) {
 	asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
 
 	/* We also get an error code pushed to the stack, located in regs.err_code. */
-	bool present = ! (regs.err_code & (1 << 0)); // page wasn't present if this is true
-	bool write = regs.err_code & (1 << 1);       // was the access a write? true if write, false if read
-	bool user = regs.err_code & (1 << 2);        // did the access happen from user mode (ring 3) or kernel mode (ring 0)?   
-	bool reserved = regs.err_code & (1 << 3);    // was the fault caused by us setting a reserved bit to 1 in entry?
-	bool int_fetch = regs.err_code & (1 << 4);   // was the fault caused by an instruction fetch?
+	bool present_bit = (regs.err_code & (1 << 0));   // 0 = non-present page; 1 = protection violation
+	bool write_bit = regs.err_code & (1 << 1);       // was the access a write? true if write, false if read
+	bool user_bit = regs.err_code & (1 << 2);        // did the access happen from user mode (ring 3) or kernel mode (ring 0)?   
+	bool reserved_bit = regs.err_code & (1 << 3);    // was the fault caused by us setting a reserved bit to 1 in entry?
+	bool int_fetch_bit = regs.err_code & (1 << 4);   // was the fault caused by an instruction fetch?
 
 	/* Print a message and panic */
 	printk("Page fault!\n"
 		   "Flags set: %s %s %s %s %s\n"
 		   "Faulting address: 0x%x\n", 
-		   (present ? "page_not_present" : ""),
-		   (write   ? "action=write" : "action=read"),
-		   (user    ? "user-mode" : "kernel-mode"),
-		   (reserved? "reserved_bits_trampled" : ""),
-		   (int_fetch?"int_fetch" : ""),
+		   (present_bit ? "protection_violation" : "non_present_page"),
+		   (write_bit   ? "action=write" : "action=read"),
+		   (user_bit    ? "user-mode" : "kernel-mode"),
+		   (reserved_bit? "reserved_bits_trampled" : ""),
+		   (int_fetch_bit?"int_fetch" : ""),
 		   faulting_address);
 	panic("Page fault");
 }

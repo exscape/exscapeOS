@@ -22,7 +22,7 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES)
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
                 -Wuninitialized -Wconversion -Wstrict-prototypes -Werror
 WARNINGS := -Wall -Werror
-CFLAGS := -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
+CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
