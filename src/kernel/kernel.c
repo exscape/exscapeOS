@@ -279,14 +279,15 @@ void kmain(void* mbd, unsigned int magic) {
 	srand(123);
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
-	for (int i = 0; i < 10000; i++) {
+	for (int i = 0; i < 1000; i++) {
 		validate_heap_index();
 		print_heap_index();
 		uint32 r = RAND_RANGE(1,10);
 		if (r >= 6) {
 			uint32 r3 = RAND_RANGE(8,3268); /* bytes to allocate */
 			printk("alloc %d bytes\n", r3);
-			p[i] = kmalloc(r3);
+			uint32 r2 =RAND_RANGE(0,1000);
+			p[r2] = kmalloc(r3);
 			mem_in_use += r3;
 			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 		}
