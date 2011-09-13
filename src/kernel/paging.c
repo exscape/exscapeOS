@@ -224,9 +224,15 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys_addr);
 		/* zero the new table */
 		memset(dir->tables[table_idx], 0, 0x1000);
-		dir->tables_physical[table_idx] = phys_addr | 0x7; /* PRESENT, RW, US */ /* FIXME: why do we simply OR the full address...? */
 
-		return & dir->tables[table_idx]->pages[addr % 1024]; /* again, adr%1024 is the affset into the page table */
+		phys_addr |= 0x7; /* Set the present, r/w and supervisor flags */
+		dir->tables_physical[table_idx] = phys_addr;
+
+		page_t *p = & dir->tables[table_idx]->pages[addr % 1024];
+		p->present = 1;
+		return p;
+
+//		return & dir->tables[table_idx]->pages[addr % 1024]; /* again, adr%1024 is the affset into the page table */
 	}
 	else {
 		/* Page doesn't already have a table, AND we shouldn't create one */
@@ -257,5 +263,8 @@ void page_fault_handler(registers_t regs) {
 		   (reserved_bit? "reserved_bits_trampled" : ""),
 		   (int_fetch_bit?"int_fetch" : ""),
 		   faulting_address);
+
+	printk("Address is %s; heap end address is %p\n", (addr_is_mapped(faulting_address)) ? "mapped" : "UNMAPPED", (kheap == 0) ? 0 : kheap->end_address);
+
 	panic("Page fault");
 }

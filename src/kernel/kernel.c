@@ -277,11 +277,14 @@ void kmain(void* mbd, unsigned int magic) {
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
 	srand(123);
+
+while(1) {
+
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
 	for (int i = 0; i < 1000; i++) {
 		validate_heap_index();
-		print_heap_index();
+//		print_heap_index();
 		uint32 r = RAND_RANGE(1,10);
 		if (r >= 6) {
 			uint32 r3 = RAND_RANGE(8,3268); /* bytes to allocate */
@@ -292,7 +295,7 @@ void kmain(void* mbd, unsigned int magic) {
 			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 		}
 		else {
-			uint32 r2 = RAND_RANGE(0, 1000);
+			uint32 r2 = RAND_RANGE(0, 999);
 //			printk("free\n");
 			if (p[r2] != NULL) {
 				header_t *header = (header_t *) ((uint32)p[r2] - sizeof(header_t));
@@ -306,12 +309,16 @@ void kmain(void* mbd, unsigned int magic) {
 			printk("mem in use: %d bytes (after free)\n", mem_in_use);
 		}
 	}
+
+	/* Clean up */
 	for (int i=0; i<1000; i++) {
 		kfree((void *) p[i]);
 		p[i] = 0;
 	}
 	validate_heap_index();
+}
 	printk("ALL DONE!\n");
+
 
 
 

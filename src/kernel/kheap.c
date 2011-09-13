@@ -310,6 +310,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		hole_header->size     = 0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t);
 		hole_header->magic    = HEAP_MAGIC;
 		hole_header->is_hole  = 1;
+
 		
 		footer_t *hole_footer = (footer_t *) ( (uint32)new_location - sizeof(footer_t) );
 		hole_footer->magic    = HEAP_MAGIC;
@@ -340,6 +341,8 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 	/* Set up the header and footer to indicate the parameters for this block */
 	header_t *block_header = (header_t *)orig_hole_pos;
 	footer_t *block_footer = (footer_t *) (orig_hole_pos + size + sizeof(header_t));
+	assert (orig_hole_pos + size + sizeof(header_t) == (uint32)block_header + new_size - sizeof(footer_t) );
+
 	block_header->magic    = HEAP_MAGIC;
 	block_header->is_hole  = 0;
 	block_header->size     = new_size;
