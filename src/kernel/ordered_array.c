@@ -43,6 +43,7 @@ void destroy_ordered_array(ordered_array_t *array) {
 /* Insert an item into an ordered array */
 void insert_ordered_array(type_t item, ordered_array_t *array) {
 	assert(array->less_than != NULL);
+	assert(array->size + 1 <= array->max_size);
 
 	uint32 i = 0;
 

@@ -118,7 +118,7 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	/* Since we can't place data in the index array, move the start address forward */
 	start += sizeof(type_t) * HEAP_INDEX_SIZE;
 
-	/* Is it still page aligned? */
+	/* Is it still page aligned? If not, align it! */
 	if ((start & 0xfffff000) != 0) {
 		start &= 0xfffff000;
 		start += 0x1000;
