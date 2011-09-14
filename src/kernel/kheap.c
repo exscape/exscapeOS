@@ -4,6 +4,7 @@
 #include <kernel/paging.h>
 #include <kernel/monitor.h> /* for print_heap_index() */
 #include <stdio.h> /* sprintf */
+#include <string.h> /* memset */
 
 /* Calculates a footer location, given a header, since this is done over and over. */
 #define FOOTER_FROM_HEADER(___he,___size) ((footer_t *)( (uint32)___he + ___size - sizeof(footer_t) ))
@@ -18,8 +19,12 @@ extern page_directory_t *kernel_directory;
 static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
 	sint32 i = 0;
 
-	while (i < heap->index.size) {
+	 for (i = 0; i < heap->index.size; i++) {
 		header_t *header = (header_t *)lookup_ordered_array(i, &heap->index);
+		assert(header != NULL);
+
+		if (! header->is_hole)
+			continue;
 
 		if (page_align != 0) {
 			uint32 location = (uint32)header;
@@ -38,8 +43,6 @@ static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
 		else if (header->size >= size) {
 			break;
 		}
-
-		i++;
 	}
 	
 	/* Why did the loop exit? */
@@ -52,44 +55,42 @@ static sint32 find_smallest_hole(uint32 size, uint8 page_align, heap_t *heap) {
 /* Creates a block - or hole - in memory. It is NOT added to the heap map! */
 /* Returns a header_t pointer to the new block. */
 static header_t *create_block(uint32 address, uint32 size, uint8 is_hole) {
+	assert (kheap != NULL);
+
 	header_t *header_to_create = (header_t *)address;
 //	footer_t *footer = (footer_t *) ((uint32)header + size - sizeof(footer_t));
 	footer_t *footer_to_create = FOOTER_FROM_HEADER(header_to_create, size);
-
 	/* A couple of sanity checks... */
 	assert(address + size <= kheap->end_address);
 	assert((uint32)footer_to_create + sizeof(footer_t) <= kheap->end_address); /* TODO: is this exactly the same as above? */
 
-	if (kheap != NULL) {
-		/* Expensive sanity check: no existing address must be in this address space! */
-		for (int iterator = 0; iterator < kheap->index.size; iterator++) {
-			header_t *found_header = lookup_ordered_array(iterator, &kheap->index);
-			footer_t *found_footer = FOOTER_FROM_HEADER(found_header, found_header->size);
+	/* Expensive sanity check: no existing address must be in this address space! */
+	for (int iterator = 0; iterator < kheap->index.size; iterator++) {
+		header_t *found_header = lookup_ordered_array(iterator, &kheap->index);
+		footer_t *found_footer = FOOTER_FROM_HEADER(found_header, found_header->size);
 
-			assert(found_header->magic == HEAP_MAGIC);
-			assert(found_footer->magic == HEAP_MAGIC);
-			assert(found_footer->header == found_header);
+		assert(found_header->magic == HEAP_MAGIC);
+		assert(found_footer->magic == HEAP_MAGIC);
+		assert(found_footer->header == found_header);
 
-			/* Obvious? Yes. Unlikely? Yes. Worth it, at this stage? Yes. */
-			assert(found_header != header_to_create);
-			assert(found_footer != footer_to_create);
-			assert((uint32)found_header != (uint32)footer_to_create);
-			assert((uint32)found_footer != (uint32)header_to_create);
+		/* Obvious? Yes. Unlikely? Yes. Worth it, at this stage? Yes. */
+		assert(found_header != header_to_create);
+		assert(found_footer != footer_to_create);
+		assert((uint32)found_header != (uint32)footer_to_create);
+		assert((uint32)found_footer != (uint32)header_to_create);
 
-			if (found_header > header_to_create) {
-				/* The header we found is more to the right than us */
-				assert( (uint32)header_to_create + size <= (uint32)found_header );
-			}
-			else if (found_header < header_to_create) {
-				/* We are further to the right than the header we found */
-				assert( (uint32)found_header + found_header->size <= (uint32)header_to_create );
-			}
-			else
-				panic("This should never be reached (since this case is taken care of above)!");
-
-			// TODO: implement the ACTUAL check!
+		if (found_header > header_to_create) {
+			/* The header we found is more to the right than us */
+			assert( (uint32)header_to_create + size <= (uint32)found_header );
 		}
-	} /* if kheap != NULL */
+		else if (found_header < header_to_create) {
+			/* We are further to the right than the header we found */
+			assert( (uint32)found_header + found_header->size <= (uint32)header_to_create );
+		}
+		else {
+			panic("This should never be reached (since this case is taken care of above)!");
+		}
+	}
 
 	header_to_create->magic = HEAP_MAGIC;
 	header_to_create->size = size;
@@ -100,7 +101,6 @@ static header_t *create_block(uint32 address, uint32 size, uint8 is_hole) {
 
 	return header_to_create;
 }
-
 
 static sint8 header_t_less_than(void *a, void*b) {
 	return ( ((header_t *)a)->size < ((header_t *)b)->size ) ? 1 : 0;
@@ -114,6 +114,7 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 
 	/* Create the index */
 	heap->index = place_ordered_array((void *)start, HEAP_INDEX_SIZE, &header_t_less_than);
+	memset(heap->index.array, 0, HEAP_INDEX_SIZE * sizeof(type_t));
 
 	/* Since we can't place data in the index array, move the start address forward */
 	start += sizeof(type_t) * HEAP_INDEX_SIZE;
@@ -132,21 +133,20 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	heap->readonly = readonly;
 
 	/* Initialize the heap: to begin with, it's all one big hole. */
-	create_block(start, end_addr - start, 1);
-/*
-TODO: remove this block when everything works
+	//header_t *header = create_block(start, end_addr - start, 1);
+
+	/* This is the only instance where create_block should NOT be used, as it relies on kheap != NULL. */
 	header_t *initial_hole = (header_t *)start;
 	initial_hole->size = end_addr - start;
 	initial_hole->magic = HEAP_MAGIC;
 	initial_hole->is_hole = 1;
 
-	footer_t *initial_footer = (footer_t *)( (uint32)start + initial_hole->size - sizeof(footer_t));
+	footer_t *initial_footer = FOOTER_FROM_HEADER(initial_hole, end_addr - start);
 	assert ((uint32)initial_footer + sizeof(footer_t) <= heap->end_address);
 	initial_footer->magic = HEAP_MAGIC;
 	initial_footer->header = initial_hole;
-*/
 
-	insert_ordered_array((void *)start, &heap->index);
+	insert_ordered_array((void *)initial_hole, &heap->index);
 
 	return heap;
 }
@@ -295,7 +295,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		/* Loop through all the headers... */
 		while (iterator < heap->index.size) {
 			uint32 tmp = (uint32)lookup_ordered_array(iterator, &heap->index);
-			if (tmp > value) {
+			if (tmp > value && ((header_t *)tmp)->is_hole == 1 ) {
 				/* This *address* is larger than the previously highest one found */
 				value = tmp;
 				idx = iterator;
@@ -412,6 +412,10 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 
 	/* Set up the header and footer to indicate the parameters for this block */
 	header_t *block_header = create_block(orig_hole_pos, new_size, 0);
+
+	/* Add the block to the heap map */
+	insert_ordered_array((void *)block_header, &heap->index);
+
 	/*
 	header_t *block_header = (header_t *)orig_hole_pos;
 	footer_t *block_footer = (footer_t *) (orig_hole_pos + size + sizeof(header_t));
@@ -534,7 +538,8 @@ void free(void *p, heap_t *heap) {
 			footer->magic = HEAP_MAGIC;
 			footer->header = header;
 
-			/* TODO: clear the old magic value (in the old footer)? */
+			add_to_index = false;
+
 		}
 		else {
 			/* This hole will no longer exist, so remove it from the index. */
@@ -548,6 +553,8 @@ void free(void *p, heap_t *heap) {
 			/* If we didn't find anything, we don't have anything to remove. */
 			if (iterator < heap->index.size)
 				remove_ordered_array(iterator, &heap->index);
+
+			add_to_index = false;
 		}
 	}
 	/* end contract check */

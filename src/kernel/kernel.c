@@ -12,6 +12,8 @@
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 second, to test exceptions */
 
+// TODO: Move all RTC code to somewhere else - timer.c or a new rtc.c?
+
 void get_time(Time *);
 
 void get_time(Time *t) {
@@ -253,6 +255,7 @@ void kmain(void* mbd, unsigned int magic) {
 	for (int i = 0; i < NUM; i++) {
 		p[i] = kmalloc((i+1) * 32);
 		total += (i+1) * 32;
+		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, (i+1) * 32, p[i]);
 
 		assert(total < 30*1024*1024);
 		validate_heap_index();
