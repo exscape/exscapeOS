@@ -176,7 +176,9 @@ void print_heap_index(void) {
 					(footer->magic == HEAP_MAGIC ? "valid" : "INVALID"));
 #include <kernel/timer.h>
 			if (header->magic != HEAP_MAGIC || footer->magic != HEAP_MAGIC)
-				sleep(1000);
+				sleep(2000);
+			if (footer->header != header)
+				sleep(2000);
 
 			i++;
 		}
@@ -201,9 +203,12 @@ void validate_heap_index(void) {
 				sprintf(buf, "validate_heap_index: invalid magic for header at 0x%p! header magic=0x%x, footer magic=0x%x\n", header, header->magic, footer->magic);
 				panic(buf);
 			}
+			
 			if (footer->header != header) {
 				char buf[128];
-				sprintf(buf, "validate_heap_index: /header/ pointer in footer structure is invalid! Pointer says %p, actual header at %p", footer->header, header);
+				sprintf(buf, "validate_heap_index: /header/ pointer in footer structure for %s with header at %p is invalid! footer->header == %p", 
+						(header->is_hole ? "hole" : "block"),
+						header, footer->header);
 				panic(buf);
 			}
 
@@ -472,7 +477,8 @@ void free(void *p, heap_t *heap) {
 	header->is_hole = 1;
 
 	/* Should we add this to the index of "free holes" later? */
-	bool add_to_index = true;
+	/* By default, we should NOT, any more, since blocks ARE in the index already! */
+	bool add_to_index = false;
 
 	/* Unify left if the thing immediately to the left of us is a footer... */
 	footer_t *test_footer = (footer_t *)( (uint32)header - sizeof(footer_t) );
@@ -483,10 +489,32 @@ void free(void *p, heap_t *heap) {
 		/* With all the criteria above met, it appears extremely likely that there is a valid block to our left.
 		 * Merge the two blocks, leaving the other block's header and our footer, though with corrected values. */
 		uint32 cache_size = header->size; /* our current size */
+		header_t *orig_header = header;
 		header = test_footer->header; /* since we're to the right, use the other header */
-		footer->header = header;      /* rewrite our footer to use the new header */
+
+		/* Update the heap map with the new header */
+		/*
+		int tmp = 0;
+		for (tmp = 0; tmp < heap->index.size; tmp++) {
+			if (lookup_ordered_array(tmp, &heap->index) == (type_t)orig_header) {
+				if (indexof_ordered_array(header, &heap->index) == -1)
+					update_ordered_array(tmp, header, &heap->index);
+			}
+		}
+	*/
+
 		header->size += cache_size;   /* update the header's size */
-		add_to_index = false;         /* since we're now merged with another hole, don't add us to the index! */
+		footer->header = header;      /* rewrite our footer to use the new header */
+		assert(FOOTER_FROM_HEADER(header, header->size) == footer);
+
+		/* We're now merged with the hole to our left; REMOVE us from the index! */
+		int tmp = 0;
+		for (tmp = 0; tmp < heap->index.size; tmp++) {
+			if (lookup_ordered_array(tmp, &heap->index) == (type_t)orig_header) {
+				remove_ordered_array(tmp, &heap->index);
+				break; // There should only be one hit anyway!
+			}
+		}
 	}
 
 	/* Unify right if the thing immediately to our right is a header... */

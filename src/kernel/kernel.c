@@ -241,6 +241,7 @@ void kmain(void* mbd, unsigned int magic) {
 	kfree((void *)b);
 	uint32 d = kmalloc(12);
 	printk(", d: %p", d);
+	kfree((void *)d);
 
 	printk("\n\n");
 
@@ -259,11 +260,15 @@ void kmain(void* mbd, unsigned int magic) {
 
 		assert(total < 30*1024*1024);
 		validate_heap_index();
+		//print_heap_index();
 	}
 	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
 
-	kfree((void *)p[100]);
-	p[100] = NULL;
+	if (NUM > 100) {
+		kfree((void *)p[100]);
+		p[100] = NULL;
+		//print_heap_index();
+	}
 
 	validate_heap_index();
 
@@ -271,11 +276,14 @@ void kmain(void* mbd, unsigned int magic) {
 		kfree((void *)p[i]);
 		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(header_t));
 		validate_heap_index();
+		//print_heap_index();
 	}
 	printk("%d frees done\n", NUM);
 
 //}
 	validate_heap_index();
+	print_heap_index();
+	panic("pause");
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 

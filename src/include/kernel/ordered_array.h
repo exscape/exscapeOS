@@ -25,6 +25,12 @@ ordered_array_t place_ordered_array(void *addr, uint32 max_size, lessthan_predic
 void destroy_ordered_array(ordered_array_t *array);
 void insert_ordered_array(type_t item, ordered_array_t *array);
 
+/* Replace an element */
+void update_ordered_array(uint32 i, type_t item, ordered_array_t *array);
+
+/* Returns the index of the element specified, or -1 if not found. If multiple exists, returns the first item. */
+sint32 indexof_ordered_array(type_t item, ordered_array_t *array);
+
 /* Equivalent to array[i] */
 type_t lookup_ordered_array(uint32 i, ordered_array_t *array);
 
