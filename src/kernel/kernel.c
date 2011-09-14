@@ -231,6 +231,34 @@ void kmain(void* mbd, unsigned int magic) {
 
 	init_paging();
 
+
+
+
+
+
+
+
+
+
+	printk("NOTE TO SELF\n");
+	printk("------------\n");
+	printk("\n");
+	printk("This code was abandoned on 2011-09-14 due to the fact that I've spend DAYS debugging it, fixing many issues, but still not getting it to work 100%.\n");
+	printk("As it is, it's slow; the table contains all holes AND all blocks, all of which are looped through every time kmalloc() is called.\n");
+	printk("Also, there's a TON of error checking code, much of which is reasonable, but there are also quite a few bits that are overkill for \"production\".\n");
+
+	panic("See above.");
+
+
+
+
+
+
+
+
+
+
+
 	uint32 b = kmalloc(8);
 	uint32 c = kmalloc(8);
 
@@ -283,7 +311,7 @@ void kmain(void* mbd, unsigned int magic) {
 //}
 	validate_heap_index();
 	print_heap_index();
-	panic("pause");
+	//panic("pause");
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 

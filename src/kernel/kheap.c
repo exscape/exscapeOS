@@ -1,4 +1,3 @@
-#include <types.h>
 #include <kernel/kheap.h>
 #include <kernel/kernutil.h>
 #include <kernel/paging.h>
@@ -63,6 +62,8 @@ static header_t *create_block(uint32 address, uint32 size, uint8 is_hole) {
 	/* A couple of sanity checks... */
 	assert(address + size <= kheap->end_address);
 	assert((uint32)footer_to_create + sizeof(footer_t) <= kheap->end_address); /* TODO: is this exactly the same as above? */
+
+//	print_heap_holes();
 
 	/* Expensive sanity check: no existing address must be in this address space! */
 	for (int iterator = 0; iterator < kheap->index.size; iterator++) {
@@ -151,7 +152,7 @@ heap_t *create_heap(uint32 start, uint32 end_addr, uint32 max, uint8 supervisor,
 	return heap;
 }
 
-void print_heap_index(void) {
+void print_heap_internal(bool print_blocks) {
 	/* A debug function that prints the heap map, that is, shows the blocks and holes. */
 
 	if (kheap == NULL) {
@@ -164,6 +165,10 @@ void print_heap_index(void) {
 	while (i < kheap->index.size) {
 		header_t *header = (header_t *)lookup_ordered_array(i, &kheap->index);
 		if (header != NULL) {
+			if (header->is_hole == 0 && print_blocks == false) {
+				i++;
+				continue;
+			}
 			//footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
 			footer_t *footer = FOOTER_FROM_HEADER(header, header->size);
 
@@ -184,6 +189,13 @@ void print_heap_index(void) {
 		}
 	}
 	printk("------\n");
+}
+
+void print_heap_index(void) {
+	print_heap_internal(true); /* print blocks as well as holes */
+}
+void print_heap_holes(void) {
+	print_heap_internal(false); /* don't print blocks as well as holes; holes only */
 }
 
 void validate_heap_index(void) {
@@ -359,6 +371,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 	/* end of if (iterator == -1) */
 
 	header_t *orig_hole_header = (header_t *)lookup_ordered_array(iterator, &heap->index);
+	assert(orig_hole_header->is_hole == 1);
 	uint32 orig_hole_pos = (uint32)orig_hole_header;
 	uint32 orig_hole_size = orig_hole_header->size;
 	
@@ -393,7 +406,7 @@ void *alloc(uint32 size, uint8 page_align, heap_t * const heap) {
 		hole_footer->header   = hole_header;
 		*/
 
-		orig_hole_pos         = new_location;
+		orig_hole_pos         = new_location; /* we want to create the hole here, not at the non-aligned location */
 		orig_hole_size        = orig_hole_size - (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t));
 	}
 	else if (0x1000 - (orig_hole_pos & 0xfff) - sizeof(header_t) <= (8 + sizeof(header_t) + sizeof(footer_t)) ) {
