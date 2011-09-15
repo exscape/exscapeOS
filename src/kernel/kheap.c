@@ -98,7 +98,7 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 	}
 }
 
-static area_header_t *create_block(uint32 address, uint32 size, uint8 type, heap_t *heap) {
+static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_t *heap) {
 	/* This function should only be called AFTER the heap has been set up! */
 	assert(kheap != NULL);
 	assert(type == AREA_USED || type == AREA_FREE);
@@ -116,13 +116,15 @@ static area_header_t *create_block(uint32 address, uint32 size, uint8 type, heap
 	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size);
 #endif
 
+	/* Set up the area "manually", since create_area() requires the heap to be set up! */
 	header_to_create->size = size;
 	header_to_create->magic = HEAP_MAGIC;
 	header_to_create->type = type;
-	
+
 	footer_to_create->magic = HEAP_MAGIC;
 	footer_to_create->header = header_to_create;
 
+	/* All done! */
 	return header_to_create;
 }
 
@@ -149,15 +151,16 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 		start_address += 0x1000;
 	}
 
+	/* Calculate the end address */
 	uint32 end_address = start_address + initial_size;
 	assert(IS_PAGE_ALIGNED(end_address));
 
+	/* Set up the structure */
 	heap->start_address = start_address;
 	heap->end_address   = end_address;
 	heap->max_address   = max_address;
 	heap->supervisor    = supervisor ? 1 : 0;
 	heap->readonly      = readonly   ? 1 : 0;
-
 
 	/* Create a free area that spans the entire heap */
 	area_header_t *header_to_create = (area_header_t *)start_address;
@@ -185,7 +188,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
 		panic("fixme!");
-		create_block(0, 0, 0, 0);
+		create_area(0, 0, 0, 0);
 	}
 /*	if (kheap != NULL) {
 		void *addr = alloc(size, align, kheap);
