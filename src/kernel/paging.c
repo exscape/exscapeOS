@@ -141,10 +141,10 @@ void init_paging() {
 	 * need to be identity mapped first (below), and yet we can't increase 
 	 * placement_address between identity mapping and enabling the kernel heap - aka. no kmalloc!
 	 */
-//	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
-//		get_page(i, 1, kernel_directory);
+	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+		get_page(i, 1, kernel_directory);
 		/* TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC */
-//	}
+	}
 
 /* TEST: create all the page tables... */
 /* TODO: So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in expand(), which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
