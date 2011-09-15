@@ -52,6 +52,7 @@ void insert_ordered_array(type_t item, ordered_array_t *array) {
 
 	/* TODO: remove this when the heap works 100% and has done so for a while */
 	/* This makes sure NO duplicate addresses are allowed. */
+/*
 	uint32 tmp = 0;
 	for (tmp = 0; tmp < array->size; tmp++) {
 		if ((type_t)lookup_ordered_array(tmp, array) == item) {
@@ -73,7 +74,7 @@ void insert_ordered_array(type_t item, ordered_array_t *array) {
 			panic("See above");
 		}
 	}
-
+*/
 	/* Figure out where the item should be placed */
 	while (i < array->size && array->less_than(array->array[i], item))
 		i++;
@@ -117,11 +118,12 @@ void update_ordered_array(uint32 i, type_t item, ordered_array_t *array) {
 
 	/* TODO: remove this when the heap works 100% and has done so for a while */
 	/* This makes sure NO duplicate addresses are allowed. */
+/*
 	uint32 tmp = 0;
 	for (tmp = 0; tmp < array->size; tmp++) {
 		if ((type_t)lookup_ordered_array(tmp, array) == item) {
 			if (tmp == i) {
-				/* Attemped to overwrite the same index with the same value, i.e. no change, and nothing bad */
+				// Attemped to overwrite the same index with the same value, i.e. no change, and nothing bad
 				return;
 			}
 
@@ -144,7 +146,7 @@ void update_ordered_array(uint32 i, type_t item, ordered_array_t *array) {
 			panic("See above");
 		}
 	}
-
+*/
 
 	array->array[i] = item;
 }

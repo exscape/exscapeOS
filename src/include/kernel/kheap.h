@@ -5,41 +5,55 @@
  **** HEAP FUNCTIONS ****
  ************************/
 
-#define KHEAP_START 0xC0000000
-#define KHEAP_INITIAL_SIZE 0x100000
-#define HEAP_INDEX_SIZE 0x20000
-#define HEAP_MAGIC 0x123890AB
-#define HEAP_MIN_SIZE 0x70000
+#define IS_PAGE_ALIGNED(x) ((x & 0xfffff000) == 0)
 
-typedef struct {
-	uint32 magic;
-	uint8 is_hole;
-	uint32 size; /* block size, including the footer */
-} header_t;
+/* 65536 bytes */
+#define HEAP_INDEX_SIZE 0x10000
 
-typedef struct {
-	uint32 magic;
-	header_t *header;
-} footer_t;
+#define AREA_USED 0
+#define AREA_FREE 1
 
+/* Describes a heap structure - only one is used in the entire kernel */
 typedef struct {
-	ordered_array_t index;
 	uint32 start_address;
 	uint32 end_address;
 	uint32 max_address;
-	uint8 supervisor; /* should extra pages requested by us be mapped as supervisor-only? */
-	uint8 readonly;   /* should extra pages requested by us be mapped as read-only? */
+	uint8 supervisor;
+	uint8 readonly;
+	
+	ordered_array_t *free_index; /* An array of area_t pointers */
+	ordered_array_t *used_index; /* An array of area_t pointers */
 } heap_t;
 
-heap_t *create_heap(uint32 start, uint32 end, uint32 max, uint8 supervisor, uint8 readonly);
+/* Describes an area header; placed before every block (free or used) */
+typedef struct {
+	uint32 magic;
+	uint32 size; /* includes the header and footer! */
+	uint8 type; /* == AREA_USED (0) || AREA_FREE (1) */
+} area_header_t;
 
-/* Allocates a continuous region of memory /size/ in size. If page_align == 1, the block itself starts on a page boundary. */
-void *alloc(uint32 size, uint8 page_align, heap_t *heap);
-void free(void *p, heap_t *heap);
+/* Describes an area footer; placed after every block (free or used) */
+typedef struct {
+	uint32 magic;
+	area_header_t *header;
+} area_footer_t;
 
-/****************************
- **** PRE-HEAP FUNCTIONS ****
- ****************************/
+/* Describes an area (free or used; see header->type); used in the indexes */
+typedef struct {
+	area_header_t *header;
+	area_footer_t *footer;
+} area_t;
+
+/* Set up the heap location, and start off with a 4 MiB heap */
+#define KHEAP_START 0xc0000000
+#define KHEAP_INITIAL_SIZE 0x400000
+
+heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_size, uint8 supervisor, uint8 readonly);
+
+
+/*********************************
+ **** PRE-HEAP/HEAP FUNCTIONS ****
+ *********************************/
 
 /* Allocate /size/ bytes of memory.
  * If align == true, the return value will be page aligned.
@@ -58,15 +72,3 @@ uint32 kmalloc_p(uint32 size, uint32 *phys);
 
 /* Returns the physical address in phys, and page aligns. */
 uint32 kmalloc_ap(uint32 size, uint32 *phys);
-
-/* Frees memory allocated by alloc(), which is used by kmalloc() after the heap is set up */
-void kfree(void *p);
-
-/* A debug function that prints the heap's index. */
-void print_heap_index(void);
-
-/* Same, but only prints holes */
-void print_heap_holes(void);
-
-/* A debug function that walks through the heap's index and validates it. */
-void validate_heap_index(void);

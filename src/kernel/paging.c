@@ -236,6 +236,7 @@ bool addr_is_mapped(uint32 addr) {
 	return (page != NULL);
 }
 
+/* TODO, FIXME: remove the "create" parameter, unless the code is reverted to actually USE it */
 page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	/* Turn the address into an index. */
 	addr /= 0x1000;

@@ -212,69 +212,52 @@ void kmain(void* mbd, unsigned int magic) {
 	clrscr();
 
 	/* Time to get started initializing things! */
+	printk("Initializing GDTs... ");
 	gdt_install();
+	printk("done\n");
 
 	/* Load the IDT */
+	printk("Initializing IDTs... ");
 	idt_install();
+	printk("done\n");
 
 	/* Enable interrupts */
+	printk("Initializing ISRs and enabling interrupts... ");
 	enable_interrupts();
+	printk("done\n");
 
 	/* Set up the keyboard callback */
+	printk("Setting up the keyboard handler... ");
 	register_interrupt_handler(IRQ1, keyboard_callback);
+	printk("done\n");
 
+	/* Set up the PIT and start counting ticks */
+	printk("Initializing the PIT... ");
 	timer_install();
+	printk("done\n");
 
+	/* Set up paging and the kernel heap */
+	printk("Initializing paging and setting up the kernel heap... ");
+	init_paging();
+	printk("done\n");
 
+	printk("All initialization complete!\n\n");
 
 	uint32 a = kmalloc(8);
-
-	init_paging();
-
-
-
-
-
-
-
-
-
-
-	printk("NOTE TO SELF\n");
-	printk("------------\n");
-	printk("\n");
-	printk("This code was abandoned on 2011-09-14 due to the fact that I've spend DAYS debugging it, fixing many issues, but still not getting it to work 100%.\n");
-	printk("As it is, it's slow; the table contains all holes AND all blocks, all of which are looped through every time kmalloc() is called.\n");
-	printk("Also, there's a TON of error checking code, much of which is reasonable, but there are also quite a few bits that are overkill for \"production\".\n");
-
-	panic("See above.");
-
-
-
-
-
-
-
-
-
-
-
 	uint32 b = kmalloc(8);
 	uint32 c = kmalloc(8);
 
 	printk("a: %p, b: %p\n", a, b);
 	printk("c: %p", c);
 
-	kfree((void *)c);
-	kfree((void *)b);
-	uint32 d = kmalloc(12);
-	printk(", d: %p", d);
-	kfree((void *)d);
-
-	printk("\n\n");
+	//kfree((void *)c);
+	//kfree((void *)b);
+	//uint32 d = kmalloc(12);
+	//printk(", d: %p", d);
+	//kfree((void *)d);
 
 	/* stress test a little */
-
+/*
 #define NUM 1000
 	uint32 p[NUM];
 	uint32 total = 0;
@@ -317,7 +300,7 @@ void kmain(void* mbd, unsigned int magic) {
 
 	srand(123);
 
-	for(int outer=1; outer != 0 /* sic! */; outer++) {
+	for(int outer=1; outer != 0 ; outer++) {
 
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
@@ -325,7 +308,7 @@ void kmain(void* mbd, unsigned int magic) {
 //		print_heap_index();
 		uint32 r = RAND_RANGE(1,10);
 		if (r >= 6) {
-			uint32 r3 = RAND_RANGE(8,3268); /* bytes to allocate */
+			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
 			printk("alloc %d bytes", r3);
 			uint32 r2 =RAND_RANGE(0,1000);
 			p[r2] = kmalloc(r3);
@@ -350,7 +333,7 @@ void kmain(void* mbd, unsigned int magic) {
 		validate_heap_index();
 	}
 
-	/* Clean up */
+	// Clean up
 	for (int i=0; i<1000; i++) {
 		kfree((void *) p[i]);
 		p[i] = 0;
@@ -359,17 +342,16 @@ void kmain(void* mbd, unsigned int magic) {
 }
 	printk("ALL DONE!\n");
 
+*/
 
-
-
-
-//	printk("Initialization complete! (GDT, IDT, interrupts, keyboard, timer, paging)!\n");
 /*
 	printk("Creating a page fault...");
 	uint32 *ptr = (uint32 *)0xa0000000;
 	*ptr = 10;
 */
 
+	printk("\n\n");
+	printk("kmain() done; running infinite loop\n");
 	for(;;);
 /*
 	Time t;
