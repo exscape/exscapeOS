@@ -243,12 +243,16 @@ void kmain(void* mbd, unsigned int magic) {
 
 	printk("All initialization complete!\n\n");
 
-	uint32 a = kmalloc(8);
-	uint32 b = kmalloc(8);
-	uint32 c = kmalloc(8);
+	print_heap_index();
+
+	/*
+	void *a = kmalloc(8);
+	void *b = kmalloc(8);
+	void *c = kmalloc(8);
 
 	printk("a: %p, b: %p\n", a, b);
 	printk("c: %p", c);
+	*/
 
 	//kfree((void *)c);
 	//kfree((void *)b);

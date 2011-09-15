@@ -186,17 +186,6 @@ void init_paging() {
 		alloc_frame( get_page(i, 1, kernel_directory), 0, 0);
 	}
 
-
-
-
-
-
-
-
-
-
-
-
 	/* Register the page fault handler */
 	register_interrupt_handler(14 /* TODO: exception #defines? */, page_fault_handler);
 
@@ -204,7 +193,7 @@ void init_paging() {
 	switch_page_directory(kernel_directory);
 
 	/* Initialize the kernel heap */
-	kheap = create_heap(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
+	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
 
 #ifdef KHEAP_DEBUG
 	print_heap_index();
