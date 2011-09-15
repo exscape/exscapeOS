@@ -23,8 +23,46 @@ static sint8 area_header_t_less_than(void *a, void*b) {
 	return ( ((area_header_t *)a)->size < ((area_header_t *)b)->size ) ? 1 : 0;
 }
 
+void validate_heap_index(bool print_areas) {
+	/* Since there are two indexes, we need to loop through them both! */
+	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };
+	for (int index_num=0; index_num < 2; index_num++) {
+		/* The index we're working with right now */
+		ordered_array_t *index = indexes[index_num];
+
+		for (int i=0; i < index->size; i++) {
+			area_header_t *found_header = lookup_ordered_array(i, index);
+			area_footer_t *found_footer = FOOTER_FROM_HEADER(found_header);
+
+			if (index_num == 0) {
+				/* This is used_index; make sure ALL areas from this index ARE USED, not free! */
+				assert(found_header->type == AREA_USED);
+			}
+			else {
+				/* This is free_index; make sure ALL areas from this index are FREE */
+				assert(found_header->type == AREA_FREE);
+			}
+
+			if (print_areas) {
+				printk("%s: %p to %p (%d bytes); %s pointer + magics\n",
+						(found_header->type == AREA_USED ? "used" : "free"),
+						(uint32)found_header,
+						(uint32)found_header + found_header->size,
+						found_header->size,
+						(found_header->magic  == HEAP_MAGIC && found_footer->magic  == HEAP_MAGIC && found_footer->header == found_header) ? "valid" : "INVALID"
+					  );
+			}
+
+			assert(found_header->magic == HEAP_MAGIC);
+			assert(found_footer->magic == HEAP_MAGIC);
+			assert(found_footer->header == found_header);
+		}
+	}
+}
+
 void print_heap_index(void) {
-	panic("Implement me!");
+	/* Use the function above */
+	validate_heap_index(/*print_areas = */true);
 }
 
 void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
