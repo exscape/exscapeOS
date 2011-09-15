@@ -256,6 +256,16 @@ void kmain(void* mbd, unsigned int magic) {
 	printk("\n");
 	print_heap_index();
 
+	printk("Freeing a...\n");
+	kfree(a);
+	print_heap_index();
+	printk("Freeing b...\n");
+	kfree(b);
+	print_heap_index();
+	printk("Freeing c...\n");
+	kfree(c);
+	print_heap_index();
+
 	//kfree((void *)c);
 	//kfree((void *)b);
 	//uint32 d = kmalloc(12);

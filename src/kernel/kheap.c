@@ -203,6 +203,13 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		/* Write it to the index */
 		insert_ordered_array((void *)free_space_header, &kheap->free_index);
 	}
+	else {
+		/* There's not enough space to bother making a new area.
+		 * If there is ANY space (literally 1 byte or more), add it to the current allocation, instead. */
+		   panic("Step through this with gdb! Does it work?");
+
+		   size += (area->size - size);
+	}
 
 	/* Write the area to memory */
 	create_area((uint32)area, size, AREA_USED, heap);
@@ -211,6 +218,66 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	insert_ordered_array((void *)area, &kheap->used_index);
 
 	return (void *)( (uint32)area + sizeof(area_header_t) );
+}
+
+void heap_free(void *p, heap_t *heap) {
+	/* free() of a NULL pointer should be valid */
+	if (p == NULL)
+		return;
+
+	/* Calculate the header and footer locations */
+	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
+	area_footer_t *footer = FOOTER_FROM_HEADER(header);
+
+	/* Sanity checks */
+	assert(header->magic == HEAP_MAGIC);
+	assert(header->type == AREA_USED);
+	assert(footer->magic == HEAP_MAGIC);
+	assert(footer->header == header);
+
+	/* Remove this area from the used index. We'll wait a little before adding it as a free area, though. */
+	remove_ordered_array_item((void *)header, &kheap->used_index);
+
+	/* Mark this area as free in memory */
+	header->type = AREA_FREE;
+
+	/* Should we add this hole to the index? No if we unify left. */
+	bool add_to_index = true;
+
+	/* Check if the area to our left is another free area; if so, merge with it, aka. unify left */
+	area_footer_t *left_area_footer = (area_footer_t *)( (uint32)header - sizeof(area_footer_t) );
+	if ((uint32)left_area_footer >= (uint32)heap->start_address && /* make sure to not make an invalid access */
+		left_area_footer->magic == HEAP_MAGIC) {
+		/* Looks like it! */
+		   area_header_t *left_area_header = left_area_footer->header;
+		   if (left_area_header->magic == HEAP_MAGIC && left_area_header->type == AREA_FREE) {
+			   /* Yep! Merge with this one. */
+
+			   /* Update the header with the new size from "us" */
+			   left_area_header->size += header->size;
+			   assert(FOOTER_FROM_HEADER(left_area_header) == footer);
+
+			   /* Since we are to the right, use our footer. Rewrite it to use the correct header, though: */
+			   footer->header = left_area_header;
+
+			   /* Re-point the header to the new area; this completes the merge */
+			   header = left_area_header;
+
+			   /* This area should not be added to the index, because "we" are now the area we found to the left,
+				* and THAT should already be in the index. */
+			   add_to_index = false;
+		   }
+	}
+
+	/* TODO: unify right */
+	/* Make sure to not access past heap->end_address */
+
+	if (add_to_index)
+		insert_ordered_array((void *)header, &kheap->free_index);
+
+
+	/* TODO: Contract the heap if the last free area is (some amount - at least a few megs!), and the heap is over it's min. size */
+
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
@@ -302,11 +369,9 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	}
 }
 
-/*
 void kfree(void *p) {
 	heap_free(p, kheap);
 }
-*/
 
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */
 void *kmalloc(uint32 size) {
