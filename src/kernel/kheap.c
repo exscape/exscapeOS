@@ -248,7 +248,7 @@ void heap_free(void *p, heap_t *heap) {
 	area_footer_t *left_area_footer = (area_footer_t *)( (uint32)header - sizeof(area_footer_t) );
 	if ((uint32)left_area_footer >= (uint32)heap->start_address && /* make sure to not make an invalid access */
 		left_area_footer->magic == HEAP_MAGIC) {
-		/* Looks like it! */
+		/* Looks like we found another area! */
 		   area_header_t *left_area_header = left_area_footer->header;
 		   if (left_area_header->magic == HEAP_MAGIC && left_area_header->type == AREA_FREE) {
 			   /* Yep! Merge with this one. */
@@ -260,7 +260,12 @@ void heap_free(void *p, heap_t *heap) {
 			   /* Since we are to the right, use our footer. Rewrite it to use the correct header, though: */
 			   footer->header = left_area_header;
 
-			   /* Re-point the header to the new area; this completes the merge */
+			   /* Corrupt the old magic values - both "our" header and the "other" footer are now inside the new area!
+			   * This is done to make sure they aren't used somewhere as if the areas still existed as before. */
+			   header->magic = 0;
+			   left_area_footer->magic = 0;
+
+			   /* Re-point "our" header to the new area; this completes the merge */
 			   header = left_area_header;
 
 			   /* This area should not be added to the index, because "we" are now the area we found to the left,
