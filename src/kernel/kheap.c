@@ -62,7 +62,9 @@ void validate_heap_index(bool print_areas) {
 
 void print_heap_index(void) {
 	/* Use the function above */
+	printk("--------- Heap index ---------\n");
 	validate_heap_index(/*print_areas = */true);
+	printk("-------- End heap index ------\n");
 }
 
 void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
@@ -177,7 +179,6 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	
 	return heap;
 }
-
 
 /* Allocate /size/ bytes of memory.
  * If align == true, the return value will be page aligned.
