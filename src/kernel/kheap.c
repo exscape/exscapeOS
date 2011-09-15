@@ -130,6 +130,77 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 	return header_to_create;
 }
 
+area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
+	/* This function does what is says on the tin: loops through all the holes, and returns the first (=smallest) one that is still big enough. */
+
+	area_header_t *header = NULL;
+
+	/* Loop through all the free areas */
+	for (int i = 0; i < kheap->free_index.size; i++) {
+		header = lookup_ordered_array(i, &kheap->free_index);
+#if KHEAP_DEBUG
+	/* More checks never hurt! */
+		assert(header->magic == HEAP_MAGIC);
+		assert(header->type == AREA_FREE);
+#endif
+
+		if (header->size >= size) {
+			/* We found something! */
+			if (page_align) {
+				/* TODO: Add support for page alignment! */
+				   panic("find_smallest_hole(): page alignment not yet supported!");
+			} 
+			else {
+				/* No page align, so we're good! */
+				return header;
+			}
+		}
+	}
+
+	/* If the loop exited, we didn't find any hole that works! */
+	return NULL;
+}
+
+void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
+	/* Take the header and footer overhead into account! */
+	size += sizeof(area_header_t) + sizeof(area_footer_t);
+
+	area_header_t *area = find_smallest_hole(size, page_align, heap);
+
+	if (area == NULL) {
+		/* There were no holes big enough! Expand the heap. */
+		/* Expand with at least HEAP_MIN_GROWTH bytes (either that or /size/ bytes, whichever is LARGER) */
+		panic("Expand the heap here!");
+
+		/* Then try again: */
+		return heap_alloc(size, page_align, heap);
+	} /* end area == NULL */
+
+	if (page_align) {
+		/* TODO: add page alignment support! */
+		panic("TODO: add page_align support to heap_alloc");
+		/* TODO: create a new, free area with the wasted space between /area/ and the page-aligned area we'll return */
+	}
+
+	/* Is there enough space in the free area we're using to fit us AND another free area? */
+	if (area->size - size >= 16 + sizeof(area_header_t) + sizeof(area_footer_t)) {
+		/* TODO: create a new hole just after the footer of /area/! */
+//		panic("TODO: create a new free area after the one we just allocated!");
+		/* Don't forget to add it to the index */
+	}
+
+	/* Remove this area from the free_index */
+	remove_ordered_array_item((void *)area, &kheap->free_index);
+
+	/* Write the area to memory */
+	create_area((uint32)area, size, AREA_USED, heap);
+
+	/* Add this area to the used_index */
+	insert_ordered_array((void *)area, &kheap->used_index);
+
+	return (void *)( (uint32)area - sizeof(area_header_t) );
+}
+
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
 	heap_t *heap = (heap_t *)kmalloc_a(sizeof(heap_t));
 	assert (heap != NULL);
@@ -188,18 +259,14 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
  */
 void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
-		panic("fixme!");
-		create_area(0, 0, 0, 0);
-	}
-/*	if (kheap != NULL) {
-		void *addr = alloc(size, align, kheap);
+		void *addr = heap_alloc(size, align, kheap);
 		if (phys != 0) {
 			page_t *page = get_page((uint32)addr, 0, kernel_directory);
 			*phys = (page->frame * 0x1000) + ((uint32)addr & 0xfff);
 		}
-		return (uint32)addr;
+		return addr;
 	}
-	else { */
+	else {
 		/* kheap == NULL, i.e. we haven't created the kernel heap yet */
 
 		if (align == true && !IS_PAGE_ALIGNED(placement_address)) {
@@ -220,12 +287,12 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		placement_address += size;
 
 		return (void *)ret;
-//	}
+	}
 }
 
 /*
 void kfree(void *p) {
-	free(p, kheap);
+	heap_free(p, kheap);
 }
 */
 

@@ -166,3 +166,15 @@ void remove_ordered_array(uint32 i, ordered_array_t *array) {
 
 	array->size--;
 }
+
+/* Remove the item /item/; if multiple exist, the first is deleted */
+void remove_ordered_array_item(type_t item, ordered_array_t *array) {
+	for (int i = 0; i < array->size; i++) {
+		if (lookup_ordered_array(i, array) == item) {
+			/* We found it! Now remove it: */
+			remove_ordered_array(i, array);
+			return;
+		}
+	}
+}
+

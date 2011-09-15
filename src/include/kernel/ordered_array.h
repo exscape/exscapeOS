@@ -34,6 +34,10 @@ sint32 indexof_ordered_array(type_t item, ordered_array_t *array);
 /* Equivalent to array[i] */
 type_t lookup_ordered_array(uint32 i, ordered_array_t *array);
 
+/* Remove an item by index */
 void remove_ordered_array(uint32 i, ordered_array_t *array);
+
+/* Remove an item by the item itself */
+void remove_ordered_array_item(type_t item, ordered_array_t *array);
 
 #endif
