@@ -246,12 +246,12 @@ void kmain(void* mbd, unsigned int magic) {
 	print_heap_index();
 
 	void *a = kmalloc(8);
-//	void *b = kmalloc(8);
-//	void *c = kmalloc(8);
+	void *b = kmalloc(8);
+	void *c = kmalloc(8);
 
 	printk("\na: %p", a);
-//	printk(", b: %p\n", b);
-//	printk("c: %p\n\n", c);
+	printk(", b: %p\n", b);
+	printk("c: %p\n", c);
 
 	printk("\n");
 	print_heap_index();

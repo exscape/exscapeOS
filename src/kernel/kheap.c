@@ -182,15 +182,27 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		/* TODO: create a new, free area with the wasted space between /area/ and the page-aligned area we'll return */
 	}
 
+	/* Remove this area from the free_index */
+	/* This must be done before the check to create a second free area (below), or that will fail,
+	 * since the footer for the entire free area we're using will have the same footer location as the new free area.
+	 * An assert() checks that to prevent errors, and will fail if we try to create that hole before we do this:
+	 */
+	remove_ordered_array_item((void *)area, &kheap->free_index);
+
 	/* Is there enough space in the free area we're using to fit us AND another free area? */
 	if (area->size - size >= 16 + sizeof(area_header_t) + sizeof(area_footer_t)) {
-		/* TODO: create a new hole just after the footer of /area/! */
-//		panic("TODO: create a new free area after the one we just allocated!");
-		/* Don't forget to add it to the index */
-	}
+		/* The area we are allocating (/area/) is large enough to not only fit our data, but ANOTHER free area. */
+		/* Create a new area of size (area->size - size), where /size/ is the user-requested size for the allocation. */
 
-	/* Remove this area from the free_index */
-	remove_ordered_array_item((void *)area, &kheap->free_index);
+		/* The new free area is located /size/ (of the original allocation) bytes past the original area */
+		area_header_t *free_space_header = (area_header_t *)( (uint32)area + size );
+
+		/* Write the new free area to memory */
+		create_area((uint32)free_space_header, (area->size - size), AREA_FREE, heap);
+
+		/* Write it to the index */
+		insert_ordered_array((void *)free_space_header, &kheap->free_index);
+	}
 
 	/* Write the area to memory */
 	create_area((uint32)area, size, AREA_USED, heap);
@@ -198,7 +210,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Add this area to the used_index */
 	insert_ordered_array((void *)area, &kheap->used_index);
 
-	return (void *)( (uint32)area - sizeof(area_header_t) );
+	return (void *)( (uint32)area + sizeof(area_header_t) );
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
