@@ -196,6 +196,7 @@ void init_paging() {
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
 
 #ifdef KHEAP_DEBUG
+	printk("init_paging() just finished; here's the current heap index\n");
 	print_heap_index();
 #endif
 }

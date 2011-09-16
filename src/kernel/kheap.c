@@ -274,15 +274,40 @@ void heap_free(void *p, heap_t *heap) {
 		   }
 	}
 
-	/* TODO: unify right */
-	/* Make sure to not access past heap->end_address */
+	/* Check if the area to our right is another free area; if so, merge with it, aka. unify right */
+	area_header_t *right_area_header = (area_header_t *)( (uint32)footer + sizeof(area_footer_t) );
+	if (right_area_header->magic == HEAP_MAGIC && right_area_header->type == AREA_FREE) {
+		/* Looks like we found something! */
+		area_footer_t *right_area_footer = FOOTER_FROM_HEADER(right_area_header);
+		if (right_area_footer->magic == HEAP_MAGIC && right_area_footer->header == right_area_header) {
+			/* Yep! Merge with this one. */
+			
+			/* Delete the rightmost hole from the index before we merge */
+			remove_ordered_array_item((void *)right_area_header, &kheap->free_index);
+
+			/* Add the newfound space to the leftmost header */
+			header->size += right_area_header->size;
+			
+			/* Overwrite the old header and footer, just in case something tries to use them; 
+			 * in that case, the asserts will catch the invalid magics */
+			footer->magic = 0;
+			right_area_header->magic = 0;
+
+			/* Merge the areas */
+			footer = right_area_footer;
+			assert(footer == FOOTER_FROM_HEADER(header));
+			footer->header = header;
+			header->type = AREA_FREE; /* just to be sure */
+
+			add_to_index = false;
+		}
+	}
 
 	if (add_to_index)
 		insert_ordered_array((void *)header, &kheap->free_index);
 
 
 	/* TODO: Contract the heap if the last free area is (some amount - at least a few megs!), and the heap is over it's min. size */
-
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
