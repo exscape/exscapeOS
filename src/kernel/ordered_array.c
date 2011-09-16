@@ -49,32 +49,6 @@ void insert_ordered_array(type_t item, ordered_array_t *array) {
 
 	uint32 i = 0;
 
-
-	/* TODO: remove this when the heap works 100% and has done so for a while */
-	/* This makes sure NO duplicate addresses are allowed. */
-/*
-	uint32 tmp = 0;
-	for (tmp = 0; tmp < array->size; tmp++) {
-		if ((type_t)lookup_ordered_array(tmp, array) == item) {
-			header_t *header = (header_t *)item;
-			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
-			printk("Tried to insert duplicate address %p into the heap map!\n",item);
-
-			printk("Entry exists as a %s of %d bytes (%s header magic, %s footer magic, %s header pointer\n",
-					(header->is_hole ? "hole" : "block"),
-					header->size,
-					(header->magic == HEAP_MAGIC ? "valid" : "INVALID"),
-					(footer->magic == HEAP_MAGIC ? "valid" : "INVALID"),
-					(footer->header == header ? "valid" : "INVALID")
-				  );
-
-			printk("Running validate_heap_index ...\n\n");
-			validate_heap_index();
-			printk("Heap validation passed.\n");
-			panic("See above");
-		}
-	}
-*/
 	/* Figure out where the item should be placed */
 	while (i < array->size && array->less_than(array->array[i], item))
 		i++;
@@ -115,39 +89,6 @@ sint32 indexof_ordered_array(type_t item, ordered_array_t *array) {
 
 void update_ordered_array(uint32 i, type_t item, ordered_array_t *array) {
 	assert(i < array->size);
-
-	/* TODO: remove this when the heap works 100% and has done so for a while */
-	/* This makes sure NO duplicate addresses are allowed. */
-/*
-	uint32 tmp = 0;
-	for (tmp = 0; tmp < array->size; tmp++) {
-		if ((type_t)lookup_ordered_array(tmp, array) == item) {
-			if (tmp == i) {
-				// Attemped to overwrite the same index with the same value, i.e. no change, and nothing bad
-				return;
-			}
-
-			header_t *header = (header_t *)item;
-			footer_t *footer = (footer_t *)( (uint32)header + header->size - sizeof(footer_t) );
-			printk("Tried to insert duplicate address %p into the heap map!\n",item);
-
-			printk("Entry exists as a %s of %d bytes (%s header magic, %s footer magic, %s header pointer\n",
-					(header->is_hole ? "hole" : "block"),
-					header->size,
-					(header->magic == HEAP_MAGIC ? "valid" : "INVALID"),
-					(footer->magic == HEAP_MAGIC ? "valid" : "INVALID"),
-					(footer->header == header ? "valid" : "INVALID")
-				  );
-			printk("Current value at index %d (which would have been overwritten) is %p\n", i, (void *)lookup_ordered_array(i, array));
-
-			printk("Running validate_heap_index ...\n\n");
-			validate_heap_index();
-			printk("Heap validation passed.\n");
-			panic("See above");
-		}
-	}
-*/
-
 	array->array[i] = item;
 }
 
@@ -177,4 +118,3 @@ void remove_ordered_array_item(type_t item, ordered_array_t *array) {
 		}
 	}
 }
-

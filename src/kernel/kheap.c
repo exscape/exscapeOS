@@ -223,7 +223,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	uint32 addr = heap->end_address; /* start at the old end_address */
 	while (addr < new_end_address + 0x1000) {
 		assert(IS_PAGE_ALIGNED(addr));
-		alloc_frame( get_page(addr, true, kernel_directory), (heap->supervisor ? 1 : 0), (heap->readonly ? 0 : 1) );
+		alloc_frame( get_page(addr, kernel_directory), (heap->supervisor ? 1 : 0), (heap->readonly ? 0 : 1) );
 		addr += 0x1000;
 	}
 
@@ -279,7 +279,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 
 	/* Free the frames that make up the new-freed space */
 	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= 0x1000) {
-		free_frame(get_page(addr, false, kernel_directory));
+		free_frame(get_page(addr, kernel_directory));
 	}
 
 	heap->end_address = new_end_address;
@@ -630,7 +630,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
 		void *addr = heap_alloc(size, align, kheap);
 		if (phys != 0) {
-			page_t *page = get_page((uint32)addr, 0, kernel_directory);
+			page_t *page = get_page((uint32)addr, kernel_directory);
 			*phys = (page->frame * 0x1000) + ((uint32)addr & 0xfff);
 		}
 		return addr;

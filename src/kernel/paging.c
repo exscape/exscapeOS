@@ -141,14 +141,15 @@ void init_paging() {
 	 * need to be identity mapped first (below), and yet we can't increase 
 	 * placement_address between identity mapping and enabling the kernel heap - aka. no kmalloc!
 	 */
-	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
-		get_page(i, 1, kernel_directory);
-		/* TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC */
-	}
+/*	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+TODO: This should be useless at this point... does it work with this code commented out?
+		get_page(i, kernel_directory);
+		// TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC
+	} */
 
-/* TEST: create all the page tables... */
-/* TODO: So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in expand(), which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
-	assert(kernel_directory != 0);
+/* Create all the page tables... */
+/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in expand(), which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
+	assert(kernel_directory != NULL);
 	for (int i = 0; i < 1024; i++) {
 
 		uint32 phys_addr;
@@ -177,13 +178,13 @@ void init_paging() {
 	while (i < placement_address + 0x1000) {
 		/* Kernel code is readable but not writable from userspace */
 		/* FIXME: wat. Make this readable and understandable! */
-		alloc_frame(get_page(i, true, kernel_directory), 0, 0);
+		alloc_frame(get_page(i, kernel_directory), 0, 0);
 		i += 0x1000;
 	}
 
 	/* Allocate the pages we mapped for the kernel heap just before the identity mapping */
 	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
-		alloc_frame( get_page(i, 1, kernel_directory), 0, 0);
+		alloc_frame( get_page(i, kernel_directory), 0, 0);
 	}
 
 	/* Register the page fault handler */
@@ -221,13 +222,12 @@ void switch_page_directory(page_directory_t *dir) {
 bool addr_is_mapped(uint32 addr) {
 	/* TODO: this function may or may not DO WHAT IT IS CALLED.
 	 * Hopefully, it does work... */
-	page_t *page = get_page(addr, /*create = */ false, kernel_directory);
+	page_t *page = get_page(addr, kernel_directory);
 
 	return (page != NULL);
 }
 
-/* TODO, FIXME: remove the "create" parameter, unless the code is reverted to actually USE it */
-page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
+page_t *get_page (uint32 addr, page_directory_t *dir) {
 	/* Turn the address into an index. */
 	addr /= 0x1000;
 
@@ -238,25 +238,8 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	if (dir->tables[table_idx] != NULL) {
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
-	//else if (create == true) {
-		///* It doesn't exist, but are told to create it if not, so let's create it. */
-		//uint32 phys_addr;
-		///* allocate it */
-		//dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys_addr);
-		///* zero the new table */
-		//memset(dir->tables[table_idx], 0, 0x1000);
-
-		//phys_addr |= 0x7; /* Set the present, r/w and supervisor flags */
-		//dir->tables_physical[table_idx] = phys_addr;
-
-		//page_t *p = & dir->tables[table_idx]->pages[addr % 1024];
-		//p->present = 1;
-		//return p;
-
-////		return & dir->tables[table_idx]->pages[addr % 1024]; /* again, adr%1024 is the affset into the page table */
-	//}
 	else {
-		/* Page doesn't already have a table, AND we shouldn't create one */
+		/* Page doesn't already have a table, and creation isn't managed here any more; give up */
 		return NULL;
 	}
 }
