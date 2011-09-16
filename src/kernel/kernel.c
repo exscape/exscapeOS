@@ -342,7 +342,7 @@ void kmain(void* mbd, unsigned int magic) {
 			p[r2] = kmalloc(r3);
 		if (p[r2] > max_alloc) max_alloc = p[r2];
 			printk(" at 0x%p\n", p[r2]);
-			mem_in_use += r3;
+			mem_in_use += r3 + sizeof(area_header_t) + sizeof(area_footer_t);
 			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 		}
 		else {
@@ -364,10 +364,16 @@ void kmain(void* mbd, unsigned int magic) {
 
 	// Clean up
 	for (int i = 0; i < NUM; i++) {
-		if (p[i] != NULL)
-			printk("free at #%d not null (outer = %d)\n", i, outer);
-		kfree((void *) p[i]);
-		p[i] = 0;
+		if (p[i] != NULL) {
+			area_header_t *header = (area_header_t *) ((uint32)p[i] - sizeof(area_header_t));
+			if (header->magic == HEAP_MAGIC)
+				mem_in_use -= header->size;
+			else
+				panic("invalid magic");
+			printk("mem in use: %d bytes (after free)\n", mem_in_use);
+			kfree((void *)p[i]);
+			p[i] = 0;
+		}
 	}
 	validate_heap_index(false);
 }

@@ -252,12 +252,37 @@ void test_rightmost(void) {
 		assert(STORED_rightmost_area == rightmost_area);
 }
 
+/* Contract the heap, freeing the pages and physical frames that are no longer used */
 void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
-	panic("Implement heap_contract");
+	/* Don't bother shrinking less than 512 kiB; this isn't an OS for 386-based computers */
+	assert(bytes_to_shrink > 512*1024); 
 
+	/* Calculate the sizes */
+	uint32 old_size = heap->end_address - heap->start_address;
+	uint32 new_size = old_size - bytes_to_shrink;
+
+	/* Calculate the new end address, and make sure it's page aligned */
+	uint32 new_end_address = heap->start_address + new_size;
+	if (!IS_PAGE_ALIGNED(new_end_address)) {
+		new_end_address &= 0xfffff000;
+		new_end_address += 0x1000;
+	}
+
+	/* Don't shrink below the initial size. */
+	if (new_size < KHEAP_INITIAL_SIZE && heap == kheap)
+		new_size = KHEAP_INITIAL_SIZE;
+
+	/* Make sure the address is still aligned */
+	new_end_address = heap->start_address + new_size;
+	assert(IS_PAGE_ALIGNED(new_end_address));
+
+	/* Free the frames that make up the new-freed space */
+	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= 0x1000) {
+		free_frame(get_page(addr, false, kernel_directory));
+	}
+
+	heap->end_address = new_end_address;
 }
-
-
 
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
