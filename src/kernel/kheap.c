@@ -241,14 +241,23 @@ void heap_free(void *p, heap_t *heap) {
 	/* Mark this area as free in memory */
 	header->type = AREA_FREE;
 
-	/* Should we add this hole to the index? No if we unify left. */
+	/* Should we add this hole to the index? This depends on whether we unify, and how (below). */
 	bool add_to_index = true;
+
+	/* 
+	 * Here's how the index should work with the four possible cases:
+  	 * 1) free() without any bordering free areas: add to index; thus this is the default (above)
+	 * 2) free() + unify left (and left only): don't add to index (the left area is already there)
+	 * 3) free() + unify right (and right only): *DO* add, and also remove the right area from the index
+	 * 4) free() + unify both ways: DON'T add, or the area will end up a duplicate in the index.
+	 */
 
 	/* Check if the area to our left is another free area; if so, merge with it, aka. unify left */
 	area_footer_t *left_area_footer = (area_footer_t *)( (uint32)header - sizeof(area_footer_t) );
 	if ((uint32)left_area_footer >= (uint32)heap->start_address && /* make sure to not make an invalid access */
 		left_area_footer->magic == HEAP_MAGIC) {
-		/* Looks like we found another area! */
+		/* Looks like we found another area! 
+		 * Do some extra checks, and make sure it's a FREE area */
 		   area_header_t *left_area_header = left_area_footer->header;
 		   if (left_area_header->magic == HEAP_MAGIC && left_area_header->type == AREA_FREE) {
 			   /* Yep! Merge with this one. */
@@ -299,13 +308,17 @@ void heap_free(void *p, heap_t *heap) {
 			footer->header = header;
 			header->type = AREA_FREE; /* just to be sure */
 
-			add_to_index = false;
+			if (add_to_index == true) {
+				/* This could really be rewritten as "if (we_did_NOT_unify_left)", which is what we're really asking */
+				/* If we did unify left, we should NOT add this to the index, or there will be a duplicate entry. */
+				/* So, this statement does nothing... still. */
+				add_to_index = true;
+			}
 		}
 	}
 
 	if (add_to_index)
 		insert_ordered_array((void *)header, &kheap->free_index);
-
 
 	/* TODO: Contract the heap if the last free area is (some amount - at least a few megs!), and the heap is over it's min. size */
 }
