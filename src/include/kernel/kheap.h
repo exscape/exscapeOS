@@ -16,18 +16,6 @@
 
 #define FOOTER_FROM_HEADER(__h) ((area_footer_t *)((uint32)__h + __h->size - sizeof(area_footer_t)))
 
-/* Describes a heap structure - only one is used in the entire kernel */
-typedef struct {
-	uint32 start_address;
-	uint32 end_address;
-	uint32 max_address;
-	uint8 supervisor;
-	uint8 readonly;
-	
-	ordered_array_t free_index; /* Stores an array of area_header_t pointers */
-	ordered_array_t used_index; /* Stores an array of area_header_t pointers */
-} heap_t;
-
 /* Describes an area header; placed before every block (free or used) */
 typedef struct {
 	uint32 magic;
@@ -41,13 +29,19 @@ typedef struct {
 	area_header_t *header;
 } area_footer_t;
 
-/* Describes an area (free or used; see header->type); used in the indexes */
-/*
+/* Describes a heap structure - only one is used in the entire kernel */
 typedef struct {
-	area_header_t *header;
-	area_footer_t *footer;
-} area_t;
-*/
+	uint32 start_address;
+	uint32 end_address;
+	uint32 max_address;
+	uint8 supervisor;
+	uint8 readonly;
+	
+	ordered_array_t free_index; /* Stores an array of area_header_t pointers */
+	ordered_array_t used_index; /* Stores an array of area_header_t pointers */
+
+	area_header_t *rightmost_area; /* A pointer to the rightmost area, free or used. Used in both alloc() and free(). */
+} heap_t;
 
 /* Set up the heap location, and start off with a 4 MiB heap */
 #define KHEAP_START 0xc0000000

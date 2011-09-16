@@ -67,11 +67,16 @@ void print_heap_index(void) {
 	printk("-------- End heap index ------\n");
 }
 
-void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
+/* Does a bunch of sanity checks; expensive, but also priceless during development/debugging. */
+void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size, heap_t *heap) {
+
+	/* First, make sure the paremeters make sense! */
 	assert(index != NULL);
 	assert(header_to_create != NULL);
 	assert(footer_to_create != NULL);
+	assert(size > sizeof(area_header_t) + sizeof(area_footer_t));
 
+	/* Loop through the entire index */
 	for (int i = 0; i < index->size; i++) {
 		area_header_t *found_header = (area_header_t *)lookup_ordered_array(i, index);
 		area_footer_t *found_footer = FOOTER_FROM_HEADER(found_header);
@@ -87,6 +92,13 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 		assert(found_footer->magic == HEAP_MAGIC);
 		assert(found_footer->header == found_header);
 
+		/* OK, so this is unlikely to get hit... but let's see */
+		if (found_header > heap->rightmost_area) {
+			/* TODO: remove either the panic or this entire if clause, based on whether it's ever hit */
+			heap->rightmost_area = found_header;
+			panic("do_asserts: found a header further to the right! Remove the panic() and KEEP the code path.");
+		}
+
 		/* Ensure that we don't end up INSIDE the address space of another area */
 		if (header_to_create < found_header) {
 			/* The header we found is more to the right than us. Make sure that our ENTIRE SPACE is to the left of it */
@@ -96,12 +108,12 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 			/* We're to the right; make sure we don't write inside the area that begins at found_header */
 			assert((uint32)found_header + found_header->size <= (uint32)header_to_create);
 		}
-
 	}
 }
 
+/* Called by various parts of alloc() (and possibly free()) to create new areas (free or used). */
 static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_t *heap) {
-	/* This function should only be called AFTER the heap has been set up! */
+	/* Make sure that the parameters make sense */
 	assert(heap != NULL);
 	assert(type == AREA_USED || type == AREA_FREE);
 	assert(size > sizeof(area_header_t) + sizeof(area_footer_t));
@@ -115,12 +127,12 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 
 #if HEAP_DEBUG
 	/* Very expensive, but very useful sanity checks! */
-	/* Due to the fact that we have TWO indexes, move this to a separate function */
-	do_asserts_for_index(&kheap->free_index, header_to_create, footer_to_create, size);
-	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size);
+	/* Due to the fact that we have TWO indexes, these checks are in a separate function. */
+	do_asserts_for_index(&kheap->free_index, header_to_create, footer_to_create, size, heap);
+	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size, heap);
 #endif
 
-	/* Set up the area "manually", since create_area() requires the heap to be set up! */
+	/* Write the header and footer to memory */
 	header_to_create->size = size;
 	header_to_create->magic = HEAP_MAGIC;
 	header_to_create->type = type;
@@ -128,12 +140,17 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 	footer_to_create->magic = HEAP_MAGIC;
 	footer_to_create->header = header_to_create;
 
+	/* Keep track of the rightmost area */
+	if (header_to_create > heap->rightmost_area)
+		heap->rightmost_area = header_to_create;
+
 	/* All done! */
 	return header_to_create;
 }
 
+
+/* This function does what is says on the tin: loops through all the holes, and returns the first (=smallest) one that is still big enough. */
 area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
-	/* This function does what is says on the tin: loops through all the holes, and returns the first (=smallest) one that is still big enough. */
 
 	area_header_t *header = NULL;
 
@@ -189,6 +206,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	uint32 new_end_address = heap->end_address + size_to_add;
 
 	/* Make sure the new end address is page aligned. If not, move it BACK to a page boundary. */
+	/* TODO: should this, as every other alignment function, move forward...? */
 	if (!IS_PAGE_ALIGNED(new_end_address)) {
 		new_end_address &= 0xfffff000;
 		/* Calculate the new size_to_add */
@@ -220,7 +238,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	area_header_t *area = find_smallest_hole(size, page_align, heap);
 
 	if (area == NULL) {
-		/* There were no holes big enough! Expand the heap. */
+		/* There were no free areas big enough! Expand the heap, and create one. */
 		/* heap_expand expands with at least HEAP_MIN_GROWTH bytes, so we don't need to bother checking here */
 		uint32 old_heap_size = heap->end_address - heap->start_address;
 		heap_expand(size, heap);
@@ -237,6 +255,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		 */
 
 		/* First, let's check the rightmost area... */
+		area_header_t *STORED_rightmost_area = heap->rightmost_area;
 		area_header_t *rightmost_area = NULL;
 		for (int i = 0; i < heap->free_index.size; i++) {
 			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->free_index);
@@ -251,6 +270,11 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 				rightmost_area = test_area;
 			}
 		}
+
+		/* TODO: When this always works, remove the loops above! 
+		 * DO wait until *ALL* heap code is 100% done, though!!! */
+		assert(STORED_rightmost_area == rightmost_area);
+
 		/* rightmost_area now points to the rightmost area (free or not!) - or NULL. */
 
 		if (rightmost_area != NULL && rightmost_area->type == AREA_FREE) {
@@ -273,7 +297,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		else {
 			/* We didn't find anything useful! We need to add a new area. */
 			if (rightmost_area == NULL) {
-				panic("No areas whatsoever in the heap!");
+				panic("No areas whatsoever in the heap! This is a bug and should never happen.");
 			}
 
 			/* Now that the edge-case (which should never happen) is gone, we have a valid header in rightmost_header. */
@@ -386,6 +410,10 @@ void heap_free(void *p, heap_t *heap) {
 			   header->magic = 0;
 			   left_area_footer->magic = 0;
 
+			   /* Since "our" area is disappearing, it will no longer be the rightmost, if it is at the moment. */
+			   if (header == heap->rightmost_area)
+				   heap->rightmost_area = left_area_header;
+
 			   /* Re-point "our" header to the new area; this completes the merge */
 			   header = left_area_header;
 
@@ -413,6 +441,10 @@ void heap_free(void *p, heap_t *heap) {
 			 * in that case, the asserts will catch the invalid magics */
 			footer->magic = 0;
 			right_area_header->magic = 0;
+
+			/* Same as with the left unification above: if the header to our right is the rightmost of all areas, it won't be any more. */
+			if (heap->rightmost_area == right_area_header)
+				heap->rightmost_area = header;
 
 			/* Merge the areas */
 			footer = right_area_footer;
@@ -480,7 +512,11 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	footer_to_create->magic = HEAP_MAGIC;
 	footer_to_create->header = header_to_create;
 
+	/* Add the area to the index */
 	insert_ordered_array((void *)header_to_create, &heap->free_index);
+
+	/* Keep track of the rightmost area - since this is the ONLY area, it's also the rightmost area! */
+	heap->rightmost_area = header_to_create;
 	
 	return heap;
 }
