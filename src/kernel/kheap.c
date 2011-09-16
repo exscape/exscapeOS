@@ -161,6 +161,50 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 	return NULL;
 }
 
+/* Grows the heap, and allocates frames to store it on. */
+void heap_expand(uint32 size_to_add, heap_t *heap) {
+	/* Don't expand any less than HEAP_MIN_GROWTH bytes */
+	if (size_to_add < HEAP_MIN_GROWTH)
+		size_to_add = HEAP_MIN_GROWTH;
+
+	/* Don't go past the maximum size */
+	if (heap->start_address + size_to_add > heap->max_address) {
+		/* If this happens, calculate the maximum size we can add without overreaching the boundary. */
+		size_to_add = (heap->max_address - heap->start_address) /* maximum size, period */
+			          - (heap->end_address - heap->start_address); /* current size */
+	}
+
+	/* Make sure the above worked properly */
+	assert(heap->start_address + size_to_add <= heap->max_address);
+	assert(heap->start_address + size_to_add > heap->start_address);
+
+	uint32 new_end_address = heap->start_address + size_to_add;
+
+	/* Make sure the new end address is page aligned. If not, move it BACK to a page boundary. */
+	if (!IS_PAGE_ALIGNED(new_end_address)) {
+		new_end_address &= 0xfffff000;
+		/* Calculate the new size_to_add */
+		size_to_add -= (heap->start_address + size_to_add) - new_end_address;
+	}
+
+	/* Make sure, yet again, that we haven't screwed up */
+	assert(IS_PAGE_ALIGNED(heap->start_address));
+	assert(IS_PAGE_ALIGNED(new_end_address));
+	assert(heap->start_address + size_to_add == new_end_address);
+	assert(new_end_address > heap->end_address);
+
+	/* Now, finally... Physically allocate the new frames */
+	uint32 addr = heap->end_address; /* start at the old end_address */
+	while (addr < new_end_address + 0x1000) {
+		assert(IS_PAGE_ALIGNED(addr));
+		alloc_frame( get_page(addr, true, kernel_directory), (heap->supervisor ? 1 : 0), (heap->readonly ? 0 : 1) );
+		addr += 0x1000;
+	}
+
+	/* ... and, now that we have the space, expand the heap! */
+	heap->end_address = new_end_address;
+}
+
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
@@ -169,8 +213,53 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 
 	if (area == NULL) {
 		/* There were no holes big enough! Expand the heap. */
-		/* Expand with at least HEAP_MIN_GROWTH bytes (either that or /size/ bytes, whichever is LARGER) */
-		panic("Expand the heap here!");
+		/* heap_expand expands with at least HEAP_MIN_GROWTH bytes, so we don't need to bother checking here */
+		heap_expand(size, heap);
+
+		/*
+		 * OK, so the heap is now expanded. However, that's not enough; we need a free area that's big enough!
+		 * heap_expand() doesn't modify the areas - WE need to do so.
+		 * First, we try to find the rightmost header (not the "rightmost free" - if there is a used area further to the right,
+		 * we can't expand the rightmost free area, now can we?), hope it's free, and if so, grow it.
+		 * If we don't find such an area, create one.
+		 */
+
+		/* First, let's check the rightmost area... */
+		area_header_t *rightmost_area = NULL;
+		for (int i = 0; i < heap->free_index.size; i++) {
+			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->free_index);
+			if (test_area > rightmost_area) {
+				rightmost_area = test_area;
+			}
+		}
+		/* We need to do the same for the USED index! */
+		for (int i = 0; i < heap->used_index.size; i++) {
+			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->used_index);
+			if (test_area > rightmost_area) {
+				rightmost_area = test_area;
+			}
+		}
+		/* rightmost_area now points to the rightmost area (free or not!) - or NULL. */
+
+		if (rightmost_area != NULL && rightmost_area->type == AREA_FREE) {
+			/* Add the space to this area */
+			panic("TODO: implement this!");
+			// TODO: implement this
+		}
+		else {
+			/* We didn't find anything useful! We need to add a new area. */
+			if (rightmost_area == NULL) {
+				panic("No areas whatsoever in the heap!");
+			}
+
+			/* Now that the edge-case (which should never happen) is gone, we have a valid header in rightmost_header. */
+			/* We need to add a new header to it's right. */
+
+//			area_header_t *new_header = (area_header_t *)( (uint32)rightmost_area + rightmost_area->size );
+//			create_area(...);
+			panic("TODO: FIXME");
+			// TODO: implement this
+		}
 
 		/* Then try again: */
 		return heap_alloc(size, page_align, heap);
