@@ -11,6 +11,19 @@
 #include <kernel/paging.h>
 #include <kernel/rtc.h>
 
+/* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
+ * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
+void verify_area(void *in_p, uint32 size) {
+	unsigned char *ptr;
+	for (ptr = in_p; ptr < ((unsigned char *)in_p + size); ptr++) {
+		if (*ptr != 0xaa) {
+			print_heap_index();
+			printk("ERROR: data at %p isn't 0xaa! Heap index for just now is above.\n", ptr);
+			panic("Data was overwritten!");
+		}
+	}
+}
+
 void kmain(void* mbd, unsigned int magic) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
@@ -110,7 +123,11 @@ void kmain(void* mbd, unsigned int magic) {
 
 	/* stress test a little */
 #define NUM 1250
-	void *p[NUM];
+	void *p[NUM] = {0};
+
+	/* store the alloc'ed size of all areas; we can't read the header safely, because alloc() may resize the area AFTER allocation!
+	 * this would make verification of contents complain in error, because the NEW space wouldn't be filled with test bytes! */
+	uint32 alloced_size[NUM] = {0};
 	uint32 total = 0;
 //while(1) {
 	total = 0;
@@ -153,11 +170,21 @@ void kmain(void* mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 3
+#define NUM_OUTER_LOOPS 50
+	uint32 num_allocs = 0; /* just a stats variable, to print later */
 
-	srand(123);
+	srand(1234);
 
 	for(int outer=1; outer <= NUM_OUTER_LOOPS  ; outer++) {
+
+	/*
+	 * This code is a damn mess, but i won't bother making this easily readable,
+	 * as it's temporary.
+	 * It randomizes whether it should allocate or free, and whether the allocations
+	 * should be page-aligned or not.
+	 * It then fills its allocated space with a bit pattern, and ensures that
+	 * it doesn't get overwritten.
+	 */
 
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
@@ -175,30 +202,38 @@ void kmain(void* mbd, unsigned int magic) {
 					r3 *= 200; /* test */
 
 			uint8 align = RAND_RANGE(1, 10); /* align ~1/10 allocs */
-			printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
+			//printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
 			if (align == 1)
 				p[r2] = kmalloc_a(r3);
 			else
 				p[r2] = kmalloc(r3);
+			//printk(" at 0x%p\n", p[r2]);
+
+			num_allocs++;
+
+			/* store the alloc size */
+			alloced_size[r2] = r3;
+
+			/* fill the allocation with a bit pattern, to ensure that nothing overwrites it */
+			memset(p[r2], 0xaa, r3);
 
 		if (p[r2] > max_alloc) max_alloc = p[r2];
-			printk(" at 0x%p\n", p[r2]);
 			mem_in_use += r3 + sizeof(area_header_t) + sizeof(area_footer_t);
-			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
+			//printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 		}
 		else {
 			uint32 r2 = RAND_RANGE(0, NUM-1);
-//			printk("free\n");
 			if (p[r2] != NULL) {
-				area_header_t *header = (area_header_t *) ((uint32)p[r2] - sizeof(area_header_t));
-				if (header->magic == HEAP_MAGIC)
-					mem_in_use -= header->size;
-				else
-					panic("invalid magic");
+				mem_in_use -= alloced_size[r2];
+
+				assert(alloced_size[r2] != 0);
+				verify_area(p[r2], alloced_size[r2]);
 			}
+			//printk("freeing memory at %p (%d bytes)\n", p[r2], alloced_size[r2]);
+			alloced_size[r2] = 0;
 			kfree((void *)p[r2]);
 			p[r2] = 0;
-			printk("mem in use: %d bytes (after free)\n", mem_in_use);
+			//printk("mem in use: %d bytes (after free)\n", mem_in_use);
 		}
 		validate_heap_index(false);
 	}
@@ -206,12 +241,10 @@ void kmain(void* mbd, unsigned int magic) {
 	// Clean up
 	for (int i = 0; i < NUM; i++) {
 		if (p[i] != NULL) {
-			area_header_t *header = (area_header_t *) ((uint32)p[i] - sizeof(area_header_t));
-			if (header->magic == HEAP_MAGIC)
-				mem_in_use -= header->size;
-			else
-				panic("invalid magic");
-			printk("mem in use: %d bytes (after free)\n", mem_in_use);
+			mem_in_use -= alloced_size[i];
+			//printk("mem in use: %d bytes (after free)\n", mem_in_use);
+			assert(alloced_size[i] != 0);
+			verify_area(p[i], alloced_size[i]);
 			kfree((void *)p[i]);
 			p[i] = 0;
 		}
@@ -219,7 +252,7 @@ void kmain(void* mbd, unsigned int magic) {
 	validate_heap_index(false);
 }
 print_heap_index();
-	printk("ALL DONE! max_alloc = %p\n", max_alloc);
+	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
 
 /*
 	printk("Creating a page fault...");

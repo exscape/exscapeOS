@@ -217,6 +217,10 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	uint32 new_end_address = heap->end_address + size_to_add;
 
+#ifdef HEAP_DEBUG
+	printk("heap_expand, adding %d bytes\n", size_to_add);
+#endif
+
 	/* Make sure the new end address is page aligned. If not, move it BACK to a page boundary. */
 	/* TODO: should this, as every other alignment function, move forward...? */
 	if (!IS_PAGE_ALIGNED(new_end_address)) {
@@ -285,6 +289,10 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 		new_end_address &= 0xfffff000;
 		new_end_address += 0x1000;
 	}
+
+#ifdef HEAP_DEBUG
+	printk("heap_contract, removing %d bytes\n", (old_size - new_size) );
+#endif
 
 	/* Make sure the address is still aligned */
 	assert(IS_PAGE_ALIGNED(new_end_address));
