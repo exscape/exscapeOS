@@ -364,6 +364,8 @@ void kmain(void* mbd, unsigned int magic) {
 
 	// Clean up
 	for (int i = 0; i < NUM; i++) {
+		if (p[i] != NULL)
+			printk("free at #%d not null (outer = %d)\n", i, outer);
 		kfree((void *) p[i]);
 		p[i] = 0;
 	}

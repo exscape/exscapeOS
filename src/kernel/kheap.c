@@ -252,7 +252,10 @@ void test_rightmost(void) {
 		assert(STORED_rightmost_area == rightmost_area);
 }
 
+void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
+	panic("Implement heap_contract");
 
+}
 
 
 
@@ -495,7 +498,40 @@ void heap_free(void *p, heap_t *heap) {
 	if (add_to_index)
 		insert_ordered_array((void *)header, &kheap->free_index);
 
-	/* TODO: Contract the heap if the last free area is (some amount - at least a few megs!), and the heap is over it's min. size */
+	/* Contract the heap, if there is enough space at the end that we can consider it a waste of physical frames */
+	if (heap->rightmost_area->type == AREA_FREE && heap->rightmost_area->size >= HEAP_MAX_WASTE) {
+		assert(HEAP_MAX_WASTE >= 0x100000); /* If it's less than 1 MiB, this won't work very well. */
+
+		area_header_t *rightmost_area = heap->rightmost_area;
+		area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
+		
+		/* Sanity checks */
+		assert(rightmost_area->magic == HEAP_MAGIC);
+		assert(rightmost_footer->magic == HEAP_MAGIC);
+		assert(rightmost_footer->header == header);
+
+		/* Shrink the heap by the amount that would cause the rightmost area to end up 1 MiB in size. */
+		uint32 bytes_to_shrink = rightmost_area->size - 0x100000;
+
+		/* Perform the actual contraction */
+		uint32 old_heap_size = heap->end_address - heap->start_address;
+		heap_contract(bytes_to_shrink, heap);
+		uint32 new_heap_size = heap->end_address - heap->start_address;
+
+		/* How much did we ACTUALLY shrink? */
+		uint32 bytes_shrunk = old_heap_size - new_heap_size;
+		assert(bytes_shrunk > 0);
+
+		/* Resize the area, now that the old footer should be outside the heap */
+		rightmost_area->size -= bytes_shrunk;
+
+		/* Write a new footer */
+		rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
+		rightmost_footer->magic = HEAP_MAGIC;
+		rightmost_footer->header = rightmost_area;
+
+		/* Since the header address hasn't changed, we don't need to modify the index. We're done! */
+	}
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
