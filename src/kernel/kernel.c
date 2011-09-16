@@ -266,8 +266,6 @@ void kmain(void* mbd, unsigned int magic) {
 	kfree(b);
 	print_heap_index();
 
-
-
 	//kfree((void *)c);
 	//kfree((void *)b);
 	//uint32 d = kmalloc(12);
@@ -275,9 +273,8 @@ void kmain(void* mbd, unsigned int magic) {
 	//kfree((void *)d);
 
 	/* stress test a little */
-/*
 #define NUM 1000
-	uint32 p[NUM];
+	void *p[NUM];
 	uint32 total = 0;
 //while(1) {
 	total = 0;
@@ -288,7 +285,7 @@ void kmain(void* mbd, unsigned int magic) {
 		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, (i+1) * 32, p[i]);
 
 		assert(total < 30*1024*1024);
-		validate_heap_index();
+		validate_heap_index(false);
 		//print_heap_index();
 	}
 	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
@@ -296,49 +293,58 @@ void kmain(void* mbd, unsigned int magic) {
 	if (NUM > 100) {
 		kfree((void *)p[100]);
 		p[100] = NULL;
-		//print_heap_index();
 	}
 
-	validate_heap_index();
+	validate_heap_index(false);
 
 	for (int i = 0; i < NUM; i++) {
 		kfree((void *)p[i]);
-		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(header_t));
-		validate_heap_index();
+		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(area_header_t));
+		validate_heap_index(false);
 		//print_heap_index();
 	}
 	printk("%d frees done\n", NUM);
 
 //}
-	validate_heap_index();
+	validate_heap_index(false);
 	print_heap_index();
 	//panic("pause");
 
+/****************************
+  *** STRESS TEST PART II ***
+  ***************************/
+
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
+
+#define NUM_OUTER_LOOPS 10000
 
 	srand(123);
 
-	for(int outer=1; outer != 0 ; outer++) {
+	for(int outer=1; outer <= NUM_OUTER_LOOPS  ; outer++) {
 
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
-	for (int i = 0; i < 1000; i++) {
+	for (int i = 0; i < NUM; i++) {
 //		print_heap_index();
 		uint32 r = RAND_RANGE(1,10);
 		if (r >= 6) {
+			uint32 r2 =RAND_RANGE(0,NUM-1);
+			if (p[r2] != NULL) {
+				/* This area was used already; don't overwrite or we can't free it! */
+				continue;
+			}
 			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
 			printk("alloc %d bytes", r3);
-			uint32 r2 =RAND_RANGE(0,1000);
 			p[r2] = kmalloc(r3);
 			printk(" at 0x%p\n", p[r2]);
 			mem_in_use += r3;
 			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 		}
 		else {
-			uint32 r2 = RAND_RANGE(0, 999);
+			uint32 r2 = RAND_RANGE(0, NUM-1);
 //			printk("free\n");
 			if (p[r2] != NULL) {
-				header_t *header = (header_t *) ((uint32)p[r2] - sizeof(header_t));
+				area_header_t *header = (area_header_t *) ((uint32)p[r2] - sizeof(area_header_t));
 				if (header->magic == HEAP_MAGIC)
 					mem_in_use -= header->size;
 				else
@@ -348,19 +354,18 @@ void kmain(void* mbd, unsigned int magic) {
 			p[r2] = 0;
 			printk("mem in use: %d bytes (after free)\n", mem_in_use);
 		}
-		validate_heap_index();
+		validate_heap_index(false);
 	}
 
 	// Clean up
-	for (int i=0; i<1000; i++) {
+	for (int i = 0; i < NUM; i++) {
 		kfree((void *) p[i]);
 		p[i] = 0;
 	}
-	validate_heap_index();
+	validate_heap_index(false);
 }
+print_heap_index();
 	printk("ALL DONE!\n");
-
-*/
 
 /*
 	printk("Creating a page fault...");

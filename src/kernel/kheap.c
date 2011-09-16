@@ -206,8 +206,6 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	else {
 		/* There's not enough space to bother making a new area.
 		 * If there is ANY space (literally 1 byte or more), add it to the current allocation, instead. */
-		   panic("Step through this with gdb! Does it work?");
-
 		   size += (area->size - size);
 	}
 

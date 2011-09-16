@@ -51,12 +51,13 @@ typedef struct {
 
 /* Set up the heap location, and start off with a 4 MiB heap */
 #define KHEAP_START 0xc0000000
-#define KHEAP_INITIAL_SIZE 0x400000
+#define KHEAP_INITIAL_SIZE 0x1000000 /* TODO FIXME: make the heap a bit smaller to begin with */
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_size, uint8 supervisor, uint8 readonly);
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap);
 void heap_free(void *p, heap_t *heap);
 
+void validate_heap_index(bool print_headers);
 void print_heap_index(void);
 
 void kfree(void *p);
