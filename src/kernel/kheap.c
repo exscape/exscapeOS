@@ -169,6 +169,12 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	if (size_to_add < HEAP_MIN_GROWTH)
 		size_to_add = HEAP_MIN_GROWTH;
 
+	/* "Page align" the size */
+	if ((size_to_add % 0x1000) != 0) {
+		size_to_add &= 0xfffff000;
+		size_to_add += 0x1000;
+	}
+
 	/* Don't go past the maximum size */
 	if (heap->start_address + size_to_add > heap->max_address) {
 		/* If this happens, calculate the maximum size we can add without overreaching the boundary. */

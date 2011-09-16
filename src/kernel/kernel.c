@@ -316,7 +316,7 @@ void kmain(void* mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 100
+#define NUM_OUTER_LOOPS 3
 
 	srand(123);
 
