@@ -255,11 +255,17 @@ void test_rightmost(void) {
 /* Contract the heap, freeing the pages and physical frames that are no longer used */
 void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	/* Don't bother shrinking less than 512 kiB; this isn't an OS for 386-based computers */
-	assert(bytes_to_shrink > 512*1024); 
+//	assert(bytes_to_shrink > 512*1024); 
+	if (bytes_to_shrink < 512*1024)
+		return;
 
 	/* Calculate the sizes */
 	uint32 old_size = heap->end_address - heap->start_address;
 	uint32 new_size = old_size - bytes_to_shrink;
+
+	/* Don't shrink below the initial size. */
+	if (new_size < KHEAP_INITIAL_SIZE && heap == kheap)
+		new_size = KHEAP_INITIAL_SIZE;
 
 	/* Calculate the new end address, and make sure it's page aligned */
 	uint32 new_end_address = heap->start_address + new_size;
@@ -268,12 +274,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 		new_end_address += 0x1000;
 	}
 
-	/* Don't shrink below the initial size. */
-	if (new_size < KHEAP_INITIAL_SIZE && heap == kheap)
-		new_size = KHEAP_INITIAL_SIZE;
-
 	/* Make sure the address is still aligned */
-	new_end_address = heap->start_address + new_size;
 	assert(IS_PAGE_ALIGNED(new_end_address));
 
 	/* Free the frames that make up the new-freed space */
@@ -533,7 +534,12 @@ void heap_free(void *p, heap_t *heap) {
 		/* Sanity checks */
 		assert(rightmost_area->magic == HEAP_MAGIC);
 		assert(rightmost_footer->magic == HEAP_MAGIC);
-		assert(rightmost_footer->header == header);
+		test_rightmost();
+
+//		assert(rightmost_area == header);
+		assert(rightmost_footer == FOOTER_FROM_HEADER(rightmost_area));
+
+		assert(rightmost_footer->header == rightmost_area);
 
 		/* Shrink the heap by the amount that would cause the rightmost area to end up 1 MiB in size. */
 		uint32 bytes_to_shrink = rightmost_area->size - 0x100000;
@@ -544,16 +550,17 @@ void heap_free(void *p, heap_t *heap) {
 		uint32 new_heap_size = heap->end_address - heap->start_address;
 
 		/* How much did we ACTUALLY shrink? */
+		/* There's no guarantee that the heap is ANY smaller, because heap_contract refuses to shrink tiny amounts, since it's a waste of time. */
 		uint32 bytes_shrunk = old_heap_size - new_heap_size;
-		assert(bytes_shrunk > 0);
+		if (bytes_shrunk > 0) {
+			/* Resize the area, now that the old footer should be outside the heap */
+			rightmost_area->size -= bytes_shrunk;
 
-		/* Resize the area, now that the old footer should be outside the heap */
-		rightmost_area->size -= bytes_shrunk;
-
-		/* Write a new footer */
-		rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
-		rightmost_footer->magic = HEAP_MAGIC;
-		rightmost_footer->header = rightmost_area;
+			/* Write a new footer */
+			rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
+			rightmost_footer->magic = HEAP_MAGIC;
+			rightmost_footer->header = rightmost_area;
+		}
 
 		/* Since the header address hasn't changed, we don't need to modify the index. We're done! */
 	}

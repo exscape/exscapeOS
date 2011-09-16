@@ -338,6 +338,8 @@ void kmain(void* mbd, unsigned int magic) {
 				continue;
 			}
 			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
+			if (r3 > 3200)
+					r3 *= 200; /* test */
 			printk("alloc %d bytes", r3);
 			p[r2] = kmalloc(r3);
 		if (p[r2] > max_alloc) max_alloc = p[r2];
