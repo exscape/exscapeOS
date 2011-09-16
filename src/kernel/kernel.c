@@ -266,6 +266,9 @@ void kmain(void* mbd, unsigned int magic) {
 	kfree(b);
 	print_heap_index();
 
+	/* The highest address allocated in the stress tests; stored for testing purposes, of course */
+	void *max_alloc = NULL;
+
 	//kfree((void *)c);
 	//kfree((void *)b);
 	//uint32 d = kmalloc(12);
@@ -281,6 +284,7 @@ void kmain(void* mbd, unsigned int magic) {
 
 	for (int i = 0; i < NUM; i++) {
 		p[i] = kmalloc((i+1) * 32);
+		if (p[i] > max_alloc) max_alloc = p[i];
 		total += (i+1) * 32;
 		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, (i+1) * 32, p[i]);
 
@@ -336,6 +340,7 @@ void kmain(void* mbd, unsigned int magic) {
 			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
 			printk("alloc %d bytes", r3);
 			p[r2] = kmalloc(r3);
+		if (p[r2] > max_alloc) max_alloc = p[r2];
 			printk(" at 0x%p\n", p[r2]);
 			mem_in_use += r3;
 			printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
@@ -365,7 +370,7 @@ void kmain(void* mbd, unsigned int magic) {
 	validate_heap_index(false);
 }
 print_heap_index();
-	printk("ALL DONE!\n");
+	printk("ALL DONE! max_alloc = %p\n", max_alloc);
 
 /*
 	printk("Creating a page fault...");

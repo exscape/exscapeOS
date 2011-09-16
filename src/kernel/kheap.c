@@ -231,9 +231,37 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	heap->end_address = new_end_address;
 }
 
+/* TEST FUNCTION, that is to be removed as soon as I feel certain that the pointer is updated whenever it needs to be */
+void test_rightmost(void) {
+		area_header_t *STORED_rightmost_area = kheap->rightmost_area;
+		area_header_t *rightmost_area = NULL;
+		for (int i = 0; i < kheap->free_index.size; i++) {
+			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &kheap->free_index);
+			if (test_area > rightmost_area) {
+				rightmost_area = test_area;
+			}
+		}
+		/* We need to do the same for the USED index! */
+		for (int i = 0; i < kheap->used_index.size; i++) {
+			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &kheap->used_index);
+			if (test_area > rightmost_area) {
+				rightmost_area = test_area;
+			}
+		}
+
+		assert(STORED_rightmost_area == rightmost_area);
+}
+
+
+
+
+
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
+
+	/* TODO: remove this when it works! */
+	test_rightmost();
 
 	area_header_t *area = find_smallest_hole(size, page_align, heap);
 
@@ -360,6 +388,9 @@ void heap_free(void *p, heap_t *heap) {
 	/* free() of a NULL pointer should be valid */
 	if (p == NULL)
 		return;
+
+	/* TODO: remove this when it works! */
+	test_rightmost();
 
 	/* Calculate the header and footer locations */
 	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
