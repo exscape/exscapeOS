@@ -6,7 +6,15 @@
 #include <string.h> /* memset */
 
 /* Enable extra debugging, i.e. much stricter checks for each alloc/free */
-#define HEAP_DEBUG 1
+/* 0: no debugging
+ * 1: more checks, but rarely text printed unless an error occurs
+ * 2: even more checks, still little or no text
+ * 3: same checks as 2, but more text printed */
+/* DON'T SET THIS TO ZERO, EVER! It should remain at 2 unless we're benchmarking or whatever (why would anyone benchmark this?). */
+#define HEAP_DEBUG 2
+#if HEAP_DEBUG == 0
+#error Seriously, HEAP_DEBUG == 0 is a bad idea
+#endif
 
 /* The kernel heap */
 heap_t *kheap = NULL;
@@ -76,6 +84,7 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 	assert(footer_to_create != NULL);
 	assert(size > sizeof(area_header_t) + sizeof(area_footer_t));
 
+#if HEAP_DEBUG >= 2
 	/* Loop through the entire index */
 	for (int i = 0; i < index->size; i++) {
 		area_header_t *found_header = (area_header_t *)lookup_ordered_array(i, index);
@@ -109,6 +118,7 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 			assert((uint32)found_header + found_header->size <= (uint32)header_to_create);
 		}
 	}
+#endif
 }
 
 /* Called by various parts of alloc() (and possibly free()) to create new areas (free or used). */
@@ -157,11 +167,13 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 	for (int i = 0; i < kheap->free_index.size; i++) {
 		header = lookup_ordered_array(i, &kheap->free_index);
 
+#if HEAP_DEBUG >= 1
 	/* More checks never hurt! Unless you count performance, of course... */
 		assert(header->magic == HEAP_MAGIC);
 		assert(header->type == AREA_FREE);
 		assert(FOOTER_FROM_HEADER(header)->magic == HEAP_MAGIC);
 		assert(FOOTER_FROM_HEADER(header)->header == header);
+#endif
 
 		if (header->size >= size) {
 			/* We found something! */
@@ -217,7 +229,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	uint32 new_end_address = heap->end_address + size_to_add;
 
-#ifdef HEAP_DEBUG
+#if HEAP_DEBUG >= 3
 	printk("heap_expand, adding %d bytes\n", size_to_add);
 #endif
 
@@ -290,7 +302,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 		new_end_address += 0x1000;
 	}
 
-#ifdef HEAP_DEBUG
+#if HEAP_DEBUG >= 3
 	printk("heap_contract, removing %d bytes\n", (old_size - new_size) );
 #endif
 
@@ -310,7 +322,9 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
 
 	/* TODO: remove this when it works! */
+#if HEAP_DEBUG >= 2
 	test_rightmost();
+#endif
 
 	area_header_t *area = find_smallest_hole(size, page_align, heap);
 
@@ -490,7 +504,9 @@ void heap_free(void *p, heap_t *heap) {
 		return;
 
 	/* TODO: remove this when it works! */
+#if HEAP_DEBUG >= 2
 	test_rightmost();
+#endif
 
 	/* Calculate the header and footer locations */
 	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
@@ -607,7 +623,6 @@ void heap_free(void *p, heap_t *heap) {
 		assert(rightmost_footer->magic == HEAP_MAGIC);
 		test_rightmost();
 
-//		assert(rightmost_area == header);
 		assert(rightmost_footer == FOOTER_FROM_HEADER(rightmost_area));
 
 		assert(rightmost_footer->header == rightmost_area);

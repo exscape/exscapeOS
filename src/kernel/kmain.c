@@ -170,12 +170,14 @@ void kmain(void* mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 50
+#define NUM_OUTER_LOOPS 250
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 
-	srand(1234);
+	srand(12345);
+	printk("Running the large stress test\n");
 
 	for(int outer=1; outer <= NUM_OUTER_LOOPS  ; outer++) {
+		printk("\nloop %d/%d\n", outer, NUM_OUTER_LOOPS);
 
 	/*
 	 * This code is a damn mess, but i won't bother making this easily readable,
@@ -189,6 +191,9 @@ void kmain(void* mbd, unsigned int magic) {
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
 	for (int i = 0; i < NUM; i++) {
+
+		if (num_allocs % 50 == 0)
+			printk(".");
 //		print_heap_index();
 		uint32 r = RAND_RANGE(1,10);
 		if (r >= 6) {
