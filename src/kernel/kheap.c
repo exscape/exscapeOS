@@ -102,8 +102,10 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 
 static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_t *heap) {
 	/* This function should only be called AFTER the heap has been set up! */
-	assert(kheap != NULL);
+	assert(heap != NULL);
 	assert(type == AREA_USED || type == AREA_FREE);
+	assert(size > sizeof(area_header_t) + sizeof(area_footer_t));
+	assert(address >= heap->start_address && (address + size) <= heap->end_address);
 	
 	/* The caller of this function is responsible for details like page alignment.
 	 * If we should page-align something, then address should BE page aligned by now. */
@@ -178,19 +180,19 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	assert(heap->start_address + size_to_add <= heap->max_address);
 	assert(heap->start_address + size_to_add > heap->start_address);
 
-	uint32 new_end_address = heap->start_address + size_to_add;
+	uint32 new_end_address = heap->end_address + size_to_add;
 
 	/* Make sure the new end address is page aligned. If not, move it BACK to a page boundary. */
 	if (!IS_PAGE_ALIGNED(new_end_address)) {
 		new_end_address &= 0xfffff000;
 		/* Calculate the new size_to_add */
-		size_to_add -= (heap->start_address + size_to_add) - new_end_address;
+		size_to_add -= (heap->end_address + size_to_add) - new_end_address;
 	}
 
 	/* Make sure, yet again, that we haven't screwed up */
 	assert(IS_PAGE_ALIGNED(heap->start_address));
 	assert(IS_PAGE_ALIGNED(new_end_address));
-	assert(heap->start_address + size_to_add == new_end_address);
+	assert(heap->end_address + size_to_add == new_end_address);
 	assert(new_end_address > heap->end_address);
 
 	/* Now, finally... Physically allocate the new frames */
@@ -214,7 +216,11 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	if (area == NULL) {
 		/* There were no holes big enough! Expand the heap. */
 		/* heap_expand expands with at least HEAP_MIN_GROWTH bytes, so we don't need to bother checking here */
+		uint32 old_heap_size = heap->end_address - heap->start_address;
 		heap_expand(size, heap);
+		uint32 new_heap_size = heap->end_address - heap->start_address;
+		/* TODO: we should probably require a certain amount here, not just any increase */
+		assert(new_heap_size > old_heap_size);
 
 		/*
 		 * OK, so the heap is now expanded. However, that's not enough; we need a free area that's big enough!
@@ -243,8 +249,20 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 
 		if (rightmost_area != NULL && rightmost_area->type == AREA_FREE) {
 			/* Add the space to this area */
-			panic("TODO: implement this!");
-			// TODO: implement this
+			area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
+			
+			/* "Delete" the old footer */
+			rightmost_footer->magic = 0;
+
+			/* Add the space difference between the new and old heap sizes */
+			rightmost_area->size += (new_heap_size - old_heap_size);
+
+			/* Write a new footer */
+			rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
+			rightmost_footer->magic = HEAP_MAGIC;
+			rightmost_footer->header = rightmost_area;
+
+			/* We're done! The hole was found in the index, so we don't need to add it. */
 		}
 		else {
 			/* We didn't find anything useful! We need to add a new area. */
@@ -255,10 +273,11 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 			/* Now that the edge-case (which should never happen) is gone, we have a valid header in rightmost_header. */
 			/* We need to add a new header to it's right. */
 
-//			area_header_t *new_header = (area_header_t *)( (uint32)rightmost_area + rightmost_area->size );
-//			create_area(...);
-			panic("TODO: FIXME");
-			// TODO: implement this
+			area_header_t *new_header = (area_header_t *)( (uint32)rightmost_area + rightmost_area->size );
+			create_area((uint32)new_header, new_heap_size - old_heap_size, AREA_FREE, heap);
+
+			/* Since we created an area, we need to add it to the index. */
+			insert_ordered_array((void *)new_header, &kheap->free_index);
 		}
 
 		/* Then try again: */

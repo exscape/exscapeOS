@@ -273,7 +273,7 @@ void kmain(void* mbd, unsigned int magic) {
 	//kfree((void *)d);
 
 	/* stress test a little */
-#define NUM 1000
+#define NUM 1250
 	void *p[NUM];
 	uint32 total = 0;
 //while(1) {
