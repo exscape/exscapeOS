@@ -148,7 +148,6 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 	return header_to_create;
 }
 
-
 /* This function does what is says on the tin: loops through all the holes, and returns the first (=smallest) one that is still big enough. */
 area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 
@@ -157,17 +156,30 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 	/* Loop through all the free areas */
 	for (int i = 0; i < kheap->free_index.size; i++) {
 		header = lookup_ordered_array(i, &kheap->free_index);
-#if KHEAP_DEBUG
-	/* More checks never hurt! */
+
+	/* More checks never hurt! Unless you count performance, of course... */
 		assert(header->magic == HEAP_MAGIC);
 		assert(header->type == AREA_FREE);
-#endif
+		assert(FOOTER_FROM_HEADER(header)->magic == HEAP_MAGIC);
+		assert(FOOTER_FROM_HEADER(header)->header == header);
 
 		if (header->size >= size) {
 			/* We found something! */
 			if (page_align) {
-				/* TODO: Add support for page alignment! */
-				   panic("find_smallest_hole(): page alignment not yet supported!");
+				/* The hole needs to be page aligned. We don't page align it here, but we need to 
+				 * make sure that this hole is big enough even when you subtract the space lost
+				 * to alignment. */
+				uint32 location = (uint32)header;
+				uint32 offset = 0;
+				if (!IS_PAGE_ALIGNED(location + sizeof(area_header_t))) {
+					/* We want to page-align the data, not the header! */
+					offset = 0x1000 - (location + sizeof(area_header_t)) % 0x1000;
+				}
+				/* If we don't use signed variables here, they underflow and cause big problems. */
+				if ( (sint32)header->size - (sint32)offset >= (sint32)size) {
+					/* This area is large enough despite the page alignment! */
+					return header;
+				}
 			} 
 			else {
 				/* No page align, so we're good! */
@@ -371,21 +383,72 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		return heap_alloc(size, page_align, heap);
 	} /* end area == NULL */
 
-	if (page_align) {
-		/* TODO: add page alignment support! */
-		panic("TODO: add page_align support to heap_alloc");
-		/* TODO: create a new, free area with the wasted space between /area/ and the page-aligned area we'll return */
-	}
-
 	/* Remove this area from the free_index */
 	/* This must be done before the check to create a second free area (below), or that will fail,
 	 * since the footer for the entire free area we're using will have the same footer location as the new free area.
-	 * An assert() checks that to prevent errors, and will fail if we try to create that hole before we do this:
+	 * An assert() checks that to prevent errors, and will fail if we try to create that hole before we do this.
+	 * This must also be done before the if (page_align) clause below, since that part will actually modify the /area/ variable.
 	 */
 	remove_ordered_array_item((void *)area, &kheap->free_index);
 
+	if (page_align && !IS_PAGE_ALIGNED((uint32)area + sizeof(area_header_t))) {
+		/* The caller has requested the memory be page-aligned; sure, can do! */
+		uint32 offset = 0;
+		if (!IS_PAGE_ALIGNED((uint32)area + sizeof(area_header_t))) {
+			/* We want to page-align the data, not the header! */
+			offset = 0x1000 - ((uint32)area + sizeof(area_header_t)) % 0x1000;
+		}
+
+		assert(area->size > offset); /* this assert is needed, or the one below may fail due to underflow! */
+		assert( (uint32)area->size - offset >= size);
+
+		/* /area/ will be overwritten by the hole we create in the wasted space due to alignment, so we need to save it. */
+		area_header_t *orig_area = area;
+		uint32 cached_size = area->size;
+
+		if (offset > sizeof(area_header_t) + sizeof(area_footer_t)) {
+			/* Create a free area in the otherwise wasted space between /area/ and /area + offset/ that we're going to use now */
+			create_area((uint32)area, offset /* size */, AREA_FREE, heap);
+			/* Add the "waste area" to the index */
+			insert_ordered_array((void *)area, &heap->free_index);
+		}
+		else {
+			/* This is rare, but happens... If we get here, the area between the previous area and the page-aligned area we want to create
+			 * is larger than 0, but smaller than the overhead of an additional area. In other words, we can't write a header + footer
+			 * here... 
+			 * What we do is try to locate the area to the left of the wasted space, and increase it in size... */
+			area_footer_t *test_footer = (area_footer_t *)( (uint32)area - sizeof(area_footer_t) );
+			if (test_footer->magic == HEAP_MAGIC) {
+				/* Looks like we found another area. */
+				area_header_t *test_header = test_footer->header;
+				if (test_header->magic == HEAP_MAGIC) {
+					/* Yep, we found another area! Increase it in size, and create a new footer for it. */
+					test_footer->magic = 0; /* invalidate the old footer */
+					test_header->size += offset;
+
+					/* Rewrite that area's footer, now that the size has increased */
+					test_footer = FOOTER_FROM_HEADER(test_header);
+					test_footer->magic = HEAP_MAGIC;
+					test_footer->header = test_header;
+				}
+			}
+		}
+
+		/* Now that we've created that hole, start work on the one actually requested */
+		/* re-point the area variable to the actual area we want to create */
+		area = (area_header_t *)( (uint32)orig_area + offset );
+
+		/* create_area for the page-aligned area (that was requested) is done below, like with every other area,
+		 * but we need to write the size out, since the stuff below depends on it! */
+		area->size = cached_size - offset;
+
+		/* Make sure the area is aligned now, and that it's still big enough to fit the requested amount of bytes. */
+		assert(IS_PAGE_ALIGNED((uint32)area + sizeof(area_header_t)));
+		assert(area->size >= size);
+	}
+
 	/* Is there enough space in the free area we're using to fit us AND another free area? */
-	if (area->size - size >= 16 + sizeof(area_header_t) + sizeof(area_footer_t)) {
+	if (area->size - size >= (16 + sizeof(area_header_t) + sizeof(area_footer_t))) {
 		/* The area we are allocating (/area/) is large enough to not only fit our data, but ANOTHER free area. */
 		/* Create a new area of size (area->size - size), where /size/ is the user-requested size for the allocation. */
 

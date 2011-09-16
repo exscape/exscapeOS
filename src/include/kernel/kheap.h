@@ -5,7 +5,7 @@
  **** HEAP FUNCTIONS ****
  ************************/
 
-#define IS_PAGE_ALIGNED(x) ((x & 0x00000fff) == 0)
+#define IS_PAGE_ALIGNED(x) (((x) & 0x00000fff) == 0)
 
 #define HEAP_MAGIC 0xabcdef12
 

@@ -84,6 +84,27 @@ void kmain(void* mbd, unsigned int magic) {
 	kfree(b);
 	print_heap_index();
 
+	printk("Testing page alignment...");
+
+	void *initial = kmalloc(16); /* to make sure the alignments aren't aligned by chance */
+	printk("Initial: %p\n", initial);
+	print_heap_index();
+	void *unaligned = kmalloc(16);
+	printk("Unaligned: %p\n", unaligned);
+	print_heap_index();
+	void *aligned = kmalloc_a(16);
+	printk("Aligned: %p\n", aligned);
+	print_heap_index();
+
+	printk("Freeing them all...\n");
+	kfree(initial);
+	kfree(unaligned);
+	kfree(aligned);
+	print_heap_index();
+
+//	printk("Infinite loop...\n");
+//	for(;;);
+
 	/* The highest address allocated in the stress tests; stored for testing purposes, of course */
 	void *max_alloc = NULL;
 
@@ -146,14 +167,20 @@ void kmain(void* mbd, unsigned int magic) {
 		if (r >= 6) {
 			uint32 r2 =RAND_RANGE(0,NUM-1);
 			if (p[r2] != NULL) {
-				/* This area was used already; don't overwrite or we can't free it! */
+				/* This area was used already; don't overwrite it, or we can't free it! */
 				continue;
 			}
 			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
 			if (r3 > 3200)
 					r3 *= 200; /* test */
-			printk("alloc %d bytes", r3);
-			p[r2] = kmalloc(r3);
+
+			uint8 align = RAND_RANGE(1, 10); /* align ~1/10 allocs */
+			printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
+			if (align == 1)
+				p[r2] = kmalloc_a(r3);
+			else
+				p[r2] = kmalloc(r3);
+
 		if (p[r2] > max_alloc) max_alloc = p[r2];
 			printk(" at 0x%p\n", p[r2]);
 			mem_in_use += r3 + sizeof(area_header_t) + sizeof(area_footer_t);
