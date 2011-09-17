@@ -38,9 +38,12 @@ void timer_handler(registers_t regs) {
 }
 
 /*
- * TODO: calculate the timer drift properly.
- * I *think* the error comes to ~1.3 seconds per 24 hours, but
+ * I *think* the error from timer drift comes to ~1.3 seconds per 24 hours, but
  * I don't feel too certain about the calculations...
+ * Those 1.3 seconds (if correct) come from the fact that we assume the timer frequency to be 100.00 Hz, but
+ * it in realy is sliightly less at something about 99.9985 Hz.
+ * Additional error will of course be added due to PIT inaccurary - or, if we're lucky, they cancel out
+ * so that the accuracy in in fact improved! Needless to say, we can't know or rely on either of these, though.
  */
 
 void timer_install(void) {
