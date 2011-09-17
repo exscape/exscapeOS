@@ -123,9 +123,12 @@ void free_frame(page_t *page) {
 
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem) {
-	/* The size of physical memory. Let's assume it's 32MB for the moment. */
 	uint32 mem_end_page = 0x100000 + (uint32)upper_mem*1024;
 	printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
+	if (!IS_PAGE_ALIGNED(mem_end_page)) {
+		/* Ignore the last few bytes of RAM to align */
+		mem_end_page &= 0xfffff000;
+	}
 
 	nframes = mem_end_page / PAGE_SIZE; /* divide by page size */
 
