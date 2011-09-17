@@ -170,10 +170,10 @@ void kmain(void* mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 250
+#define NUM_OUTER_LOOPS 3
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 
-	srand(12345);
+	srand(1234567);
 	printk("Running the large stress test\n");
 
 	for(int outer=1; outer <= NUM_OUTER_LOOPS  ; outer++) {
@@ -256,8 +256,28 @@ void kmain(void* mbd, unsigned int magic) {
 	}
 	validate_heap_index(false);
 }
+printk("\n");
 print_heap_index();
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
+
+	printk("Benchmarking...\n");
+	void **mem = kmalloc(3250 * sizeof(void *));
+	memset(mem, 0, sizeof(void *) * 3250);
+	/* alloc BEFORE the benchmark! */
+	uint32 start_ticks = gettickcount();
+	for (int i = 0; i < 3250; i++) {
+		mem[i] = kmalloc(16);
+	}
+	for (int i = 0; i < 3250; i++) {
+		kfree(mem[i]);
+		mem[i] = NULL;
+	}
+	uint32 end_ticks = gettickcount();
+	kfree(mem);
+	mem = 0;
+	printk("Time taken: %d ticks (%d ms)\n", end_ticks - start_ticks, (end_ticks - start_ticks) * 10);
+
+
 
 /*
 	printk("Creating a page fault...");

@@ -101,13 +101,6 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 		assert(found_footer->magic == HEAP_MAGIC);
 		assert(found_footer->header == found_header);
 
-		/* OK, so this is unlikely to get hit... but let's see */
-		if (found_header > heap->rightmost_area) {
-			/* TODO: remove either the panic or this entire if clause, based on whether it's ever hit */
-			heap->rightmost_area = found_header;
-			panic("do_asserts: found a header further to the right! Remove the panic() and KEEP the code path.");
-		}
-
 		/* Ensure that we don't end up INSIDE the address space of another area */
 		if (header_to_create < found_header) {
 			/* The header we found is more to the right than us. Make sure that our ENTIRE SPACE is to the left of it */
@@ -234,7 +227,6 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 #endif
 
 	/* Make sure the new end address is page aligned. If not, move it BACK to a page boundary. */
-	/* TODO: should this, as every other alignment function, move forward...? */
 	if (!IS_PAGE_ALIGNED(new_end_address)) {
 		new_end_address &= 0xfffff000;
 		/* Calculate the new size_to_add */
@@ -257,27 +249,6 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
-}
-
-/* TEST FUNCTION, that is to be removed as soon as I feel certain that the pointer is updated whenever it needs to be */
-void test_rightmost(void) {
-		area_header_t *STORED_rightmost_area = kheap->rightmost_area;
-		area_header_t *rightmost_area = NULL;
-		for (int i = 0; i < kheap->free_index.size; i++) {
-			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &kheap->free_index);
-			if (test_area > rightmost_area) {
-				rightmost_area = test_area;
-			}
-		}
-		/* We need to do the same for the USED index! */
-		for (int i = 0; i < kheap->used_index.size; i++) {
-			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &kheap->used_index);
-			if (test_area > rightmost_area) {
-				rightmost_area = test_area;
-			}
-		}
-
-		assert(STORED_rightmost_area == rightmost_area);
 }
 
 /* Contract the heap, freeing the pages and physical frames that are no longer used */
@@ -321,11 +292,6 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
 
-	/* TODO: remove this when it works! */
-#if HEAP_DEBUG >= 2
-	test_rightmost();
-#endif
-
 	area_header_t *area = find_smallest_hole(size, page_align, heap);
 
 	if (area == NULL) {
@@ -334,8 +300,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		uint32 old_heap_size = heap->end_address - heap->start_address;
 		heap_expand(size, heap);
 		uint32 new_heap_size = heap->end_address - heap->start_address;
-		/* TODO: we should probably require a certain amount here, not just any increase */
-		assert(new_heap_size > old_heap_size);
+		assert(new_heap_size >= old_heap_size + HEAP_MIN_GROWTH);
 
 		/*
 		 * OK, so the heap is now expanded. However, that's not enough; we need a free area that's big enough!
@@ -346,7 +311,11 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		 */
 
 		/* First, let's check the rightmost area... */
-		area_header_t *STORED_rightmost_area = heap->rightmost_area;
+		area_header_t *rightmost_area = heap->rightmost_area;
+		/*
+		 * This is old code, which is obviously much slower than the new code above. Both were used,
+		 * with an assert(), to make sure the pointer was always up-to-date.
+		 * I'll leave this here (commented out) for a while, just in case I want to make sure again. 
 		area_header_t *rightmost_area = NULL;
 		for (int i = 0; i < heap->free_index.size; i++) {
 			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->free_index);
@@ -354,17 +323,13 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 				rightmost_area = test_area;
 			}
 		}
-		/* We need to do the same for the USED index! */
 		for (int i = 0; i < heap->used_index.size; i++) {
 			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->used_index);
 			if (test_area > rightmost_area) {
 				rightmost_area = test_area;
 			}
 		}
-
-		/* TODO: When this always works, remove the loops above! 
-		 * DO wait until *ALL* heap code is 100% done, though!!! */
-		assert(STORED_rightmost_area == rightmost_area);
+		*/
 
 		/* rightmost_area now points to the rightmost area (free or not!) - or NULL. */
 
@@ -503,11 +468,6 @@ void heap_free(void *p, heap_t *heap) {
 	if (p == NULL)
 		return;
 
-	/* TODO: remove this when it works! */
-#if HEAP_DEBUG >= 2
-	test_rightmost();
-#endif
-
 	/* Calculate the header and footer locations */
 	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
 	area_footer_t *footer = FOOTER_FROM_HEADER(header);
@@ -621,7 +581,6 @@ void heap_free(void *p, heap_t *heap) {
 		/* Sanity checks */
 		assert(rightmost_area->magic == HEAP_MAGIC);
 		assert(rightmost_footer->magic == HEAP_MAGIC);
-		test_rightmost();
 
 		assert(rightmost_footer == FOOTER_FROM_HEADER(rightmost_area));
 
