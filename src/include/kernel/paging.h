@@ -17,11 +17,15 @@ typedef struct page {
 	uint32 present  : 1;  /* is page present in physical memory? */
 	uint32 rw       : 1;  /* 0 if read-only, 1 if read-write */
 	uint32 user     : 1;  /* 0 if kernel-mode, 1 if user-mode */
+	uint32 pwt      : 1;  /* Page-level write-through */
+	uint32 pcd      : 1;  /* Page-level cache disable */
 	uint32 accessed : 1;  /* has the page been accessed (read or written) since last refresh? */
 	uint32 dirty    : 1;  /* has the page been written to since last refresh? */
-	uint32 unused   : 7;  /* unused + reserved bits */
+	uint32 pat      : 1;
+	uint32 global   : 1;  /* if CR4.PGE = 1, determines whether the translation is global; ignored otherwise */
+	uint32 avail    : 3;  /* bits available for use by the OS */
 	uint32 frame    : 20; /* high 20 bits of the frame address */
-} page_t;
+} __attribute__((packed)) page_t;
 
 /* Represents a page table in memory */
 typedef struct page_table {
