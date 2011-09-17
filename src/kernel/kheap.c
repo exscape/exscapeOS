@@ -669,7 +669,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
  * If align == true, the return value will be page aligned.
  * If phys isn't NULL, it will be set to the physical address of the allocated area.
  *
- * Do note that there is no kfree().
+ * Do note that there is no kfree() until the kernel heap has been set up.
  */
 void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {

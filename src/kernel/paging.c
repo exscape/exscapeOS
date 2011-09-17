@@ -107,9 +107,8 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
 		
-		/* TODO! */
-//		panic("Figure out how to call invalidate_tlb() from here - more specifically, how do we got the virtual address?");
-
+		/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
+		asm volatile ("push %%eax; mov %%cr3, %%eax; mov %%eax, %%cr3; pop %%eax;" : /* in */ : /* out */ : "%eax");
 	}
 }
 
@@ -123,6 +122,9 @@ void free_frame(page_t *page) {
 	clear_frame(page->frame);
 	page->frame = 0;
 	page->present = 0;
+
+	/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
+	asm volatile ("push %%eax; mov %%cr3, %%eax; mov %%eax, %%cr3; pop %%eax;" : /* in */ : /* out */ : "%eax");
 }
 
 /* Sets up everything required and activates paging. */
