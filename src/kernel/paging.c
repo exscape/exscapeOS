@@ -31,25 +31,25 @@ extern heap_t *kheap;
 
 /* Set a bit in the used_frames bitmap */
 static void set_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr;
-	uint32 index = INDEX_FROM_BIT(frame);
-	uint32 offset = OFFSET_FROM_BIT(frame);
+	uint32 index = INDEX_FROM_BIT(frame_addr);
+	assert (index <= nframes/32 - 1);
+	uint32 offset = OFFSET_FROM_BIT(frame_addr);
 	used_frames[index] |= (0x1 << offset);
 }
 
 /* Clear a bit in the used_frames bitmap */
 static void clear_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr;
-	uint32 index = INDEX_FROM_BIT(frame);
-	uint32 offset = OFFSET_FROM_BIT(frame);
+	uint32 index = INDEX_FROM_BIT(frame_addr);
+	assert (index <= nframes/32 - 1);
+	uint32 offset = OFFSET_FROM_BIT(frame_addr);
 	used_frames[index] &= ~(0x1 << offset);
 }
 
 /* Test whether a bit is set in the used_frames bitmap */
 static bool test_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr;
-	uint32 index = INDEX_FROM_BIT(frame);
-	uint32 offset = OFFSET_FROM_BIT(frame);
+	uint32 index = INDEX_FROM_BIT(frame_addr);
+	assert (index <= nframes/32 - 1);
+	uint32 offset = OFFSET_FROM_BIT(frame_addr);
 	if ((used_frames[index] & (0x1 << offset)) != 0)
 		return true;
 	else
@@ -106,6 +106,10 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		page->rw = (writable ? 1 : 0);
 		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
+		
+		/* TODO! */
+//		panic("Figure out how to call invalidate_tlb() from here - more specifically, how do we got the virtual address?");
+
 	}
 }
 
@@ -130,7 +134,8 @@ void init_paging(unsigned long upper_mem) {
 		mem_end_page &= 0xfffff000;
 	}
 
-	nframes = mem_end_page / PAGE_SIZE; /* divide by page size */
+	/* The size of the bitmap is one bit per page */
+	nframes = mem_end_page / PAGE_SIZE;
 
 	/* allocate and initialize the bitmap */
 	used_frames = (uint32 *)kmalloc(nframes / 32);
@@ -226,6 +231,11 @@ page_t *get_page (uint32 addr, page_directory_t *dir) {
 		/* Page doesn't already have a table, and creation isn't managed here any more; give up */
 		return NULL;
 	}
+}
+
+/* Tells the CPU that the page at this (virtual) address has changed. */
+void invalidate_tlb(void *addr) {
+	   asm volatile("invlpg (%%eax)" : : "a" (addr) );
 }
 
 /* The page fault interrupt handler. */

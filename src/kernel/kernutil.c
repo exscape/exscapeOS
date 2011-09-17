@@ -38,7 +38,9 @@ extern void panic_assert(const char *file, uint32 line, const char *desc) {
 }
 
 void reset(void) {
-	// Resets the CPU by causing a triple fault.
+	/* Resets the CPU by causing a triple fault.
+	 * More specifically, it creates a NULL IDT pointer, loads the "IDT", and causes an interrupt.
+	 * There is, of course, no handler available to handle that interrupt, which eventually causes a triple fault. */
 	struct idt_ptr p = {0};
 	asm("lgdt (%0);"
 		"int $3;"
