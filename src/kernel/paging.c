@@ -146,7 +146,7 @@ void init_paging(unsigned long upper_mem) {
 	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
 	 * which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
 	assert(kernel_directory != NULL);
-	for (int i = 0; i < 1024; i++) {
+	for (uint32 i = 0; i < 1024; i++) {
 
 		uint32 phys_addr;
 		/* allocate it */
@@ -166,7 +166,7 @@ void init_paging(unsigned long upper_mem) {
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
-	int i = 0;
+	uint32 i = 0;
 	while (i < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
 		alloc_frame(get_page(i, kernel_directory), PAGE_USER, PAGE_READONLY);
@@ -206,11 +206,8 @@ void switch_page_directory(page_directory_t *dir) {
 }
 
 bool addr_is_mapped(uint32 addr) {
-	/* TODO: this function may or may not DO WHAT IT IS CALLED.
-	 * Hopefully, it does work... */
 	page_t *page = get_page(addr, kernel_directory);
-
-	return (page != NULL);
+	return (page->present == 1 && page->frame != 0);
 }
 
 /* Returns a pointer to the page entry responsible for the address at /addr/. */
