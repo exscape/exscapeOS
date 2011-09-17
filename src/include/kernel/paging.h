@@ -6,6 +6,12 @@
 
 #define PAGE_SIZE 0x1000
 
+/* Used for alloc_frame(), perhaps others */
+#define PAGE_USER 0
+#define PAGE_KERNEL 1
+#define PAGE_READONLY 0
+#define PAGE_WRITABLE 1
+
 /* Represents a page entry in memory */
 typedef struct page {
 	uint32 present  : 1;  /* is page present in physical memory? */

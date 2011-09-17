@@ -20,7 +20,8 @@ extern uint32 placement_address;
 extern heap_t *kheap;
 
 /* Bitmap macros */
-/* 32 == sizeof(uint32) in bits */
+/* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
+ * and the number of bits to shift that dword to find it, respectively. */
 #define INDEX_FROM_BIT(a) (a / 32)
 #define OFFSET_FROM_BIT(a) (a % 32)
 
@@ -30,7 +31,7 @@ extern heap_t *kheap;
 
 /* Set a bit in the used_frames bitmap */
 static void set_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr /*/ PAGE_SIZE */;
+	uint32 frame = frame_addr;
 	uint32 index = INDEX_FROM_BIT(frame);
 	uint32 offset = OFFSET_FROM_BIT(frame);
 	used_frames[index] |= (0x1 << offset);
@@ -38,7 +39,7 @@ static void set_frame(uint32 frame_addr) {
 
 /* Clear a bit in the used_frames bitmap */
 static void clear_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr /* / PAGE_SIZE */;
+	uint32 frame = frame_addr;
 	uint32 index = INDEX_FROM_BIT(frame);
 	uint32 offset = OFFSET_FROM_BIT(frame);
 	used_frames[index] &= ~(0x1 << offset);
@@ -46,7 +47,7 @@ static void clear_frame(uint32 frame_addr) {
 
 /* Test whether a bit is set in the used_frames bitmap */
 static bool test_frame(uint32 frame_addr) {
-	uint32 frame = frame_addr; // frame_addr / PAGE_SIZE
+	uint32 frame = frame_addr;
 	uint32 index = INDEX_FROM_BIT(frame);
 	uint32 offset = OFFSET_FROM_BIT(frame);
 	if ((used_frames[index] & (0x1 << offset)) != 0)
@@ -88,6 +89,7 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		return;
 	} 
 	else {
+		/* Find a free frame */
 		uint32 index = first_free_frame();
 
 		if (index == 0xffffffff) {
@@ -95,13 +97,14 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		}
 
 		/* Claim the frame */
-		/* FIXME: this was index * PAGE_SIZE in JamesM's code, which I've modified because it appeared incorrect. */
+		/* First, make sure it's currently set to being unused. */
 		assert(test_frame(index) == false);
 		set_frame(index);
 
+		/* Set up the page associated with this frame */
 		page->present = 1;
 		page->rw = (writable ? 1 : 0);
-		page->user = (kernelmode ? 0 : 1);
+		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
 	}
 }
@@ -111,9 +114,11 @@ void free_frame(page_t *page) {
 	if (page->frame == 0)
 		return;
 
+	/* Make sure this frame is currently set as being used, then clear it */
 	assert(test_frame(page->frame) == true);
 	clear_frame(page->frame);
 	page->frame = 0;
+	/* TODO: shouldn't we set page->present = 0 here? */
 }
 
 /* Sets up everything required and activates paging. */
@@ -132,21 +137,10 @@ void init_paging() {
 	memset(kernel_directory, 0, sizeof(page_directory_t));
 	current_directory = kernel_directory;
 
-	/*
-	 * Map some pages in the kernel heap area.
-	 * We call get_page but not alloc_frame, which causes page_table_t's 
-	 * to be created where necessary. We can't allocate frames yet because they
-	 * need to be identity mapped first (below), and yet we can't increase 
-	 * placement_address between identity mapping and enabling the kernel heap - aka. no kmalloc!
-	 */
-/*	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += PAGE_SIZE) {
-TODO: This should be useless at this point... does it work with this code commented out?
-		get_page(i, kernel_directory);
-		// TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC
-	} */
 
-/* Create all the page tables... */
-/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in expand(), which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
+	/* Create all the page tables... */
+	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
+	 * which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
 	assert(kernel_directory != NULL);
 	for (int i = 0; i < 1024; i++) {
 
@@ -161,32 +155,27 @@ TODO: This should be useless at this point... does it work with this code commen
 
 		phys_addr |= 0x7; /* Set the present, r/w and supervisor flags (for the page table, not for the pages!) */
 		kernel_directory->tables_physical[i] = phys_addr;
-
 	}
 
 	/*
 	 * Identity map from the beginning (0x0) of memory to
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
-
-	 * Note that the loop body modifies placement_address;
-	 * the while loop takes care of the comparisons, though.
 	 */
 	int i = 0;
 	while (i < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
-		/* FIXME: wat. Make this readable and understandable! */
-		alloc_frame(get_page(i, kernel_directory), 0, 0);
+		alloc_frame(get_page(i, kernel_directory), PAGE_USER, PAGE_READONLY);
 		i += PAGE_SIZE;
 	}
 
-	/* Allocate the pages we mapped for the kernel heap just before the identity mapping */
+	/* Allocate pages for the kernel heap */
 	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += PAGE_SIZE) {
-		alloc_frame( get_page(i, kernel_directory), 0, 0);
+		alloc_frame( get_page(i, kernel_directory), PAGE_USER, PAGE_READONLY);
 	}
 
 	/* Register the page fault handler */
-	register_interrupt_handler(14 /* TODO: exception #defines? */, page_fault_handler);
+	register_interrupt_handler(EXCEPTION_PAGE_FAULT, page_fault_handler);
 
 	/* Enable paging! */
 	switch_page_directory(kernel_directory);
@@ -194,7 +183,7 @@ TODO: This should be useless at this point... does it work with this code commen
 	/* Initialize the kernel heap */
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
 
-#ifdef KHEAP_DEBUG
+#if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
 	print_heap_index();
 #endif
@@ -212,11 +201,6 @@ void switch_page_directory(page_directory_t *dir) {
 				 : "%eax");
 }
 
-/* Returns a pointer to the page entry responsible for the address at /addr/.
- * If create is true, the page table to which the page should belong
- * will be created, if it doesn't already exist.
- */
-
 bool addr_is_mapped(uint32 addr) {
 	/* TODO: this function may or may not DO WHAT IT IS CALLED.
 	 * Hopefully, it does work... */
@@ -225,6 +209,7 @@ bool addr_is_mapped(uint32 addr) {
 	return (page != NULL);
 }
 
+/* Returns a pointer to the page entry responsible for the address at /addr/. */
 page_t *get_page (uint32 addr, page_directory_t *dir) {
 	/* Turn the address into an index. */
 	addr /= PAGE_SIZE;
