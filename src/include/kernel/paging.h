@@ -4,6 +4,8 @@
 #include <kernel/gdtidt.h>
 #include <types.h>
 
+#define PAGE_SIZE 0x1000
+
 /* Represents a page entry in memory */
 typedef struct page {
 	uint32 present  : 1;  /* is page present in physical memory? */

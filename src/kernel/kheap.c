@@ -178,7 +178,7 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 				uint32 offset = 0;
 				if (!IS_PAGE_ALIGNED(location + sizeof(area_header_t))) {
 					/* We want to page-align the data, not the header! */
-					offset = 0x1000 - (location + sizeof(area_header_t)) % 0x1000;
+					offset = PAGE_SIZE - (location + sizeof(area_header_t)) % PAGE_SIZE;
 				}
 				/* If we don't use signed variables here, they underflow and cause big problems. */
 				if ( (sint32)header->size - (sint32)offset >= (sint32)size) {
@@ -204,9 +204,9 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 		size_to_add = HEAP_MIN_GROWTH;
 
 	/* "Page align" the size */
-	if ((size_to_add % 0x1000) != 0) {
+	if ((size_to_add % PAGE_SIZE) != 0) {
 		size_to_add &= 0xfffff000;
-		size_to_add += 0x1000;
+		size_to_add += PAGE_SIZE;
 	}
 
 	/* Don't go past the maximum size */
@@ -241,10 +241,10 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	/* Now, finally... Physically allocate the new frames */
 	uint32 addr = heap->end_address; /* start at the old end_address */
-	while (addr < new_end_address + 0x1000) {
+	while (addr < new_end_address + PAGE_SIZE) {
 		assert(IS_PAGE_ALIGNED(addr));
 		alloc_frame( get_page(addr, kernel_directory), (heap->supervisor ? 1 : 0), (heap->readonly ? 0 : 1) );
-		addr += 0x1000;
+		addr += PAGE_SIZE;
 	}
 
 	/* ... and, now that we have the space, expand the heap! */
@@ -270,7 +270,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	uint32 new_end_address = heap->start_address + new_size;
 	if (!IS_PAGE_ALIGNED(new_end_address)) {
 		new_end_address &= 0xfffff000;
-		new_end_address += 0x1000;
+		new_end_address += PAGE_SIZE;
 	}
 
 #if HEAP_DEBUG >= 3
@@ -281,7 +281,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	assert(IS_PAGE_ALIGNED(new_end_address));
 
 	/* Free the frames that make up the new-freed space */
-	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= 0x1000) {
+	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= PAGE_SIZE) {
 		free_frame(get_page(addr, kernel_directory));
 	}
 
@@ -383,7 +383,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		uint32 offset = 0;
 		if (!IS_PAGE_ALIGNED((uint32)area + sizeof(area_header_t))) {
 			/* We want to page-align the data, not the header! */
-			offset = 0x1000 - ((uint32)area + sizeof(area_header_t)) % 0x1000;
+			offset = PAGE_SIZE - ((uint32)area + sizeof(area_header_t)) % PAGE_SIZE;
 		}
 
 		assert(area->size > offset); /* this assert is needed, or the one below may fail due to underflow! */
@@ -631,7 +631,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	if (!IS_PAGE_ALIGNED(start_address)) {
 		/* Page align it */
 		start_address &= 0xfffff000;
-		start_address += 0x1000;
+		start_address += PAGE_SIZE;
 	}
 
 	/* Calculate the end address */
@@ -676,7 +676,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		void *addr = heap_alloc(size, align, kheap);
 		if (phys != 0) {
 			page_t *page = get_page((uint32)addr, kernel_directory);
-			*phys = (page->frame * 0x1000) + ((uint32)addr & 0xfff);
+			*phys = (page->frame * PAGE_SIZE) + ((uint32)addr & 0xfff);
 		}
 		return addr;
 	}
@@ -686,7 +686,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		if (align == true && !IS_PAGE_ALIGNED(placement_address)) {
 			/* The page isn't page aligned; align it */
 			placement_address &= 0xfffff000; /* align it to a page boundary */
-			placement_address += 0x1000;     /* ... the NEXT page boundary */
+			placement_address += PAGE_SIZE;     /* ... the NEXT page boundary */
 		}
 
 		if (phys != 0) {

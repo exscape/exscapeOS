@@ -6,8 +6,6 @@
 #include <kernel/kheap.h>
 #include <kernel/monitor.h> /* printk */
 
-#define PAGE_SIZE 0x1000
-
 // The kernel's page directory
 page_directory_t *kernel_directory = 0;
 // The current page directory;
@@ -141,7 +139,7 @@ void init_paging() {
 	 * need to be identity mapped first (below), and yet we can't increase 
 	 * placement_address between identity mapping and enabling the kernel heap - aka. no kmalloc!
 	 */
-/*	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+/*	for (int i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += PAGE_SIZE) {
 TODO: This should be useless at this point... does it work with this code commented out?
 		get_page(i, kernel_directory);
 		// TODO: replace 1 with a enum/define, in ALL calls to get_page; alloc_frame also needs fixing IIRC
@@ -156,7 +154,7 @@ TODO: This should be useless at this point... does it work with this code commen
 		/* allocate it */
 		kernel_directory->tables[i] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys_addr);
 		/* zero the new table */
-		memset(kernel_directory->tables[i], 0, 0x1000);
+		memset(kernel_directory->tables[i], 0, PAGE_SIZE);
 
 		/* clear the low bits */
 		phys_addr &= 0xfffff000;
@@ -175,15 +173,15 @@ TODO: This should be useless at this point... does it work with this code commen
 	 * the while loop takes care of the comparisons, though.
 	 */
 	int i = 0;
-	while (i < placement_address + 0x1000) {
+	while (i < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
 		/* FIXME: wat. Make this readable and understandable! */
 		alloc_frame(get_page(i, kernel_directory), 0, 0);
-		i += 0x1000;
+		i += PAGE_SIZE;
 	}
 
 	/* Allocate the pages we mapped for the kernel heap just before the identity mapping */
-	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += 0x1000) {
+	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += PAGE_SIZE) {
 		alloc_frame( get_page(i, kernel_directory), 0, 0);
 	}
 
@@ -229,7 +227,7 @@ bool addr_is_mapped(uint32 addr) {
 
 page_t *get_page (uint32 addr, page_directory_t *dir) {
 	/* Turn the address into an index. */
-	addr /= 0x1000;
+	addr /= PAGE_SIZE;
 
 	/* Find the page table containing this address */
 	uint32 table_idx = addr / 1024;
