@@ -118,7 +118,7 @@ void free_frame(page_t *page) {
 	assert(test_frame(page->frame) == true);
 	clear_frame(page->frame);
 	page->frame = 0;
-	/* TODO: shouldn't we set page->present = 0 here? */
+	page->present = 0;
 }
 
 /* Sets up everything required and activates paging. */
