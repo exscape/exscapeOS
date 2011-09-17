@@ -240,12 +240,10 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	assert(new_end_address > heap->end_address);
 
 	/* Now, finally... Physically allocate the new frames */
-	uint32 addr = heap->end_address; /* start at the old end_address */
-	while (addr < new_end_address + PAGE_SIZE) {
+	/* start at the old end_address, and move forwards one page at a time */
+	uint32 addr = heap->end_address; 
+	while (addr < new_end_address + PAGE_SIZE /* allocate one extra page */) {
 		assert(IS_PAGE_ALIGNED(addr));
-
-		/* TODO: in changing the constans (e.g. "supervisor ? 1 : 0"), the supervisor values were flipped...
-		 * are they correct now, or were they correct before? */
 		alloc_frame( get_page(addr, kernel_directory), (heap->supervisor ? PAGE_KERNEL : PAGE_USER), (heap->readonly ? PAGE_READONLY : PAGE_WRITABLE) );
 		addr += PAGE_SIZE;
 	}
