@@ -255,7 +255,6 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 /* Contract the heap, freeing the pages and physical frames that are no longer used */
 void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	/* Don't bother shrinking less than 512 kiB; this isn't an OS for 386-based computers */
-//	assert(bytes_to_shrink > 512*1024); 
 	if (bytes_to_shrink < 512*1024)
 		return;
 

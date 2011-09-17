@@ -10,6 +10,7 @@
 #include <kernel/kheap.h>
 #include <kernel/paging.h>
 #include <kernel/rtc.h>
+#include <kernel/multiboot.h>
 
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
@@ -24,18 +25,19 @@ void verify_area(void *in_p, uint32 size) {
 	}
 }
 
-void kmain(void* mbd, unsigned int magic) {
+void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
-	/*
-	 * The multiboot header structure, mbd, is defined here:
-	 * http://www.gnu.org/software/grub/manual/multiboot/multiboot.html#multiboot_002eh
-	 */
-
-	mbd = mbd; // Silence warning
 
 	clrscr();
+
+	if (mbd->flags & 1) {
+		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n",
+			mbd->mem_lower, mbd->mem_upper);
+	}
+	else
+		panic("mbd->flags bit 0 is unset!");
 
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");
@@ -64,11 +66,10 @@ void kmain(void* mbd, unsigned int magic) {
 
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
-	init_paging();
+	init_paging(mbd->mem_upper);
 	printk("done\n");
 
 	printk("All initialization complete!\n\n");
-
 
 	/**********************************
 	 *** HEAP DEBUGGING AND TESTING ***

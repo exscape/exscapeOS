@@ -41,7 +41,7 @@ typedef struct page_directory {
 } page_directory_t;
 
 /* Sets up everything required and activates paging. */
-void init_paging();
+void init_paging(unsigned long upper_mem);
 
 /* Loads the page directory at /new/ into the CR3 register. */
 void switch_page_directory(page_directory_t *new);
