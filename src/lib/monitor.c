@@ -4,7 +4,7 @@
 #include <kernel/kernutil.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <kernel/kheap.h> /* kmalloc; TODO FIXME */
+#include <kernel/kheap.h>
 
 /* A character representing empty space on the screen */
 static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
@@ -14,16 +14,6 @@ Point cursor;
 
 /* Used for double buffering when scrolling (due to a lack of memmove())*/
 uint16 *vram_buffer = NULL;
-
-
-void *memsetw(void *dst, int val, size_t count)
-{
-	unsigned short *temp = (unsigned short *)dst;
-
-	for( ; count != 0; count--)
-		*temp++ = val;
-	return dst;
-}
 
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
