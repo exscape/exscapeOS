@@ -4,12 +4,16 @@
 #include <kernel/kernutil.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <kernel/kheap.h> /* kmalloc; TODO FIXME */
 
 /* A character representing empty space on the screen */
 static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 
 static uint16 *videoram = (uint16 *) 0xb8000;
 Point cursor;
+
+/* Used for double buffering when scrolling (due to a lack of memmove())*/
+uint16 *vram_buffer = NULL;
 
 
 void *memsetw(void *dst, int val, size_t count)
@@ -47,6 +51,11 @@ void print_time(const Time *t) {
 }
 
 void clrscr(void) {
+	if (vram_buffer == NULL) {
+		/* TODO: don't allocate this here! do it somewhere where it MUST be allocated in time. */
+		vram_buffer = (uint16 *)kmalloc(80*25*2);
+	}
+
 	memsetw(videoram, blank, 80*25);
 
 	cursor.x = 0;
@@ -58,18 +67,17 @@ void scroll(void) {
 	if (cursor.y < 25)
 		return;
 
-	// Move all the lines one line upwards
-	// (or: replace each line with the next line)
-	// Apart from all the *2 (since each character on the screen is two bytes), it's not too bad
-	for (int i = 0; i < 25*80*2; i += 80*2) {
-		unsigned char *vmem = (unsigned char *)videoram;
-		memcpy(vmem + i, vmem + i + 80*2, 80*2);
-	}
+	/* Copy the entire screen to the buffer */
+	memcpy(vram_buffer, videoram, 80*25*2);
+	
+	/* Copy back the lower 24 lines
+	 * Note that we add 80, not 80*2, due to pointer arithmetic! (vram_buffer is a uint16 *) */
+	memcpy(videoram, vram_buffer + 80, 80*24*2);
 
-	// Blank the last line
+	/* Blank the last line */
 	memsetw(videoram + 24*80, blank, 80);
 
-	// Move the cursor
+	/* Move the cursor */
 	cursor.y = 24;
 //	update_cursor();
 }
