@@ -108,7 +108,7 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		page->frame = index;
 		
 		/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
-		asm volatile ("push %%eax; mov %%cr3, %%eax; mov %%eax, %%cr3; pop %%eax;" : /* in */ : /* out */ : "%eax");
+		asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 	}
 }
 
@@ -124,7 +124,7 @@ void free_frame(page_t *page) {
 	page->present = 0;
 
 	/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
-	asm volatile ("push %%eax; mov %%cr3, %%eax; mov %%eax, %%cr3; pop %%eax;" : /* in */ : /* out */ : "%eax");
+	asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 }
 
 /* Sets up everything required and activates paging. */
