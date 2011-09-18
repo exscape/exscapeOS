@@ -1,5 +1,7 @@
 #include <string.h>
 
+
+/*
 void *memset(void *addr, int c, size_t n) {
 	unsigned char *p = addr;
 
@@ -9,6 +11,7 @@ void *memset(void *addr, int c, size_t n) {
 
 	return addr;
 }
+*/
 
 size_t strlen(const char *str) {
 	size_t len = 0;
