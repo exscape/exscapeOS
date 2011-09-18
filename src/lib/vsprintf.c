@@ -62,8 +62,9 @@ static char * number(char * str, int num, int base, int size, int precision
 	i=0;
 	if (num==0)
 		tmp[i++]='0';
-	else while (num!=0)
-		tmp[i++]=digits[do_div(num,base)];
+	else while (num!=0) {
+		tmp[i++] = digits[do_div(num,base)];
+	}
 	if (i>precision) precision=i;
 	size -= precision;
 	if (!(type&(ZEROPAD+LEFT)))

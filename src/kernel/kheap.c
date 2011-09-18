@@ -34,11 +34,11 @@ static sint8 area_header_t_less_than(void *a, void*b) {
 void validate_heap_index(bool print_areas) {
 	/* Since there are two indexes, we need to loop through them both! */
 	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };
-	for (int index_num=0; index_num < 2; index_num++) {
+	for (uint32 index_num=0; index_num < 2; index_num++) {
 		/* The index we're working with right now */
 		ordered_array_t *index = indexes[index_num];
 
-		for (int i=0; i < index->size; i++) {
+		for (uint32 i=0; i < index->size; i++) {
 			area_header_t *found_header = lookup_ordered_array(i, index);
 			area_footer_t *found_footer = FOOTER_FROM_HEADER(found_header);
 
@@ -76,7 +76,7 @@ void print_heap_index(void) {
 }
 
 /* Does a bunch of sanity checks; expensive, but also priceless during development/debugging. */
-void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size, heap_t *heap) {
+void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
 
 	/* First, make sure the paremeters make sense! */
 	assert(index != NULL);
@@ -86,7 +86,7 @@ void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_creat
 
 #if HEAP_DEBUG >= 2
 	/* Loop through the entire index */
-	for (int i = 0; i < index->size; i++) {
+	for (uint32 i = 0; i < index->size; i++) {
 		area_header_t *found_header = (area_header_t *)lookup_ordered_array(i, index);
 		area_footer_t *found_footer = FOOTER_FROM_HEADER(found_header);
 
@@ -131,8 +131,8 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 #if HEAP_DEBUG
 	/* Very expensive, but very useful sanity checks! */
 	/* Due to the fact that we have TWO indexes, these checks are in a separate function. */
-	do_asserts_for_index(&kheap->free_index, header_to_create, footer_to_create, size, heap);
-	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size, heap);
+	do_asserts_for_index(&kheap->free_index, header_to_create, footer_to_create, size);
+	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size);
 #endif
 
 	/* Write the header and footer to memory */
@@ -157,8 +157,8 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 	area_header_t *header = NULL;
 
 	/* Loop through all the free areas */
-	for (int i = 0; i < kheap->free_index.size; i++) {
-		header = lookup_ordered_array(i, &kheap->free_index);
+	for (uint32 i = 0; i < heap->free_index.size; i++) {
+		header = lookup_ordered_array(i, &heap->free_index);
 
 #if HEAP_DEBUG >= 1
 	/* More checks never hurt! Unless you count performance, of course... */

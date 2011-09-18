@@ -81,7 +81,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	void *b = kmalloc(8);
 	void *c = kmalloc(8);
 
-	memset(a, 0xab, 8);
+	memset(a, 0xab, 6);
 	memcpy(b, a, 6);
 
 	printk("\na: %p", a);

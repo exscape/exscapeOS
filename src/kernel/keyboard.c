@@ -3,8 +3,6 @@
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/monitor.h>
 
-void register_interrupt_handler(uint8 n, isr_t handler);
-
 static unsigned char mod_keys = 0;
 #define MOD_NONE  0
 #define MOD_CTRL  (1 << 0)

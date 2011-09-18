@@ -137,13 +137,13 @@ size_t printk(const char *fmt, ...) {
 	return i;
 }
 
-int sprintf(char *buf, const char *fmt, ...)
+int sprintf(char *sprintf_buf, const char *fmt, ...)
 {
 	va_list args;
 	int i;
 
 	va_start(args, fmt);
-	i=vsprintf(buf,fmt,args);
+	i=vsprintf(sprintf_buf,fmt,args);
 	va_end(args);
 
 	return i;

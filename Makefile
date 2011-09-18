@@ -15,18 +15,19 @@ OBJFILES += $(patsubst %.s,%.o,$(ASMFILES))
 DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 
 # All files to end up in a distribution tarball
-ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES)
+ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
-#WARNINGS := -Wall -Wextra -pedantic -Wshadow -Wpointer-arith -Wcast-align \
-                -Wwrite-strings -Wmissing-prototypes -Wmissing-declarations \
+WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -fmax-errors=0 \
+                -Wwrite-strings \
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
-                -Wuninitialized -Wconversion -Wstrict-prototypes -Werror
-WARNINGS := -Wall -Werror
+                -Wuninitialized -Wstrict-prototypes -Werror \
+#				-Wconversion
+# TODO: activate Wconversion and fix the errors!
+#WARNINGS := -Wall -Werror
 
 CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
 # Optimized CFLAGS
 #CFLAGS := -O3 -march=pentium -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
-
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}

@@ -26,7 +26,7 @@ void sleep(uint32 milliseconds) {
 	while (timer_ticks < start_ticks + milliseconds/10);
 }
 
-void timer_handler(registers_t regs) {
+void timer_handler(registers_t regs __attribute__((unused))) {
 	/* Increase the tick count */
 	timer_ticks++;
 /*

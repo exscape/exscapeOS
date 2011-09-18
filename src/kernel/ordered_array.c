@@ -39,7 +39,7 @@ ordered_array_t place_ordered_array(void *addr, uint32 max_size, lessthan_predic
 
 /* Destroy an ordered array */
 void destroy_ordered_array(ordered_array_t *array) {
-	/* kfree(array->array); */
+	kfree(array->array);
 }
 
 /* Insert an item into an ordered array */
@@ -78,7 +78,7 @@ void insert_ordered_array(type_t item, ordered_array_t *array) {
 sint32 indexof_ordered_array(type_t item, ordered_array_t *array) {
 	/* Returns the index where this item is stored (or the first, if it exists multiple times), or -1 if nothing is found. */
 	sint32 i = 0;
-	for (i = 0; i < array->size; i++) {
+	for (i = 0; i < (sint32)array->size; i++) {
 		if (lookup_ordered_array(i, array) == item)
 			return i;
 	}
@@ -110,7 +110,7 @@ void remove_ordered_array(uint32 i, ordered_array_t *array) {
 
 /* Remove the item /item/; if multiple exist, the first is deleted */
 void remove_ordered_array_item(type_t item, ordered_array_t *array) {
-	for (int i = 0; i < array->size; i++) {
+	for (uint32 i = 0; i < array->size; i++) {
 		if (lookup_ordered_array(i, array) == item) {
 			/* We found it! Now remove it: */
 			remove_ordered_array(i, array);
