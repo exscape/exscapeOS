@@ -41,7 +41,7 @@ todolist:
 	@cat TODO
 
 %.o: %.c Makefile
-	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin-vsprintf -fno-builtin-free
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin
 
 %.o: %.s Makefile
 	@nasm -o $@ $< -f elf -F dwarf -g

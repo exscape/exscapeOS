@@ -20,6 +20,9 @@ size_t strlen(const char *str) {
 	return len;
 }
 
+/*
+ *** memcpy now resides in memcpy.s
+
 void *memcpy(void *restrict s1, const void *restrict s2, size_t n) {
 	// Since we can't dereference a void pointer...
 	char *p1 = s1;
@@ -32,4 +35,5 @@ void *memcpy(void *restrict s1, const void *restrict s2, size_t n) {
 	// Return value should be the original s1 pointer
 	return s1;
 }
+*/
 
