@@ -31,6 +31,8 @@ CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/in
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
+	@cp kernel.bin isofiles/boot
+	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso)
@@ -48,11 +50,7 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
-	@cp kernel.bin isofiles/boot
-	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 	@qemu -cdrom bootable.iso -monitor stdio -s
 
 debug: all
-	@cp kernel.bin isofiles/boot
-	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 	@qemu -cdrom bootable.iso -s -S -monitor stdio

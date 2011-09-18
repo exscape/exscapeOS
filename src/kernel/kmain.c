@@ -176,8 +176,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 3
+#define NUM_OUTER_LOOPS 10
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
+	uint32 kbytes_allocated = 0;
 
 	srand(1234567);
 	printk("Running the large stress test\n");
@@ -221,6 +222,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 			//printk(" at 0x%p\n", p[r2]);
 
 			num_allocs++;
+			kbytes_allocated += r3/1024;
 
 			/* store the alloc size */
 			alloced_size[r2] = r3;
@@ -265,6 +267,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 printk("\n");
 print_heap_index();
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
+	printk("Total allocated: (approx.) %u kiB (%u MiB)\n", kbytes_allocated, kbytes_allocated >> 10);
 
 	printk("Benchmarking...\n");
 	void **mem = kmalloc(3250 * sizeof(void *));
