@@ -80,7 +80,6 @@ isr_common_stub:
 
 	popa
 	add esp, 8    ; clean up the pushed error code and ISR number
-	sti           ; FIXME: why do we enable interrupts here, when we never disable them?
 	iret
 
 ; ---------
@@ -91,7 +90,7 @@ isr_common_stub:
 	[GLOBAL irq%1]
 	irq%1:
 		cli
-		push byte 0  ; FIXME: is this needed?
+		push byte 0 ; IRQ handlers (like ISR handlers) use the registers_t struct, so we need this dummy "error code"
 		push byte %2
 		jmp irq_common_stub
 %endmacro
@@ -136,6 +135,5 @@ irq_common_stub:
 	mov gs, bx
 
 	popa ; pop the rest
-	add esp, 8 ; clean up the pushed error code/ISP number // FIXME, in case the dummy is removed later on (in the stubs, above)
-	sti  ; FIXME: why? do interrupts automatically disable the interrupt flag?
+	add esp, 8 ; clean up the pushed error code/ISP number
 	iret
