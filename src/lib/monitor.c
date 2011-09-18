@@ -11,6 +11,16 @@ static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 static uint16 *videoram = (uint16 *) 0xb8000;
 Point cursor;
 
+
+void *memsetw(void *dst, int val, size_t count)
+{
+	unsigned short *temp = (unsigned short *)dst;
+
+	for( ; count != 0; count--)
+		*temp++ = val;
+	return dst;
+}
+
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
 
@@ -20,29 +30,24 @@ void print_time(const Time *t) {
 		return;
 	old_sec = t->second;
 
-	// Save the cursor (since printk wil modify it)
+	// Save the cursor (since printk will modify it)
 	Point p = cursor;
 
 	cursor.y = 24;
 	cursor.x = 0;
 
 	// clear the area
-	for (int i = 24*80; i < 25*80; i++) {
-		videoram[i] = blank;
-	}
+	memsetw(videoram + 24*80, blank, 80);
 
 	printk("%d-%02d-%02d %02d:%02d:%02d", 
 			t->year, t->month, t->day, t->hour, t->minute, t->second);
 
 	// Restore the cursor
-	cursor.x = p.x;
-	cursor.y = p.y;
+	cursor = p;
 }
 
 void clrscr(void) {
-	for (int i = 0; i < 80*25; i++) {
-		videoram[i] = blank;
-	}
+	memsetw(videoram, blank, 80*25);
 
 	cursor.x = 0;
 	cursor.y = 0;
@@ -55,14 +60,14 @@ void scroll(void) {
 
 	// Move all the lines one line upwards
 	// (or: replace each line with the next line)
-	for (int i = 0; i < 24*80; i++) {
-		videoram[i] = videoram[i+80];
+	// Apart from all the *2 (since each character on the screen is two bytes), it's not too bad
+	for (int i = 0; i < 25*80*2; i += 80*2) {
+		unsigned char *vmem = (unsigned char *)videoram;
+		memcpy(vmem + i, vmem + i + 80*2, 80*2);
 	}
 
 	// Blank the last line
-	for (int i = 24*80; i < 25*80; i++) {
-		videoram[i] = blank;
-	}
+	memsetw(videoram + 24*80, blank, 80);
 
 	// Move the cursor
 	cursor.y = 24;
