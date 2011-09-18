@@ -132,7 +132,7 @@ void init_paging(unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);
 
 	uint32 mem_end_page = 0x100000 + (uint32)upper_mem*1024;
-	printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
+	//printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
 	if (!IS_PAGE_ALIGNED(mem_end_page)) {
 		/* Ignore the last few bytes of RAM to align */
 		mem_end_page &= 0xfffff000;
@@ -150,7 +150,6 @@ void init_paging(unsigned long upper_mem) {
 	memset(kernel_directory, 0, sizeof(page_directory_t));
 	current_directory = kernel_directory;
 
-
 	/* Create all the page tables... */
 	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
 	 * which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
@@ -167,6 +166,7 @@ void init_paging(unsigned long upper_mem) {
 		phys_addr &= 0xfffff000;
 
 		phys_addr |= 0x7; /* Set the present, r/w and supervisor flags (for the page table, not for the pages!) */
+
 		kernel_directory->tables_physical[i] = phys_addr;
 	}
 
@@ -205,12 +205,16 @@ void init_paging(unsigned long upper_mem) {
 /* Loads the page directory at /new/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
 	current_directory = dir;
+	uint32 new_cr3_contents = (uint32) & dir->tables_physical;
+	/* bit 3 and 4 (i.e. with values 8 and 16) are used to control write-through and cache, but we don't want either set.
+	 * the rest of the low bits are ignored, according to Intel docs. Still, I prefer them to be 0, just in case. */
+	assert((new_cr3_contents & 0xfff) == 0);
 	asm volatile("mov %0, %%cr3;" /* set the page directory register */
 			     "mov %%cr0, %%eax;"
 				 "or $0x80000000, %%eax;" /* PG = 1! */
 				 "mov %%eax, %%cr0"
 				 : /* no outputs */
-				 : "r"(&dir->tables_physical)
+				 : "r"(new_cr3_contents)
 				 : "%eax");
 }
 
