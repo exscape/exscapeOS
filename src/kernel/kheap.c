@@ -245,6 +245,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	while (addr < new_end_address + PAGE_SIZE /* allocate one extra page */) {
 		assert(IS_PAGE_ALIGNED(addr));
 		alloc_frame( get_page(addr, kernel_directory), (heap->supervisor ? PAGE_KERNEL : PAGE_USER), (heap->readonly ? PAGE_READONLY : PAGE_WRITABLE) );
+		invalidate_tlb((void *)addr);
 		addr += PAGE_SIZE;
 	}
 
@@ -283,6 +284,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	/* Free the frames that make up the new-freed space */
 	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= PAGE_SIZE) {
 		free_frame(get_page(addr, kernel_directory));
+		invalidate_tlb((void *)addr);
 	}
 
 	heap->end_address = new_end_address;

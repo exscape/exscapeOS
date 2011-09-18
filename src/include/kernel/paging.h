@@ -62,4 +62,10 @@ void free_frame(page_t *page);
 
 bool addr_is_mapped(uint32 addr);
 
+/* Executes INVLPG for the argument. */
+void invalidate_tlb(void *addr);
+
+/* Flushes the TLB for all pages (by writing to CR3) */
+void flush_all_tlb(void);
+
 #endif /* header guard */

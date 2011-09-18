@@ -106,9 +106,6 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		page->rw = (writable ? 1 : 0);
 		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
-		
-		/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
-		asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 	}
 }
 
@@ -122,15 +119,13 @@ void free_frame(page_t *page) {
 	clear_frame(page->frame);
 	page->frame = 0;
 	page->present = 0;
-
-	/* TODO! This flushes the ENTIRE TLB, rather than flushing for a single page! */
-	asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 }
 
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);
 
+	/* upper_mem is provided by GRUB; it's the number of *continuous* kilobytes of memory starting at 1MB (0x100000). */
 	uint32 mem_end_page = 0x100000 + (uint32)upper_mem*1024;
 	//printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
 	if (!IS_PAGE_ALIGNED(mem_end_page)) {
@@ -175,16 +170,18 @@ void init_paging(unsigned long upper_mem) {
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
-	uint32 i = 0;
-	while (i < placement_address + PAGE_SIZE) {
+	uint32 addr = 0;
+	while (addr < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
-		alloc_frame(get_page(i, kernel_directory), PAGE_USER, PAGE_READONLY);
-		i += PAGE_SIZE;
+		alloc_frame(get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
+		invalidate_tlb((void *)addr);
+		addr += PAGE_SIZE;
 	}
 
 	/* Allocate pages for the kernel heap */
-	for (i = KHEAP_START; i < KHEAP_START + KHEAP_INITIAL_SIZE; i += PAGE_SIZE) {
-		alloc_frame( get_page(i, kernel_directory), PAGE_USER, PAGE_READONLY);
+	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
+		alloc_frame( get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
+		invalidate_tlb((void *)addr);
 	}
 
 	/* Register the page fault handler */
@@ -244,6 +241,10 @@ page_t *get_page (uint32 addr, page_directory_t *dir) {
 /* Tells the CPU that the page at this (virtual) address has changed. */
 void invalidate_tlb(void *addr) {
 	   asm volatile("invlpg (%%eax)" : : "a" (addr) );
+}
+
+void flush_all_tlb(void) {
+	asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 }
 
 /* The page fault interrupt handler. */
