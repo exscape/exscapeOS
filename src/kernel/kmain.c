@@ -26,11 +26,13 @@ void verify_area(void *in_p, uint32 size) {
 }
 
 void kmain(multiboot_info_t *mbd, unsigned int magic) {
+	/* This should be the first thing done! Printing (even the panic below) may cause errors otherwise. */
+	init_video();
+
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
 
-	clrscr();
 
 	if (mbd->flags & 1) {
 		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n",

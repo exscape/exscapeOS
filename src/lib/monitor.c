@@ -50,12 +50,15 @@ void print_time(const Time *t) {
 	cursor = p;
 }
 
-void clrscr(void) {
-	if (vram_buffer == NULL) {
-		/* TODO: don't allocate this here! do it somewhere where it MUST be allocated in time. */
+/* Called by kmain() on boot. Creates the VRAM buffer (used in scroll() and maybe others). */
+void init_video(void) {
+	if (vram_buffer == NULL)
 		vram_buffer = (uint16 *)kmalloc(80*25*2);
-	}
 
+	clrscr();
+}
+
+void clrscr(void) {
 	memsetw(videoram, blank, 80*25);
 
 	cursor.x = 0;

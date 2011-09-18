@@ -3,6 +3,7 @@
 #include <types.h>
 
 int putchar(int c);
+void init_video(void);
 void clrscr(void);
 void update_cursor(void);
 void scroll(void);
