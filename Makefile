@@ -22,8 +22,6 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -fmax-errors=0 \
                 -Wwrite-strings \
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
                 -Wuninitialized -Wstrict-prototypes -Werror \
-#				-Wconversion
-# TODO: activate Wconversion and fix the errors!
 #WARNINGS := -Wall -Werror
 
 CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
@@ -33,11 +31,12 @@ CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/in
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
+	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 
 clean:
-	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso)
+	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 
 -include $(DEPFILES)
 
