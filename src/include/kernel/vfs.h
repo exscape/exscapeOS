@@ -13,7 +13,7 @@ typedef uint32 (*write_type_t)(struct fs_node *, uint32, uint32, uint8 *);
 typedef void (*open_type_t)(struct fs_node *);
 typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
-typedef struct fs_node * (*finddir_type_t)(struct fs_node *, char *name); /* TODO: const char *? or is it actually written to? */
+typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 
 /* A struct describing a node (file, directory, ...) */
 typedef struct fs_node {
@@ -64,6 +64,6 @@ uint32 write_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer);
 void open_fs(fs_node_t *node, uint8 read, uint8 write);
 void close_fs(fs_node_t *node);
 struct dirent *readdir_fs(fs_node_t *node, uint32 index);
-fs_node_t *finddir_fs(fs_node_t *node, char *name); /* TODO: const char *? */
+fs_node_t *finddir_fs(fs_node_t *node, const char *name);
 
 #endif /* header guard */
