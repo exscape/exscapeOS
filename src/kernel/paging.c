@@ -174,14 +174,14 @@ void init_paging(unsigned long upper_mem) {
 	while (addr < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
 		alloc_frame(get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
-		invalidate_tlb((void *)addr);
 		addr += PAGE_SIZE;
 	}
+
+	/* NOTE: since paging isn't enabled yet, we don't have to call INVLPG for these addresses (above OR below). */
 
 	/* Allocate pages for the kernel heap */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
 		alloc_frame( get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
-		invalidate_tlb((void *)addr);
 	}
 
 	/* Register the page fault handler */

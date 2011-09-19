@@ -1,2 +1,2 @@
 * TODO: set up a separate double fault handler (see OSDev / Triple_Fault)
-* TODO: call invalidate_tlb() whenever appropriate!
+* TODO: rewrite alloc_frame/free_frame to take an address (or two) as arguments, rather than a page, thus a) reducing the awkward alloc_frame(get_page(addr, kernel_directory)) syntax, while also making it easy to call invalidate_tlb() from inside the function, instead of doing so on the calling side
