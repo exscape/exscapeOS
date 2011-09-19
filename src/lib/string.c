@@ -1,17 +1,27 @@
 #include <string.h>
 
+/* memset and memcpy are implemented in assembly, and reside in separate source files */
 
-/*
-void *memset(void *addr, int c, size_t n) {
-	unsigned char *p = addr;
+char *strcpy(char *restrict s1, const char *restrict s2) {
+	char *ret = s1;
 
-	for (size_t i = 0; i < n; i++) {
-		*p++ = (unsigned char)c;
+	while (*s2 != 0) {
+		*s1++ = *s2++;
 	}
 
-	return addr;
+	*s1 = 0;
+
+	return ret;
 }
-*/
+
+int strcmp(const char *s1, const char *s2) {
+	for (; *s1 == *s2; ++s1, ++s2) {
+		if (*s1 == 0)
+			return 0;
+	}
+	
+	return *( (unsigned char *)s1) < *( (unsigned char *)s2) ? -1 : 1;
+}
 
 size_t strlen(const char *str) {
 	size_t len = 0;
@@ -22,21 +32,3 @@ size_t strlen(const char *str) {
 
 	return len;
 }
-
-/*
- *** memcpy now resides in memcpy.s
-
-void *memcpy(void *restrict s1, const void *restrict s2, size_t n) {
-	// Since we can't dereference a void pointer...
-	char *p1 = s1;
-	const char *p2 = s2;
-
-	while (n-- > 0) {
-		*p1++ = *p2++;
-	}
-
-	// Return value should be the original s1 pointer
-	return s1;
-}
-*/
-

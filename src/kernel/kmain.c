@@ -11,6 +11,7 @@
 #include <kernel/paging.h>
 #include <kernel/rtc.h>
 #include <kernel/multiboot.h>
+#include <kernel/initrd.h>
 
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
@@ -25,14 +26,26 @@ void verify_area(void *in_p, uint32 size) {
 	}
 }
 
-void kmain(multiboot_info_t *mbd, unsigned int magic) {
-	/* This should be the first thing done! Printing (even the panic below) may cause errors otherwise. */
-	init_video();
+/* kheap.c */
+extern uint32 placement_address;
 
+void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
 
+	if (mbd->mods_count == 0) {
+		panic("initrd.img not loaded! Make sure the GRUB config contains a \"module\" line.\nSystem halted.");
+	}
+
+	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
+	uint32 initrd_location = *((uint32 *)mbd->mods_addr);
+	uint32 initrd_end = *((uint32 *)(mbd->mods_addr + 4));
+	if (initrd_end > placement_address)
+		placement_address = initrd_end;
+
+	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise. */
+	init_video();
 
 	if (mbd->flags & 1) {
 		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n",
@@ -66,12 +79,40 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	timer_install();
 	printk("done\n");
 
+	/* Initialize the initrd */
+	/* (do this before paging, so that it doesn't end up in the kernel heap) */
+	fs_root = init_initrd(initrd_location);
+
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
 	init_paging(mbd->mem_upper);
 	printk("done\n");
 
+
 	printk("All initialization complete!\n\n");
+
+	int ctr = 0;
+	struct dirent *node = NULL;
+	while ( (node = readdir_fs(fs_root, ctr)) != 0) {
+		fs_node_t *fsnode = finddir_fs(fs_root, node->name);
+		printk("Found %s: %s\n", ((fsnode->flags & 0x7) == FS_DIRECTORY) ? "directory" : "file", node->name);
+		if (fsnode->flags == FS_FILE) {
+			unsigned char buf[256];
+			uint32 sz = read_fs(fsnode, 0, 256, buf);
+			buf[sz] = 0;
+			printk("    contents: \"%s\"\n", buf);
+		}
+
+		ctr++;
+	}
+
+
+
+	for(;;);
+
+
+
+
 
 	/**********************************
 	 *** HEAP DEBUGGING AND TESTING ***

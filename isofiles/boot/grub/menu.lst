@@ -4,3 +4,4 @@ timeout 0
 
 title exscapeOS
 kernel /boot/kernel.bin
+module /boot/initrd.img

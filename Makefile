@@ -33,6 +33,7 @@ CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/in
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
+	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 
 clean:
