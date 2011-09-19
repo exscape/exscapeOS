@@ -6,6 +6,7 @@ LD = i586-elf-ld
 
 AUXFILES := # FIXME: isofiles osv
 PROJDIRS := src/kernel src/lib
+#NOTE: projdirs doesn't include misc/, so that it dosen't try to link with the kernel!
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
 HDRFILES := $(shell find $(PROJDIRS) -type f -name '*.h')
 ASMFILES := $(shell find $(PROJDIRS) -type f -name '*.s')
