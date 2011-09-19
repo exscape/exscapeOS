@@ -83,7 +83,8 @@ static uint32 first_free_frame(void) {
  **********************************/
 
 /* Allocate a frame */
-void alloc_frame(page_t *page, bool kernelmode, bool writable) {
+void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
+	page_t *page = get_page(virtual_addr, page_dir);
 	if (page->frame != 0) {
 		/* This frame is already allocated! */
 		return;
@@ -106,11 +107,15 @@ void alloc_frame(page_t *page, bool kernelmode, bool writable) {
 		page->rw = (writable ? 1 : 0);
 		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
+
+		/* Make sure the CPU doesn't cache the old values */
+		invalidate_tlb((void *)virtual_addr);
 	}
 }
 
 /* Free a frame */
-void free_frame(page_t *page) {
+void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
+	page_t *page = get_page(virtual_addr, page_dir);
 	if (page->frame == 0)
 		return;
 
@@ -119,6 +124,9 @@ void free_frame(page_t *page) {
 	clear_frame(page->frame);
 	page->frame = 0;
 	page->present = 0;
+
+	/* Make sure the CPU doesn't cache the old values */
+	invalidate_tlb((void *)virtual_addr);
 }
 
 /* Sets up everything required and activates paging. */
@@ -173,7 +181,7 @@ void init_paging(unsigned long upper_mem) {
 	uint32 addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
-		alloc_frame(get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
+		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
 		addr += PAGE_SIZE;
 	}
 
@@ -181,7 +189,7 @@ void init_paging(unsigned long upper_mem) {
 
 	/* Allocate pages for the kernel heap */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
-		alloc_frame( get_page(addr, kernel_directory), PAGE_USER, PAGE_READONLY);
+		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
 	}
 
 	/* Register the page fault handler */

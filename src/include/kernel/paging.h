@@ -57,8 +57,8 @@ page_t *get_page (uint32 addr, page_directory_t *dir);
 /* The page fault interrupt handler. */
 void page_fault_handler(registers_t regs);
 
-void alloc_frame(page_t *page, bool kernelmode, bool writable);
-void free_frame(page_t *page);
+void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable);
+void free_frame(uint32 virtual_addr, page_directory_t *page_dir);
 
 bool addr_is_mapped(uint32 addr);
 
