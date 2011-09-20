@@ -3,7 +3,8 @@
 #include <string.h> /* memset(), strlen() */
 #include <kernel/kernutil.h> /* inb, inw, outw */
 #include <kernel/monitor.h> /* printing, scrolling etc. */
-#include <kernel/gdtidt.h> /* GDT / IDT functions */
+#include <kernel/gdt.h>
+#include <kernel/interrupts.h>
 #include <stdio.h>
 #include <kernel/keyboard.h>
 #include <kernel/timer.h>

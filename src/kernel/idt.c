@@ -1,6 +1,6 @@
 #include <types.h>
 #include <string.h>
-#include <kernel/gdtidt.h>
+#include <kernel/interrupts.h>
 #include <kernel/monitor.h>
 #include <kernel/kernutil.h>
 

@@ -1,7 +1,7 @@
 #include <kernel/kernutil.h>
 #include <stdio.h>
 #include <kernel/monitor.h>
-#include <kernel/gdtidt.h>
+#include <kernel/interrupts.h>
 #include <string.h>
 
 // Write a byte to the specified port

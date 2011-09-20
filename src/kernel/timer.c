@@ -1,5 +1,5 @@
 #include <kernel/kernutil.h>
-#include <kernel/gdtidt.h> /* register_interrupt_handler */
+#include <kernel/interrupts.h>
 #include <kernel/monitor.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */

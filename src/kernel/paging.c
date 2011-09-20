@@ -1,5 +1,5 @@
 #include <kernel/paging.h>
-#include <kernel/gdtidt.h>
+#include <kernel/interrupts.h>
 #include <types.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* panic */

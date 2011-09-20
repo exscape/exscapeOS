@@ -1,5 +1,5 @@
 #include <types.h>
-#include <kernel/gdtidt.h> /* isr_t, registers_t */
+#include <kernel/interrupts.h>
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/monitor.h>
 
