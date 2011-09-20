@@ -109,10 +109,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 
 
-	for(;;);
-
-
-
+	//for(;;);
 
 
 	/**********************************
@@ -170,7 +167,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	void *max_alloc = NULL;
 
 	/* stress test a little */
-#define NUM 1250
+#define NUM 2750
 	void *p[NUM] = {0};
 
 	/* store the alloc'ed size of all areas; we can't read the header safely, because alloc() may resize the area AFTER allocation!
@@ -186,7 +183,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 		total += (i+1) * 32;
 		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, (i+1) * 32, p[i]);
 
-		assert(total < 30*1024*1024);
+		assert(total < mbd->mem_upper - 20*1024*1024);
 		validate_heap_index(false);
 		//print_heap_index();
 	}
@@ -218,7 +215,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 10
+#define NUM_OUTER_LOOPS 1
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 	uint32 kbytes_allocated = 0;
 
@@ -346,5 +343,6 @@ print_heap_index();
 	for (;;) {
 		get_time(&t);
 		print_time(&t);
+		asm volatile("hlt"); /* Since the PIT fires every 10ms or so, sleep the CPU until then. QEMU CPU usage goes from 100% to 4% with this line. */
 	}
 }

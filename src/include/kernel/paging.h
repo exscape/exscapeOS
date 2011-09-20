@@ -52,7 +52,7 @@ void switch_page_directory(page_directory_t *new);
 
 /* Returns a pointer to the page entry responsible for the address at /addr/.
  */
-page_t *get_page (uint32 addr, page_directory_t *dir);
+page_t *get_page (uint32 addr, bool create, page_directory_t *dir);
 
 /* The page fault interrupt handler. */
 void page_fault_handler(registers_t regs);

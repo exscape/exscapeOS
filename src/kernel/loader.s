@@ -20,7 +20,7 @@ section .text
 align 4
 
 ; reserve initial kernel stack space
-STACKSIZE equ 0x4000                  ; that's 16k.
+STACKSIZE equ 0x8000                  ; 32 kiB
  
 loader:
    mov esp, stack+STACKSIZE           ; set up the stack

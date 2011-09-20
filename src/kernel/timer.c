@@ -23,7 +23,9 @@ void sleep(uint32 milliseconds) {
 	if (milliseconds == 0)
 		return;
 
-	while (timer_ticks < start_ticks + milliseconds/10);
+	while (timer_ticks < start_ticks + milliseconds/10) {
+		asm volatile("hlt");
+	}
 }
 
 void timer_handler(registers_t regs __attribute__((unused))) {

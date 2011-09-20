@@ -84,7 +84,7 @@ static uint32 first_free_frame(void) {
 
 /* Allocate a frame */
 void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
-	page_t *page = get_page(virtual_addr, page_dir);
+	page_t *page = get_page(virtual_addr, true, page_dir);
 	if (page->frame != 0) {
 		/* This frame is already allocated! */
 		return;
@@ -115,7 +115,7 @@ void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmod
 
 /* Free a frame */
 void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
-	page_t *page = get_page(virtual_addr, page_dir);
+	page_t *page = get_page(virtual_addr, true, page_dir);
 	if (page->frame == 0)
 		return;
 
@@ -153,9 +153,13 @@ void init_paging(unsigned long upper_mem) {
 	memset(kernel_directory, 0, sizeof(page_directory_t));
 	current_directory = kernel_directory;
 
+	/* TODO: set kernel_directory->physical_address to the (physical!!) address of &tables_physical[0] */
+
 	/* Create all the page tables... */
 	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
 	 * which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
+
+#if 0
 	assert(kernel_directory != NULL);
 	for (uint32 i = 0; i < 1024; i++) {
 
@@ -171,6 +175,17 @@ void init_paging(unsigned long upper_mem) {
 		phys_addr |= 0x7; /* Set the present, r/w and supervisor flags (for the page table, not for the pages!) */
 
 		kernel_directory->tables_physical[i] = phys_addr;
+
+	}
+#endif
+
+	/* Create ALL the page tables that may be necessary for the kernel heap.
+	 * This way, we cannot run in to the godawful situation of malloc() -> heap full -> heap_expand() -> get_page() -> malloc() new page table (while heap is full!)! */
+	uint32 addr = 0;
+	assert(KHEAP_START == 0xc0000000);
+	assert(KHEAP_MAX_ADDR == 0xcffff000);
+	for (addr = KHEAP_START; addr < KHEAP_MAX_ADDR; addr += PAGE_SIZE) {
+		get_page(addr, true, kernel_directory);
 	}
 
 	/*
@@ -178,7 +193,7 @@ void init_paging(unsigned long upper_mem) {
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
-	uint32 addr = 0;
+	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
 		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
@@ -187,7 +202,9 @@ void init_paging(unsigned long upper_mem) {
 
 	/* NOTE: since paging isn't enabled yet, we don't have to call INVLPG for these addresses (above OR below). */
 
-	/* Allocate pages for the kernel heap */
+	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
+	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
+	 * enough for the initial size. */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
 		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
 	}
@@ -199,7 +216,7 @@ void init_paging(unsigned long upper_mem) {
 	switch_page_directory(kernel_directory);
 
 	/* Initialize the kernel heap */
-	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
+	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 0, 0);
 
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
@@ -224,12 +241,12 @@ void switch_page_directory(page_directory_t *dir) {
 }
 
 bool addr_is_mapped(uint32 addr) {
-	page_t *page = get_page(addr, kernel_directory);
+	page_t *page = get_page(addr, /*create = */ false,kernel_directory);
 	return (page->present == 1 && page->frame != 0);
 }
 
 /* Returns a pointer to the page entry responsible for the address at /addr/. */
-page_t *get_page (uint32 addr, page_directory_t *dir) {
+page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	/* Turn the address into an index. */
 	addr /= PAGE_SIZE;
 
@@ -240,11 +257,19 @@ page_t *get_page (uint32 addr, page_directory_t *dir) {
 	if (dir->tables[table_idx] != NULL) {
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
+	else if (create == true) {
+		uint32 tmp;
+		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &tmp);
+		memset(dir->tables[table_idx], 0, sizeof(page_table_t));
+		dir->tables_physical[table_idx] = tmp | 0x07;
+		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
+	}
 	else {
 		/* Page doesn't already have a table, and creation isn't managed here any more; give up */
 		return NULL;
 	}
 }
+
 
 /* Tells the CPU that the page at this (virtual) address has changed. */
 void invalidate_tlb(void *addr) {

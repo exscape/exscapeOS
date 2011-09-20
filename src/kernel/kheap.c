@@ -675,9 +675,11 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
 		void *addr = heap_alloc(size, align, kheap);
 		if (phys != 0) {
-			page_t *page = get_page((uint32)addr, kernel_directory);
+			page_t *page = get_page((uint32)addr, true, kernel_directory);
 			*phys = (page->frame * PAGE_SIZE) + ((uint32)addr & 0xfff);
 		}
+		if (align)
+			assert(IS_PAGE_ALIGNED(addr));
 		return addr;
 	}
 	else {
@@ -699,6 +701,9 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 
 		/* Move the pointer, for the next call */
 		placement_address += size;
+
+		if (align)
+			assert(IS_PAGE_ALIGNED(ret));
 
 		return (void *)ret;
 	}
