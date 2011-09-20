@@ -17,7 +17,8 @@ struct dirent dirent;
 
 /* The read function used by our initrd filesystem */
 static uint32 initrd_read(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {
-	initrd_file_header_t header = file_headers[node->inode];
+	assert(node->inode >= 1);
+	initrd_file_header_t header = file_headers[node->inode - 1];
 
 	/* We can't read outside the file! */
 	if (offset > header.length)
@@ -44,7 +45,10 @@ static struct dirent *initrd_readdir(fs_node_t *node, uint32 index) {
 		return &dirent;
 	}
 
-	/* TODO: fix this */
+	if (nroot_nodes == 0)
+		return 0;
+
+	/* Return 0 if the caller tries to read past the last node */
 	if (index > 0 && index - 1 >= (uint32)nroot_nodes)
 		return 0;
 
@@ -106,7 +110,7 @@ fs_node_t *init_initrd(uint32 location) {
 		/* create a vfs node for this file */
 		strlcpy(root_nodes[i].name, file_headers[i].name, sizeof(root_nodes[i].name));
 		root_nodes[i].length = file_headers[i].length;
-		root_nodes[i].inode = i;
+		root_nodes[i].inode = i + 1; /* 0 is hardcoded for /dev */
 		root_nodes[i].flags = FS_FILE;
 		root_nodes[i].read = &initrd_read;
 		/* the rest of the function pointers, including write/open/close are left as NULL */
