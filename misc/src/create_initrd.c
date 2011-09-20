@@ -34,7 +34,14 @@ int main(int argc, char *argv[]) {
 	/* Set up the headers */
 	for (uint32 i = 0; i < nheaders; i++) {
 		printf("writing file %s at 0x%x\n", argv[i+1], offset);
-		strcpy(headers[i].name, argv[i+1]);
+
+		/* Remove the path path from the filename stored */
+		char *tmp = strrchr(argv[i+1], '/');
+		if (tmp != NULL)
+			strcpy(headers[i].name, tmp + 1); /* + 1 to skip the actual / */
+		else
+			strcpy(headers[i].name, argv[i+1]);
+
 		headers[i].offset = offset;
 		FILE *inf = fopen(argv[i+1], "r");
 
