@@ -19,10 +19,8 @@ uint32 write_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {
 }
 
 /* Calls the correct open function */
-void open_fs(fs_node_t *node, uint8 read, uint8 write) {
+void open_fs(fs_node_t *node, uint8 read __attribute__((unused)), uint8 write __attribute__((unused))) {
 	assert(node->open != NULL);
-	/* TODO: why are these unused parameters even there for the function prototype?! */
-	read = read; write = write;
 	return node->open(node);
 }
 
