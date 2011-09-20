@@ -18,7 +18,7 @@ typedef struct Time {
 	unsigned char second;
 } Time;
 
-// TODO: ensure that these types are accurate for more platforms than mine!
+/* Good enough for now... This is valid for GCC, at least, and *probably* all other common x86 compilers. We rely on GCC extensions anyhow. */
 typedef signed   char  sint8;
 typedef unsigned char  uint8;
 typedef signed   short sint16;

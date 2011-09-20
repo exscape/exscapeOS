@@ -6,8 +6,7 @@
 /* Forward declaration, since there's a catch 22 that the function prototypes and the struct need each other */
 struct fs_node; 
 
-/* Function declarations for the VFS */
-/* TODO: add names to the parameters! */
+/* Function declarations for the VFS (for sensible parameter names, look further below) */
 typedef uint32 (*read_type_t)(struct fs_node *, uint32, uint32, uint8 *);
 typedef uint32 (*write_type_t)(struct fs_node *, uint32, uint32, uint8 *);
 typedef void (*open_type_t)(struct fs_node *);
@@ -24,7 +23,7 @@ typedef struct fs_node {
 	uint32 flags;  /* See the FS_* defines below */
 	uint32 inode;  /* inode number */
 	uint32 length; /* file size (in bytes) */
-	uint32 impl; /* TODO: ? */
+	uint32 impl; /* currently unused */
 
 	/* Pointers to various functions a node may require */
 	read_type_t    read;
