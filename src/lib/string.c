@@ -32,3 +32,26 @@ size_t strlen(const char *str) {
 
 	return len;
 }
+
+/* Copies the string from src to dst, never writing more than /size/ bytes. Always NULL terminates (if there is at least 1 byte to write to). */
+size_t strlcpy(char *dst, const char *src, size_t size) {
+	const size_t len = strlen(src);
+
+	if (size >= len + 1) {
+		/* Everything fits, just use strcpy() instead */
+		strcpy(dst, src);
+		return len;
+	}
+	else if (size == 0)
+		return len;
+
+	/* Still here, so it didn't all fit. Copy what fits (leaving 1 byte for NULL termination) */
+	for (size_t i = 0; i < size - 1; i++) {
+		*dst++ = *src++;
+	}
+
+	/* This is strLcpy - make sure to NULL terminate! */
+	dst[size - 1] = 0;
+
+	return len;
+}

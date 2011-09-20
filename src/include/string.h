@@ -11,4 +11,6 @@ void *memcpy(void *restrict s1, const void *restrict s2, size_t n);
 char *strcpy(char *restrict s1, const char *restrict s2);
 int strcmp(const char *s1, const char *s2);
 
+size_t strlcpy(char *dst, const char *src, size_t size);
+
 #endif

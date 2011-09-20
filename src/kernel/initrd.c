@@ -5,8 +5,6 @@
 #include <string.h>
 #include <kernel/kheap.h>
 
-/* TODO: comment this entire file! */
-
 initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */
 fs_node_t *initrd_root;             /* the root (/) node */
@@ -41,21 +39,21 @@ static uint32 initrd_read(fs_node_t *node, uint32 offset, uint32 size, uint8 *bu
 static struct dirent *initrd_readdir(fs_node_t *node, uint32 index) {
 	if (node == initrd_root && index == 0) {
 		/* Force the first node of / to be /dev */
-		strcpy(dirent.name, "dev");
+		strlcpy(dirent.name, "dev", sizeof(dirent.name));
 		dirent.ino = 0;
 		return &dirent;
 	}
 
-	/* TODO: is this what it's supposed to be? I added the index>0 since it can and will overflow otherwise */
-//	if (index > 0 && index - 1 >= (uint32)nroot_nodes)
-	if (index - 1 >= (uint32)nroot_nodes)
+	/* TODO: fix this */
+	if (index > 0 && index - 1 >= (uint32)nroot_nodes)
 		return 0;
 
-	strcpy(dirent.name, root_nodes[index-1].name);
+	strlcpy(dirent.name, root_nodes[index-1].name, sizeof(dirent.name));
 	dirent.ino = root_nodes[index-1].inode;
 	return &dirent;
 }
 
+/* Locates a directory entry (aka file, since the FS supports nothing else) by name */
 static fs_node_t *initrd_finddir(fs_node_t *node, const char *name) {
 	if (node == initrd_root && !strcmp(name, "dev"))
 		return initrd_dev;
@@ -77,7 +75,7 @@ fs_node_t *init_initrd(uint32 location) {
 	/* Set up the root directory */
 	initrd_root = (fs_node_t *)kmalloc(sizeof(fs_node_t));
 	memset(initrd_root, 0, sizeof(fs_node_t));
-	strcpy(initrd_root->name, "initrd");
+	strlcpy(initrd_root->name, "initrd", sizeof(initrd_root->name));
 
 	initrd_root->flags = FS_DIRECTORY;
 	initrd_root->readdir = &initrd_readdir;
@@ -87,7 +85,8 @@ fs_node_t *init_initrd(uint32 location) {
 	/* Set up the /dev node */
 	initrd_dev = (fs_node_t *)kmalloc(sizeof(fs_node_t));
 	memset(initrd_dev, 0, sizeof(fs_node_t));
-	strcpy(initrd_dev->name, "dev");
+	strlcpy(initrd_dev->name, "dev", sizeof(initrd_dev->name));
+
 	initrd_dev->flags = FS_DIRECTORY;
 	initrd_dev->readdir = &initrd_readdir;
 	initrd_dev->finddir = &initrd_finddir;
@@ -95,24 +94,23 @@ fs_node_t *init_initrd(uint32 location) {
 
 	/* set up the files that reside in the initrd filesystem */
 	root_nodes = (fs_node_t *)kmalloc(sizeof(fs_node_t) * initrd_header->nfiles);
+	memset(root_nodes, 0, sizeof(fs_node_t) * initrd_header->nfiles);
 	nroot_nodes = initrd_header->nfiles;
 
+	/* Set up each individual file */
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
 		/* Change the offset value to be relative to the start of memory, 
 		 * rather than the start of the ramdisk/initrd image */
 		file_headers[i].offset += location;
 
 		/* create a vfs node for this file */
-		memset(&root_nodes[i], 0, sizeof(fs_node_t));
-		strcpy(root_nodes[i].name, file_headers[i].name); /* TODO: use strncpy, here and in all other places where we use strcpy */
+		strlcpy(root_nodes[i].name, file_headers[i].name, sizeof(root_nodes[i].name));
 		root_nodes[i].length = file_headers[i].length;
 		root_nodes[i].inode = i;
 		root_nodes[i].flags = FS_FILE;
 		root_nodes[i].read = &initrd_read;
-		/* the rest of the function pointers, including write/open/close and left as NULL */
+		/* the rest of the function pointers, including write/open/close are left as NULL */
 	}
 
 	return initrd_root;
 }
-
-
