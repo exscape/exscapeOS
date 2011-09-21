@@ -68,4 +68,7 @@ void invalidate_tlb(void *addr);
 /* Flushes the TLB for all pages (by writing to CR3) */
 void flush_all_tlb(void);
 
+/* Clones a page directory */
+page_directory_t *clone_directory(page_directory_t *src);
+
 #endif /* header guard */

@@ -82,9 +82,7 @@ static uint32 first_free_frame(void) {
  **** END BITMAP HANDLING CODE ****
  **********************************/
 
-/* Allocate a frame */
-void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
-	page_t *page = get_page(virtual_addr, true, page_dir);
+static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 	if (page->frame != 0) {
 		/* This frame is already allocated! */
 		return;
@@ -107,10 +105,17 @@ void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmod
 		page->rw = (writable ? 1 : 0);
 		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
 		page->frame = index;
-
-		/* Make sure the CPU doesn't cache the old values */
-		invalidate_tlb((void *)virtual_addr);
 	}
+}
+
+/* Allocate a frame */
+void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
+	page_t *page = get_page(virtual_addr, true, page_dir);
+
+	alloc_frame_to_page(page, kernelmode, writable);
+
+	/* Make sure the CPU doesn't cache the old values */
+	invalidate_tlb((void *)virtual_addr);
 }
 
 /* Free a frame */
@@ -151,9 +156,7 @@ void init_paging(unsigned long upper_mem) {
 	/* Create a page directory */
 	kernel_directory = (page_directory_t *)kmalloc_a(sizeof(page_directory_t));
 	memset(kernel_directory, 0, sizeof(page_directory_t));
-	current_directory = kernel_directory;
-
-	/* TODO: set kernel_directory->physical_address to the (physical!!) address of &tables_physical[0] */
+	kernel_directory->physical_address = (uint32)kernel_directory->tables_physical;
 
 	/* Create all the page tables... */
 	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
@@ -218,6 +221,10 @@ void init_paging(unsigned long upper_mem) {
 	/* Initialize the kernel heap */
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 0, 0);
 
+	/* Set up the current page directory */
+	current_directory = clone_directory(kernel_directory);
+	switch_page_directory(current_directory);
+
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
 	print_heap_index();
@@ -227,7 +234,8 @@ void init_paging(unsigned long upper_mem) {
 /* Loads the page directory at /new/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
 	current_directory = dir;
-	uint32 new_cr3_contents = (uint32) & dir->tables_physical;
+//	uint32 new_cr3_contents = (uint32) & dir->tables_physical;
+	uint32 new_cr3_contents = (uint32) dir->physical_address;
 	/* bit 3 and 4 (i.e. with values 8 and 16) are used to control write-through and cache, but we don't want either set.
 	 * the rest of the low bits are ignored, according to Intel docs. Still, I prefer them to be 0, just in case. */
 	assert((new_cr3_contents & 0xfff) == 0);
@@ -270,6 +278,81 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	}
 }
 
+void copy_page_physical (uint32 src, uint32 dest);
+
+static page_table_t *clone_table(page_table_t *src, uint32 *physaddr) {
+	/* Create a new, empty page table */
+	page_table_t *table = (page_table_t *)kmalloc_ap(sizeof(page_table_t), physaddr);
+	memset(table, 0, sizeof(page_table_t));
+
+	/* Copy entries */
+	for (uint32 i = 0; i < 1024; i++) {
+		if (src->pages[i].frame == 0)
+			continue;
+
+		/* Allocate a new frame to hold the data (since we must copy it) */
+		alloc_frame_to_page(&table->pages[i], 0, 0); /* TODO: #defines instead of zeroes */
+
+		/* TODO: can't this be done in a prettier way? */
+		if (src->pages[i].present) table->pages[i].present = 1;
+		if (src->pages[i].rw)      table->pages[i].rw = 1;
+		if (src->pages[i].user)    table->pages[i].user = 1;
+		if (src->pages[i].pwt)    table->pages[i].pwt = 1;
+		if (src->pages[i].pcd)    table->pages[i].pcd = 1;
+		if (src->pages[i].accessed) table->pages[i].accessed = 1;
+		if (src->pages[i].dirty)   table->pages[i].dirty = 1;
+		if (src->pages[i].pat)   table->pages[i].pat = 1;
+		if (src->pages[i].global)   table->pages[i].global = 1;
+		if (src->pages[i].avail)   table->pages[i].avail = src->pages[i].avail;
+
+		/* Copy the data between the frames */
+		copy_page_physical(src->pages[i].frame * PAGE_SIZE, table->pages[i].frame * PAGE_SIZE);
+	}
+
+	return table;
+}
+
+page_directory_t *clone_directory(page_directory_t *src) {
+	/* Create a new, empty page directory */
+	uint32 new_dir_phys;
+	page_directory_t *dir = (page_directory_t *)kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
+	memset(dir, 0, sizeof(page_directory_t));
+
+	/*
+	 * We need the physical address of the /physical_address/ struct member. /dir/ points to the beginning of the structure, of course.
+	 * Since the physical address is (obviously!) in another address space, we can't use the & operator, but must instead calculate
+	 * its offset into the structure, then add that to the physical address.
+	 */
+	uint32 offset = (uint32)dir->tables_physical - (uint32)dir;
+	dir->physical_address = new_dir_phys + offset;
+
+	/* Clone the page tables */
+	for (uint32 i = 0; i < 1024; i++) {
+		if (src->tables[i] == NULL) {
+			continue;
+		}
+
+		/*
+		 * TODO: I have my doubts about this procedure... Will the kernel directory stay in sync across all address spaces if it changes?
+		 */
+
+		if (kernel_directory->tables[i] == src->tables[i]) {
+			/* This table is in the kernel; just link it (don't clone it) */
+			dir->tables[i] = src->tables[i];
+			dir->tables_physical[i] = src->tables_physical[i];
+		}
+		else {
+			/* Copy the table */
+			uint32 phys;
+			dir->tables[i] = clone_table(src->tables[i], &phys);
+			dir->tables_physical[i] = phys | 0x07; /* Present, RW, User */
+		}
+	}
+
+	flush_all_tlb(); /* TODO: is this the right place to do this? */
+
+	return dir;
+}
 
 /* Tells the CPU that the page at this (virtual) address has changed. */
 void invalidate_tlb(void *addr) {

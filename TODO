@@ -3,3 +3,4 @@
 1) Multitasking
 2) User mode (including system calls)
 3) ELF parsing + executable loading (from the initrd)?
+* Serial port output (for debugging)?
