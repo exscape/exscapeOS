@@ -20,19 +20,20 @@ section .text
 align 4
 
 ; reserve initial kernel stack space
-STACKSIZE equ 0x8000                  ; 32 kiB
+STACKSIZE equ 0x4000
  
 loader:
    mov esp, stack+STACKSIZE           ; set up the stack
+   push esp                           ; pass the (new) stack pointer
    push eax                           ; pass Multiboot magic number
    push ebx                           ; pass Multiboot info structure
  
    call  kmain                       ; call kernel proper
  
    cli
-hang:
-   hlt                                ; halt machine should kernel return
-   jmp   hang
+	.hang:
+	   hlt                                ; halt machine should kernel return
+	   jmp   .hang
  
 section .bss
 align 4

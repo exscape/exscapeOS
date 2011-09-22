@@ -13,6 +13,9 @@
 #include <kernel/rtc.h>
 #include <kernel/multiboot.h>
 #include <kernel/initrd.h>
+#include <kernel/task.h>
+
+uint32 initial_esp = 0; /* a global used for moving the stack later */
 
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
@@ -30,7 +33,9 @@ void verify_area(void *in_p, uint32 size) {
 /* kheap.c */
 extern uint32 placement_address;
 
-void kmain(multiboot_info_t *mbd, unsigned int magic) {
+void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 in_esp) {
+	initial_esp = in_esp;
+
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
@@ -90,7 +95,18 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	printk("done\n");
 
 
+	printk("Moving the stack to 0xE000000 and downwards... ");
+	move_stack((void *)0xE0000000, 0x4000);
+	printk("done\n");
+
 	printk("All initialization complete!\n\n");
+
+
+
+
+
+
+
 
 	int ctr = 0;
 	struct dirent *node = NULL;
@@ -108,13 +124,13 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	}
 
 
-
 	//for(;;);
 
 
 	/**********************************
 	 *** HEAP DEBUGGING AND TESTING ***
 	 **********************************/
+#if 1
 
 	print_heap_index();
 
@@ -168,11 +184,14 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	/* stress test a little */
 #define NUM 2750
-	void *p[NUM] = {0};
+	void **p = kmalloc(sizeof(void *) * NUM);
+	memset(p, 0, sizeof(void *) * NUM);
 
 	/* store the alloc'ed size of all areas; we can't read the header safely, because alloc() may resize the area AFTER allocation!
 	 * this would make verification of contents complain in error, because the NEW space wouldn't be filled with test bytes! */
-	uint32 alloced_size[NUM] = {0};
+	uint32 *alloced_size = kmalloc(sizeof(uint32) * NUM);
+	memset(alloced_size, 0, sizeof(uint32) * NUM);
+
 	uint32 total = 0;
 //while(1) {
 	total = 0;
@@ -199,6 +218,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	for (int i = 0; i < NUM; i++) {
 		kfree((void *)p[i]);
 		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(area_header_t));
+		p[i] = 0;
 		validate_heap_index(false);
 		//print_heap_index();
 	}
@@ -260,11 +280,13 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 				p[r2] = kmalloc(r3);
 			//printk(" at 0x%p\n", p[r2]);
 
+			/* store the alloc size */
+			alloced_size[r2] = r3;
+
 			num_allocs++;
 			kbytes_allocated += r3/1024;
 
-			/* store the alloc size */
-			alloced_size[r2] = r3;
+			assert(r3 != 0 && alloced_size[r2] != 0);
 
 			/* fill the allocation with a bit pattern, to ensure that nothing overwrites it */
 			memset(p[r2], 0xaa, r3);
@@ -336,6 +358,8 @@ print_heap_index();
 	printk("\n\n");
 	printk("kmain() done; running infinite loop\n");
 //	for(;;);
+
+#endif
 	Time t;
 	memset(&t, 0, sizeof(t));
 	get_time(&t);
