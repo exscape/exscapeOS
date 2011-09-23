@@ -203,12 +203,11 @@ void init_paging(unsigned long upper_mem) {
 		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
 		addr += PAGE_SIZE;
 	}
-	/* TODO: TEST: set virtual address 0x0 as not present */
+
+	/* Set the page at virtual address 0 to not present (to guard against null pointer dereferences) */
 	page_t *tmp_page = get_page(0, true, kernel_directory);
 	tmp_page->present = 0;
 	invalidate_tlb((void *)0);
-
-	/* NOTE: since paging isn't enabled yet, we don't have to call INVLPG for these addresses (above OR below). */
 
 	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
