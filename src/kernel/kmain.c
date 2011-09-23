@@ -15,8 +15,6 @@
 #include <kernel/initrd.h>
 #include <kernel/task.h>
 
-uint32 initial_esp = 0; /* a global used for moving the stack later */
-
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
 void verify_area(void *in_p, uint32 size) {
@@ -33,9 +31,7 @@ void verify_area(void *in_p, uint32 size) {
 /* kheap.c */
 extern uint32 placement_address;
 
-void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 in_esp) {
-	initial_esp = in_esp;
-
+void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
@@ -92,11 +88,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 in_esp) {
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
 	init_paging(mbd->mem_upper);
-	printk("done\n");
-
-
-	printk("Moving the stack to 0xE000000 and downwards... ");
-	move_stack((void *)0xE0000000, 0x4000);
 	printk("done\n");
 
 	printk("All initialization complete!\n\n");

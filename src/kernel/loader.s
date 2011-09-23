@@ -24,7 +24,6 @@ STACKSIZE equ 0x4000
  
 loader:
    mov esp, stack+STACKSIZE           ; set up the stack
-   push esp                           ; pass the (new) stack pointer
    push eax                           ; pass Multiboot magic number
    push ebx                           ; pass Multiboot info structure
  
