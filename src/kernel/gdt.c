@@ -49,6 +49,10 @@ void gdt_install(void) {
 	 */
 	gdt_set_gate(2, 0, 0xffffffff, 0x92, 0xcf);
 
+	/* Set up equivalent descriptors (first code, then data) for user mode */
+	gdt_set_gate(3, 0, 0xffffffff, 0xfa, 0xcf);
+	gdt_set_gate(4, 0, 0xffffffff, 0xf2, 0xcf);
+
 	/* Install the new GDT! */
 	gdt_flush();
 }

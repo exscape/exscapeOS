@@ -196,12 +196,17 @@ void init_paging(unsigned long upper_mem) {
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
+
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		/* Kernel code is readable but not writable from userspace */
 		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
 		addr += PAGE_SIZE;
 	}
+	/* TODO: TEST: set virtual address 0x0 as not present */
+	page_t *tmp_page = get_page(0, true, kernel_directory);
+	tmp_page->present = 0;
+	invalidate_tlb((void *)0);
 
 	/* NOTE: since paging isn't enabled yet, we don't have to call INVLPG for these addresses (above OR below). */
 
