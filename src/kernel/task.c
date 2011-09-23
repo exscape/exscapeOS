@@ -18,9 +18,9 @@ void move_stack(void *new_stack_start, uint32 size) {
 	uint32 addr;
 
 	for (addr = (uint32)new_stack_start; addr >= ((uint32)new_stack_start) - size; addr -= 0x1000) {
-	/* This stack is in user mode */
-	alloc_frame(addr, current_directory, 0 /* user */, 1 /* writable */); /* TODO: #defines */
-	/* alloc_frame calls INVLPG for us */
+		/* This stack is in user mode */
+		alloc_frame(addr, current_directory, 0 /* user */, 1 /* writable */); /* TODO: #defines */
+		/* alloc_frame calls INVLPG for us */
 	}
 
 	/* TODO: remove this; everything should still work (see above!). Just to be sure, before everything in finished... */
@@ -39,6 +39,7 @@ void move_stack(void *new_stack_start, uint32 size) {
 
 	/* Copy the stack, data and all */
 	memcpy((void *)new_esp, (void *)old_esp, initial_esp - old_esp);
+//  memcpy((void *)( ((uint32)new_stack_start) - 0x4000), (void *)(initial_esp - 0x4000), 0x4000);
 
 	/* 
 	 * Okay... This was inspired by a post by JamesM on the osdev forums. By inspired, I mean that he gave the pseudocode
@@ -76,12 +77,16 @@ void move_stack(void *new_stack_start, uint32 size) {
 	asm volatile ("mov %0, %%ebp" : : "r"(new_ebp));
 
 	/* Overwrite the old stack, just to make sure that it's not silently used! This ought to make sure we notice... */
-	memset((void *)old_esp, 0xbb, initial_esp - old_esp);
+	/* TODO: overwrite the entire stack, not just this small bit */
+	//memset((void *)old_esp, 0xbb, initial_esp - old_esp);
+	//memset((void *)(initial_esp - 0x4000), 0xbb, 0x4000);
 
 /*
  * THIS CODE BREAKS THE STACK!!!
  * It is ONLY kept for reference until I'm 100% sure the above works.
  * There is, however, little doubt that it's better than this mess!
+ *
+ * The point of this is (like above) to correct any pushed EBP values. This approach is obviously much, much worse, though!
  */
 /*
 	for (addr = (uint32)new_stack_start; addr > (uint32)new_stack_start - size; addr -= 4) {
