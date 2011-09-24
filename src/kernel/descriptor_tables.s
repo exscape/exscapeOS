@@ -1,5 +1,6 @@
 global gdt_flush
 global idt_load
+global tss_flush
 extern gp              ; the GDT pointer, defined in kernel/gdt.c
 extern idtp            ; the IDT pointer, defined in kernel/idt.c
 
@@ -24,3 +25,8 @@ flush2:
 idt_load:
 	lidt [idtp]
 	ret         ; Yup, that's it!
+
+tss_flush:
+	mov ax, 0x2b ; load the index of our TSS structure - 0x28 | 3 (for user mode)
+	ltr ax
+	ret

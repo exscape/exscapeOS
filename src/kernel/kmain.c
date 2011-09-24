@@ -58,12 +58,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");
+	idt_install();
 	gdt_install();
 	printk("done\n");
 
 	/* Load the IDT */
 	printk("Initializing IDTs... ");
-	idt_install();
 	printk("done\n");
 
 	/* Enable interrupts */
