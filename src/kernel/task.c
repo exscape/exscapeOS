@@ -5,6 +5,8 @@
 #include <kernel/paging.h>
 #include <kernel/monitor.h>
 
+#if 0
+/* Now in assembly! See usermode.s */
 void switch_to_user_mode(void) {
 	/* Set up the segment registers and the stack for user mode */
 
@@ -34,3 +36,4 @@ void switch_to_user_mode(void) {
 				 "iret;"          /* let's go! */
 				 "1:");
 }
+#endif

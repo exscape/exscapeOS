@@ -11,8 +11,8 @@ align 4
 	[GLOBAL isr%1]
 	isr%1:
 		cli
-		push byte 0
-		push byte %1
+		push 0
+		push %1
 		jmp isr_common_stub
 %endmacro
 
@@ -20,7 +20,7 @@ align 4
 	[GLOBAL isr%1]
 	isr%1:
 		cli
-		push byte %1
+		push %1
 		jmp isr_common_stub
 %endmacro
 
@@ -56,6 +56,9 @@ ISR_NOERRCODE 28
 ISR_NOERRCODE 29
 ISR_NOERRCODE 30
 ISR_NOERRCODE 31
+
+; the syscall handler
+ISR_NOERRCODE 128
 
 ; Our ISR stub. It saves the processor state, sets up for kernel mode segments,
 ; calls the C-level fault handler, and restores the stack frame.

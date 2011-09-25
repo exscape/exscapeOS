@@ -14,6 +14,7 @@
 #include <kernel/multiboot.h>
 #include <kernel/initrd.h>
 #include <kernel/task.h>
+#include <kernel/syscall.h>
 
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
@@ -58,12 +59,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");
-	idt_install();
 	gdt_install();
 	printk("done\n");
 
 	/* Load the IDT */
 	printk("Initializing IDTs... ");
+	idt_install();
 	printk("done\n");
 
 	/* Enable interrupts */
@@ -90,9 +91,17 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	init_paging(mbd->mem_upper);
 	printk("done\n");
 
+	/* Set up the syscall interface */
+	printk("Initializing syscalls... ");
+	init_syscalls();
+	printk("done\n");
+
 	printk("All initialization complete!\n\n");
 
+	switch_to_user_mode();
+	asm volatile("hlt");
 
+	return;
 
 
 

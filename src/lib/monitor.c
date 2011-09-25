@@ -15,6 +15,19 @@ Point cursor;
 /* Used for double buffering when scrolling (due to a lack of memmove())*/
 uint16 *vram_buffer = NULL;
 
+/* Syscall test function */
+int print(const char *s) {
+	size_t len = strlen(s);
+
+	for (size_t j = 0; j < len; j++) {
+		putchar(s[j]);
+	}
+
+	update_cursor();
+
+	return len;
+}
+
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
 

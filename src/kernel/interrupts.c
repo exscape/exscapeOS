@@ -51,6 +51,7 @@ extern void isr28(void);
 extern void isr29(void);
 extern void isr30(void);
 extern void isr31(void);
+extern void isr128(void);
 extern void irq0(void);
 extern void irq1(void);
 extern void irq2(void);
@@ -137,6 +138,9 @@ void idt_install(void) {
 	idt_set_gate(29, (uint32)isr29, 0x08, 0x8e);
 	idt_set_gate(30, (uint32)isr30, 0x08, 0x8e);
 	idt_set_gate(31, (uint32)isr31, 0x08, 0x8e);
+
+	/* the syscall handler */
+	idt_set_gate(128, (uint32)isr128, 0x08, 0x8e);
 
 	/* Reprogram the PICs, so that IRQs don't overlop with CPU exception interrupts */
 	outb(0x20, 0x11);
