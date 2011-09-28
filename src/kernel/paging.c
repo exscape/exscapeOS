@@ -78,6 +78,34 @@ static uint32 first_free_frame(void) {
 	return 0xffffffff;
 }
 
+/* Returns the number of *physical* RAM that it still unused, i.e. unused_frame_count * 4096
+ * Note that this function is simple, not fast! It should NOT be called often, e.g. in loops! */
+uint32 free_bytes(void) {
+	uint32 unused = 0;
+
+	for (uint32 index = 0; index < nframes/32; index++) {
+		if (used_frames[index] == 0) {
+			/* All 32 frames in this bitmap chunk are free */
+			unused += 4096 * 32;
+			continue;
+		}
+		else if (used_frames[index] == 0xffffffff) {
+			/* All 32 frames in this bitmap chunk are used */
+			continue;
+		}
+
+		/* We're somewhere in between all used and all free; let's check a bit closer */
+		for (uint32 offset = 0; offset < 32; offset++) {
+			if ( (used_frames[index] & (1 << offset)) == 0 ) {
+				unused += 4096;
+			}
+		}
+	}
+
+	return unused;
+}
+
+
 /**********************************
  **** END BITMAP HANDLING CODE ****
  **********************************/

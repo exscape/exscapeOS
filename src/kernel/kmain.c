@@ -98,13 +98,15 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	printk("All initialization complete!\n\n");
 
-	switch_to_user_mode();
-	asm volatile("hlt");
+	//switch_to_user_mode();
+	//asm volatile("hlt");
 
-	return;
+	//return;
 
 
-
+	uint32 free = free_bytes();
+	printk("%u bytes free (%u kiB; %u pages)\n", free, free/1024, free/4096);
+	//sleep(10000);
 
 
 
@@ -167,6 +169,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	printk("Unaligned: %p\n", unaligned);
 	print_heap_index();
 	void *aligned = kmalloc_a(16);
+	assert(IS_PAGE_ALIGNED(aligned));
+
 	printk("Aligned: %p\n", aligned);
 	print_heap_index();
 
@@ -183,7 +187,19 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	void *max_alloc = NULL;
 
 	/* stress test a little */
-#define NUM 2750
+//#define NUM 2750
+
+	/* account for the overhead and a tiny bit more */
+	free -= ((free/1024/128) + 24) * (sizeof(area_header_t) + sizeof(area_footer_t));
+
+
+	/* This MUST be const and MUST NOT change (especially not being INCREASED in size) later!
+	 * If this is increased, accessing p[] outside of NUM-1 will cause invalid memory accesses (duh!) */
+	const uint32 NUM = ((free / 1024 / 128) - 8); /* we allocate 128k at a time; reduce slighly to not run out of frames */
+
+	/* Make sure it didn't overflow or anything... not exactly a rigorous test; whatever */
+	assert (NUM > 0 && NUM < 0xffffff00);
+
 	void **p = kmalloc(sizeof(void *) * NUM);
 	memset(p, 0, sizeof(void *) * NUM);
 
@@ -196,11 +212,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 //while(1) {
 	total = 0;
 
-	for (int i = 0; i < NUM; i++) {
-		p[i] = kmalloc((i+1) * 32);
+	for (uint32 i = 0; i < NUM; i++) {
+		p[i] = kmalloc(128 * 1024);
 		if (p[i] > max_alloc) max_alloc = p[i];
-		total += (i+1) * 32;
-		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, (i+1) * 32, p[i]);
+		total += 128 * 1024;
+		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, 128 * 1024, p[i]);
 
 		assert(total < mbd->mem_upper - 20*1024*1024);
 		validate_heap_index(false);
@@ -208,6 +224,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	}
 	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
 
+	/* Free one in "the middle" */
 	if (NUM > 100) {
 		kfree((void *)p[100]);
 		p[100] = NULL;
@@ -215,7 +232,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	validate_heap_index(false);
 
-	for (int i = 0; i < NUM; i++) {
+	for (uint32 i = 0; i < NUM; i++) {
 		kfree((void *)p[i]);
 		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(area_header_t));
 		p[i] = 0;
@@ -227,7 +244,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 //}
 	validate_heap_index(false);
 	print_heap_index();
-	//panic("pause");
 
 /****************************
   *** STRESS TEST PART II ***
@@ -235,7 +251,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 #define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
-#define NUM_OUTER_LOOPS 1
+#define NUM_OUTER_LOOPS 1000
+
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 	uint32 kbytes_allocated = 0;
 
@@ -256,7 +273,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	memset(p, 0, sizeof(p));
 	uint32 mem_in_use = 0;
-	for (int i = 0; i < NUM; i++) {
+	for (uint32 i = 0; i < NUM; i++) {
 
 		if (num_allocs % 50 == 0)
 			printk(".");
@@ -313,7 +330,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	}
 
 	// Clean up
-	for (int i = 0; i < NUM; i++) {
+	for (uint32 i = 0; i < NUM; i++) {
 		if (p[i] != NULL) {
 			mem_in_use -= alloced_size[i];
 			//printk("mem in use: %d bytes (after free)\n", mem_in_use);

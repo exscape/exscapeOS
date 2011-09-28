@@ -71,4 +71,7 @@ void flush_all_tlb(void);
 /* Clones a page directory */
 page_directory_t *clone_directory(page_directory_t *src);
 
+/* Returns the number of bytes free in PHYSICAL memory. */
+uint32 free_bytes(void);
+
 #endif /* header guard */
