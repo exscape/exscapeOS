@@ -109,51 +109,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	/* Start the kernel shell */
 	kshell();
 
-	printk("Exiting kmain() to a hlt loop...\n");
-	return;
-
-
-
-
-
-	int ctr = 0;
-	struct dirent *node = NULL;
-	while ( (node = readdir_fs(fs_root, ctr)) != 0) {
-		fs_node_t *fsnode = finddir_fs(fs_root, node->name);
-		printk("Found %s: %s\n", ((fsnode->flags & 0x7) == FS_DIRECTORY) ? "directory" : "file", node->name);
-		if (fsnode->flags == FS_FILE) {
-			unsigned char buf[256];
-			uint32 sz = read_fs(fsnode, 0, 256, buf);
-			buf[sz] = 0;
-			printk("    contents: \"%s\"\n", buf);
-		}
-
-		ctr++;
-	}
-
-	uint32 free = free_bytes();
-	printk("\n\n%u bytes free (%u kiB; %u pages)\n", free, free/1024, free/4096);
-	printk("\nPress any key to continue... ");
-	getchar();
-	printk("\n");
-
-
-	//for(;;);
-
-
-
-
-/*
-	printk("Creating a page fault...");
-	uint32 *ptr = (uint32 *)0xa0000000;
-	*ptr = 10;
-*/
-
 	printk("\n\n");
 	printk("kmain() done; running infinite loop\n");
-//	for(;;);
-
-//#endif
 
 	Time t;
 	memset(&t, 0, sizeof(t));

@@ -11,7 +11,11 @@
 #include <kernel/timer.h>
 #include <stdlib.h>
 
+/* for ls_initrd() */
+#include <kernel/initrd.h>
+
 void heaptest(void);
+void ls_initrd(void);
 
 void kshell(void) {
 	unsigned char *buf = kmalloc(1024);
@@ -57,7 +61,7 @@ void kshell(void) {
 			heaptest();
 		}
 		else if (strcmp(p, "ls") == 0) {
-			//ls_initrd();
+			ls_initrd();
 		}
 		else if (strcmp(p, "help") == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
@@ -318,4 +322,21 @@ print_heap_index();
 	kfree(mem);
 	mem = 0;
 	printk("Time taken: %d ticks (%d ms)\n", end_ticks - start_ticks, (end_ticks - start_ticks) * 10);
+}
+
+void ls_initrd(void) {
+	int ctr = 0;
+	struct dirent *node = NULL;
+	while ( (node = readdir_fs(fs_root, ctr)) != 0) {
+		fs_node_t *fsnode = finddir_fs(fs_root, node->name);
+		printk("Found %s: %s\n", ((fsnode->flags & 0x7) == FS_DIRECTORY) ? "directory" : "file", node->name);
+		if (fsnode->flags == FS_FILE) {
+			unsigned char buf[256];
+			uint32 sz = read_fs(fsnode, 0, 256, buf);
+			buf[sz] = 0;
+			printk("    contents: \"%s\"\n", buf);
+		}
+
+		ctr++;
+	}
 }
