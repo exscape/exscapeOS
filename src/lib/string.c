@@ -2,6 +2,14 @@
 
 /* memset and memcpy are implemented in assembly, and reside in separate source files */
 
+/* NOTE: this doesn't really belong in string.h... */
+int isspace(int c) {
+	if (c == ' ' || c == '\n' || c == '\t' || c == '\v' || c == '\f' || c == '\r')
+		return 1;
+	else
+		return 0;
+}
+
 char *strcpy(char *restrict s1, const char *restrict s2) {
 	char *ret = s1;
 
@@ -54,4 +62,26 @@ size_t strlcpy(char *dst, const char *src, size_t size) {
 	dst[size - 1] = 0;
 
 	return len;
+}
+
+/* Remove leading and trailing whitespace. Modifies the original string. The returned pointer
+ * may be different from the one passed in - if there was leading whitespace. */
+char *trim(char *str) {
+	size_t len = strlen(str);
+
+	if (len == 0)
+		return str;
+
+	/* Trim leading whitespace. Needless to say, this will modify the pointer, making it unusable for free() */
+	while (isspace(*str)) str++;
+
+	if (*str == 0)
+		return str;
+
+	/* Trim trailing whitespace */
+	char *end = str + strlen(str) - 1;
+	while (end > str && isspace(*end)) end--;
+	*(end+1) = 0;
+
+	return str;
 }

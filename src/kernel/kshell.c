@@ -51,19 +51,23 @@ void kshell(void) {
 
 		/* TODO: trim() or such */
 
-		if (strcmp((char *)buf, "heaptest") == 0) {
+		char *p = trim((char *)buf);
+
+		if (strcmp(p, "heaptest") == 0) {
 			heaptest();
 		}
-		else if (strcmp((char *)buf, "ls") == 0) {
+		else if (strcmp(p, "ls") == 0) {
 			//ls_initrd();
 		}
-		else if (strcmp((char *)buf, "help") == 0) {
+		else if (strcmp(p, "help") == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
 			printk("heaptest: launch the heap stress test\n");
 			printk("ls: show the files on the initrd image\n");
 			printk("help: show this help message\n");
 		}
-
+		else {
+			printk("Unknown command: \"%s\"\n", p);
+		}
 	}
 }
 
