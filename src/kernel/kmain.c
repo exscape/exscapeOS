@@ -74,7 +74,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	/* Set up the keyboard callback */
 	printk("Setting up the keyboard handler... ");
-	register_interrupt_handler(IRQ1, keyboard_callback);
+	init_keyboard();
 	printk("done\n");
 
 	/* Set up the PIT and start counting ticks */
@@ -103,10 +103,22 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 
 	//return;
 
+	unsigned char ch;
+	while (true) {
+		ch = getchar();
+		putchar(ch);
 
-	uint32 free = free_bytes();
-	printk("%u bytes free (%u kiB; %u pages)\n", free, free/1024, free/4096);
-	//sleep(10000);
+		if (ch == 0x08) {
+			putchar(' '); cursor.x--;
+		}
+
+		update_cursor();
+	}
+
+
+
+
+#if 0
 
 
 
@@ -132,7 +144,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	/**********************************
 	 *** HEAP DEBUGGING AND TESTING ***
 	 **********************************/
-#if 1
 
 	print_heap_index();
 
@@ -377,6 +388,7 @@ print_heap_index();
 //	for(;;);
 
 #endif
+
 	Time t;
 	memset(&t, 0, sizeof(t));
 	get_time(&t);

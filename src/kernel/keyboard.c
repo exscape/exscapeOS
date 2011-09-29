@@ -2,12 +2,39 @@
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/monitor.h>
+#include <kernel/kheap.h>
 
-static unsigned char mod_keys = 0;
+/* The different modifier keys we support */
 #define MOD_NONE  0
 #define MOD_CTRL  (1 << 0)
 #define MOD_SHIFT (1 << 1)
 #define MOD_ALT   (1 << 2)
+
+/* The modifier keys currently pressed */
+static unsigned char mod_keys = 0;
+
+/* A ring buffer that stores keystrokes */
+#define KEYBUFFER_SIZE 256
+typedef struct ringbuffer {
+	volatile unsigned char data[KEYBUFFER_SIZE];
+	volatile unsigned char *read_ptr;
+	volatile unsigned char *write_ptr; /* volatile is probably not needed */
+	volatile uint32 counter; /* how much unread data is stored? */
+} ringbuffer_t;
+
+static volatile ringbuffer_t *keybuffer;
+
+void keyboard_callback(registers_t regs);
+
+/* Set up the keyboard handler */
+void init_keyboard(void) {
+	keybuffer = (ringbuffer_t *)kmalloc(sizeof(ringbuffer_t));
+	keybuffer->read_ptr = keybuffer->data;
+	keybuffer->write_ptr = keybuffer->data;
+	keybuffer->counter = 0;
+
+	register_interrupt_handler(IRQ1, keyboard_callback);
+}
 
 /* A US keymap, courtesy of Bran's tutorial */
 unsigned char kbdmix[128] =
@@ -141,6 +168,22 @@ unsigned char kbdse_alt[128] =
     0,	/* All other keys are undefined */
 };		
 
+/* Returns a key from the keyboard buffer, if possible. */
+unsigned char getchar(void) {
+	/* If no characters are available, loop until there's something. */
+	while (keybuffer->counter == 0) {
+		asm volatile("hlt");
+	}
+
+	assert(keybuffer->counter != 0);
+	unsigned char ret = *(keybuffer->read_ptr++);
+	keybuffer->counter--;
+	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE)
+		keybuffer->read_ptr = keybuffer->data;
+
+	return ret;
+}
+
 void keyboard_callback(registers_t regs) {
 	/* 
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
@@ -228,8 +271,21 @@ void keyboard_callback(registers_t regs) {
 		return;
 	}
 
-//	printk("%02x ", scancode);
+	/* Add the key to the ring buffer */
+	if (c == 0)
+		return;
 
+	if (keybuffer->counter == KEYBUFFER_SIZE) 
+		panic("Keyboard ring buffer full! This shouldn't happen without bugs somewhere...");
+
+	*(keybuffer->write_ptr++) = c;
+	keybuffer->counter++;
+
+	/* Wrap the write pointer */
+	if (keybuffer->write_ptr > keybuffer->data + KEYBUFFER_SIZE)
+		keybuffer->write_ptr = keybuffer->data;
+
+#if 0
 	if (!(scancode & 0x80) && c != 0) {
 		putchar(c);
 
@@ -245,4 +301,6 @@ void keyboard_callback(registers_t regs) {
 		}
 		update_cursor(); /* as of right now, putchar() doesn't call this to save resources */
 	}
+#endif
+
 }
