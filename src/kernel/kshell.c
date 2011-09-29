@@ -63,10 +63,24 @@ void kshell(void) {
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
 		}
+		else if (strcmp(p, "print_heap") == 0) {
+			validate_heap_index(true);
+		}
+		else if (strcmp(p, "clear") == 0) {
+			clrscr();
+		}
+		else if (strcmp(p, "reboot") == 0) {
+			reboot();
+		}
+		else if (strcmp(p, "") == 0) {
+			/* do nothing */
+		}
 		else if (strcmp(p, "help") == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
 			printk("heaptest: launch the heap stress test\n");
+			printk("print_heap: print the heap usage map\n");
 			printk("ls: show the files on the initrd image\n");
+			printk("clear: clear the screen\n");
 			printk("help: show this help message\n");
 		}
 		else {
@@ -77,7 +91,7 @@ void kshell(void) {
 
 /* Used for heap debugging only. Verifies that the area from /p/ to /p + size/ 
  * is filled with 0xaa bytes (to make sure the area isn't overwritten by something). */
-void verify_area(void *in_p, uint32 size) {
+static void verify_area(void *in_p, uint32 size) {
 	unsigned char *ptr;
 	for (ptr = in_p; ptr < ((unsigned char *)in_p + size); ptr++) {
 		if (*ptr != 0xaa) {

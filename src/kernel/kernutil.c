@@ -48,3 +48,9 @@ void reset(void) {
 		"int $3;"
 		: : "r"(&p));
 }
+
+void reboot(void) {
+	/* Restarts the computer. Initially, this simply calls reset(); in the future,
+	 * it will call the necessary cleanup functions, flush disk caches etc. */
+	reset();
+}

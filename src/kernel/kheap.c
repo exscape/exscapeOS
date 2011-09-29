@@ -52,7 +52,8 @@ void validate_heap_index(bool print_areas) {
 			}
 
 			if (print_areas) {
-				printk("%s: %p to %p (%d bytes); %s pointer + magics\n",
+				printk("%u: %s: %p to %p (%d bytes); %s pointer + magics\n",
+						i + 1, /* used 1-based indexing for the "UI" */
 						(found_header->type == AREA_USED ? "used" : "free"),
 						(uint32)found_header,
 						(uint32)found_header + found_header->size,
