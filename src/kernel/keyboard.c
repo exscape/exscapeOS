@@ -168,6 +168,11 @@ unsigned char kbdse_alt[128] =
     0,	/* All other keys are undefined */
 };		
 
+/* Returns the number of characters available in the keyboard buffer. */
+uint32 availkeys(void) {
+	return keybuffer->counter;
+}
+
 /* Returns a key from the keyboard buffer, if possible. */
 unsigned char getchar(void) {
 	/* If no characters are available, loop until there's something. */
