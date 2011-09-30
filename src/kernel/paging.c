@@ -253,7 +253,8 @@ void init_paging(unsigned long upper_mem) {
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0); /* supervisor, not read-only */
 
 	/* Set up the current page directory */
-	current_directory = clone_directory(kernel_directory);
+	//current_directory = clone_directory(kernel_directory);
+	current_directory = kernel_directory;
 	switch_page_directory(current_directory);
 
 #if HEAP_DEBUG >= 3
@@ -262,7 +263,7 @@ void init_paging(unsigned long upper_mem) {
 #endif
 }
 
-/* Loads the page directory at /new/ into the CR3 register. */
+/* Loads the page directory at /dir/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
 	current_directory = dir;
 //	uint32 new_cr3_contents = (uint32) & dir->tables_physical;
@@ -311,6 +312,7 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 
 void copy_page_physical (uint32 src, uint32 dest);
 
+#if 0
 static page_table_t *clone_table(page_table_t *src, uint32 *physaddr) {
 	/* Create a new, empty page table */
 	page_table_t *table = (page_table_t *)kmalloc_ap(sizeof(page_table_t), physaddr);
@@ -384,6 +386,7 @@ page_directory_t *clone_directory(page_directory_t *src) {
 
 	return dir;
 }
+#endif
 
 /* Tells the CPU that the page at this (virtual) address has changed. */
 void invalidate_tlb(void *addr) {
