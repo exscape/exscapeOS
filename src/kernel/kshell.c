@@ -81,6 +81,7 @@ void kshell(void) {
 			printk("print_heap: print the heap usage map\n");
 			printk("ls: show the files on the initrd image\n");
 			printk("clear: clear the screen\n");
+			printk("reboot: reboots the system\n");
 			printk("help: show this help message\n");
 		}
 		else {

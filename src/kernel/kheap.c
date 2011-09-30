@@ -34,11 +34,12 @@ static sint8 area_header_t_less_than(void *a, void*b) {
 void validate_heap_index(bool print_areas) {
 	/* Since there are two indexes, we need to loop through them both! */
 	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };
+	uint32 total_index = 0;
 	for (uint32 index_num=0; index_num < 2; index_num++) {
 		/* The index we're working with right now */
 		ordered_array_t *index = indexes[index_num];
 
-		for (uint32 i=0; i < index->size; i++) {
+		for (uint32 i=0; i < index->size; i++, total_index++) {
 			area_header_t *found_header = lookup_ordered_array(i, index);
 			area_footer_t *found_footer = FOOTER_FROM_HEADER(found_header);
 
@@ -52,8 +53,8 @@ void validate_heap_index(bool print_areas) {
 			}
 
 			if (print_areas) {
-				printk("%u: %s: %p to %p (%d bytes); %s pointer + magics\n",
-						i + 1, /* used 1-based indexing for the "UI" */
+				printk("#%u: %s: %p to %p (%d bytes); %s pointer + magics\n",
+						total_index + 1, /* used 1-based indexing for the "UI" */
 						(found_header->type == AREA_USED ? "used" : "free"),
 						(uint32)found_header,
 						(uint32)found_header + found_header->size,
@@ -245,6 +246,9 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	uint32 addr = heap->end_address; 
 	while (addr < new_end_address + PAGE_SIZE /* allocate one extra page */) {
 		assert(IS_PAGE_ALIGNED(addr));
+
+		assert(heap->supervisor == 1); /* only until user mode is implemented, of course! */
+
 		alloc_frame(addr, kernel_directory, (heap->supervisor ? PAGE_KERNEL : PAGE_USER), (heap->readonly ? PAGE_READONLY : PAGE_WRITABLE) );
 		addr += PAGE_SIZE;
 	}

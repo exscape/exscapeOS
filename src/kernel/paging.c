@@ -227,8 +227,7 @@ void init_paging(unsigned long upper_mem) {
 
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		/* Kernel code is readable but not writable from userspace */
-		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
+		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
 		addr += PAGE_SIZE;
 	}
 
@@ -241,7 +240,7 @@ void init_paging(unsigned long upper_mem) {
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
 	 * enough for the initial size. */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_READONLY);
+		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
 	}
 
 	/* Register the page fault handler */
@@ -251,7 +250,7 @@ void init_paging(unsigned long upper_mem) {
 	switch_page_directory(kernel_directory);
 
 	/* Initialize the kernel heap */
-	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 0, 0);
+	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0); /* supervisor, not read-only */
 
 	/* Set up the current page directory */
 	current_directory = clone_directory(kernel_directory);
