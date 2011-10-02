@@ -5,6 +5,7 @@
 #include <kernel/paging.h>
 #include <kernel/monitor.h>
 #include <kernel/task.h>
+#include <kernel/gdt.h> /* set_kernel_stack */
 
 /* Our globals */
 volatile task_t *current_task; // the currently running task
@@ -18,6 +19,19 @@ extern uint32 read_eip(void);
 
 uint32 next_pid = 1;
 
+int schedule(void) {
+	/* TODO: this is a temporary function... or is it? */
+
+	current_task = current_task->next;
+	if (current_task == NULL)
+		current_task = ready_queue;
+
+	current_directory = current_task->page_directory;
+	set_kernel_stack(current_task->stack);
+
+	return 1;
+}
+
 void init_tasking(void) {
 	disable_interrupts();
 
@@ -29,8 +43,39 @@ void init_tasking(void) {
 	current_task->eip = 0;
 	current_task->page_directory = current_directory;
 	current_task->next = 0;
+	current_task->stack = (uint32)kmalloc_a(8192);
 
 	enable_interrupts();
+}
+
+task_t *create_task( void (*entry_point)(void) ) {
+	disable_interrupts(); /* not sure if this is needed */
+	task_t *task = kmalloc(sizeof(task_t));
+	memset(task, 0, sizeof(task_t));
+
+	task->id = next_pid++;
+	task->ebp = 0; // FIXME: is this OK?
+//	task->esp = 
+	task->esp = 0;
+	task->stack = (uint32)kmalloc_a(8192); // hmmm
+	task->page_directory = current_directory;
+	task->next = 0;
+
+	/* Add the new task to the end of the task queue */
+	task_t *tmp = (task_t *)ready_queue;
+	while (tmp->next)
+		tmp = tmp->next;
+	tmp->next = task;
+
+	/* Set up the stack pointers and such */
+	uint32 esp; asm volatile("mov %%esp, %0" : "=r"(esp));
+	uint32 ebp; asm volatile("mov %%ebp, %0" : "=r"(ebp));
+	task->esp = esp;
+	task->ebp = ebp;
+	task->eip = (uint32)entry_point;
+
+	enable_interrupts(); /* not sure if this is needed */
+	return task;
 }
 
 void switch_task(void) {
@@ -63,17 +108,27 @@ void switch_task(void) {
        return; 
 
 	/* We didn't switch tasks just now, so let's prepare to do so! */
+    /* Reset the CURRENT (pre-switch) task to the if statement above */
 	current_task->eip = eip;
 	current_task->esp = esp;
 	current_task->ebp = ebp;
-	
+	/* TODO: the following 4 lines are new */
+	if (!schedule()) return;
+	eip = current_task->eip;
+	esp = current_task->esp;
+	ebp = current_task->ebp;
+
+#if 0	
 	/* Get the next task to run. If we reached the end of the list, start over at the beginning. */
 	current_task = current_task->next;
 	if (current_task == NULL)
 		current_task = ready_queue;
 
+	/* current_task is now pointed to the NEW task - the one we are going to switch to */
+
 	esp = current_task->esp;
 	ebp = current_task->ebp;
+#endif
 
 	// Here we:
    // * Stop interrupts so we don't get interrupted.

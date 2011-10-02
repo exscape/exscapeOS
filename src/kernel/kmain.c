@@ -20,6 +20,12 @@
 /* kheap.c */
 extern uint32 placement_address;
 
+void test_task(void) {
+	for (;;) {
+		printk("In test_task()\n");
+	}
+}
+
 void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
@@ -89,6 +95,15 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	printk("done\n");
 
 	printk("All initialization complete!\n\n");
+
+
+	printk("Starting test_task... ");
+	create_task(test_task);
+	printk("done\n");
+
+	for (;;) {
+		printk("in kmain()\n");
+	}
 
 	//switch_to_user_mode();
 	//asm volatile("hlt");
