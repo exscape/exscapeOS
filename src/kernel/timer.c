@@ -1,6 +1,7 @@
 #include <kernel/kernutil.h>
 #include <kernel/interrupts.h>
 #include <kernel/monitor.h>
+#include <kernel/task.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */
 uint32 timer_ticks = 0;
@@ -31,12 +32,7 @@ void sleep(uint32 milliseconds) {
 void timer_handler(registers_t regs __attribute__((unused))) {
 	/* Increase the tick count */
 	timer_ticks++;
-/*
-	if (timer_ticks % 100 == 0) {
-		// 1 second has passed, pretty much
-		printk("1 second. Timer: %u\n", timer_ticks);
-	}
-*/
+	switch_task();
 }
 
 /*

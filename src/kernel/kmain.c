@@ -84,6 +84,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	init_syscalls();
 	printk("done\n");
 
+	printk("Initializing multitasking and setting up the kernel task... ");
+	init_tasking();
+	printk("done\n");
+
 	printk("All initialization complete!\n\n");
 
 	//switch_to_user_mode();

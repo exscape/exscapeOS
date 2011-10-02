@@ -281,7 +281,7 @@ void switch_page_directory(page_directory_t *dir) {
 }
 
 bool addr_is_mapped(uint32 addr) {
-	page_t *page = get_page(addr, /*create = */ false,kernel_directory);
+	page_t *page = get_page(addr, /*create = */ false, current_directory);
 	return (page->present == 1 && page->frame != 0);
 }
 
@@ -311,6 +311,25 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 }
 
 void copy_page_physical (uint32 src, uint32 dest);
+
+page_directory_t *create_user_page_dir(void) {
+	uint32 new_dir_phys;
+	page_directory_t *dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
+
+	/* Since we want the kernel mapping to be the same in all address spaces, and the kernel (+ kernel heap, etc.) is
+	 * all that exists in the kernel directory, copy it! */
+	memcpy(dir, kernel_directory, sizeof(page_directory_t));
+
+	/*
+	 * We need the physical address of the /tables_physical/ struct member. /dir/ points to the beginning of the structure, of course.
+	 * Since the physical address is (obviously!) in another address space, we can't use the & operator, but must instead calculate
+	 * its offset into the structure, then add that to the physical address.
+	 */
+	uint32 offset = (uint32)dir->tables_physical - (uint32)dir;
+	dir->physical_address = new_dir_phys + offset;
+
+	return dir;
+}
 
 #if 0
 static page_table_t *clone_table(page_table_t *src, uint32 *physaddr) {
