@@ -97,6 +97,6 @@ static void write_tss(sint32 num, uint16 ss0, uint32 esp0) {
 	tss_entry.ss = tss_entry.ds = tss_entry.es = tss_entry.fs = tss_entry.gs = 0x13;
 }
 
-void set_kernel_stack(uint32 stack) {
-	tss_entry.esp0 = stack;
+void set_kernel_stack(void *stack) {
+	tss_entry.esp0 = (uint32)stack;
 }

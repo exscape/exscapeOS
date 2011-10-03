@@ -43,7 +43,7 @@ void init_tasking(void) {
 	current_task->eip = 0;
 	current_task->page_directory = current_directory;
 	current_task->next = 0;
-	current_task->stack = (uint32)kmalloc_a(8192);
+	current_task->stack = kmalloc_a(8192); // Hmm. FIXME
 
 	enable_interrupts();
 }
@@ -55,24 +55,47 @@ task_t *create_task( void (*entry_point)(void) ) {
 
 	task->id = next_pid++;
 	task->ebp = 0; // FIXME: is this OK?
-//	task->esp = 
 	task->esp = 0;
-	task->stack = (uint32)kmalloc_a(8192); // hmmm
+	task->eip = 0;
+	task->stack = (void *)( (uint32)kmalloc_a(8192) + 8192 );
 	task->page_directory = current_directory;
 	task->next = 0;
+
+	/* Set up the kernel stack of the new process */
+	uint32 *kernelStack = task->stack;
+	uint32 code_segment = 0x08;
+
+	*(--kernelStack) = 0x0202; /* EFLAGS: IF = 1, IOPL = 0 */
+	*(--kernelStack) = code_segment;        /* CS */
+	*(--kernelStack) = (uint32)entry_point; /* EIP */
+	*(--kernelStack) = 0;                   /* Error code */
+	*(--kernelStack) = 0;                   /* Interrupt number */
+
+	/* GPRs, except ESP */
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+
+	uint32 data_segment = 0x10;
+
+	/* Data segments (DS, ES, FS, GS I assume, need to look at the ISR. TODO */
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+
+	task->esp = (uint32)kernelStack;
+	task->ss = data_segment;
 
 	/* Add the new task to the end of the task queue */
 	task_t *tmp = (task_t *)ready_queue;
 	while (tmp->next)
 		tmp = tmp->next;
 	tmp->next = task;
-
-	/* Set up the stack pointers and such */
-	uint32 esp; asm volatile("mov %%esp, %0" : "=r"(esp));
-	uint32 ebp; asm volatile("mov %%ebp, %0" : "=r"(ebp));
-	task->esp = esp;
-	task->ebp = ebp;
-	task->eip = (uint32)entry_point;
 
 	enable_interrupts(); /* not sure if this is needed */
 	return task;

@@ -8,8 +8,9 @@ typedef struct task
 {
    int id;                // Process ID.
    uint32 esp, ebp;       // Stack and base pointers.
+   uint32 ss;
    uint32 eip;            // Instruction pointer.
-   uint32 stack; // This task's kernel stack
+   void *stack; // This task's kernel stack
    page_directory_t *page_directory; // Page directory.
    struct task *next;     // The next task in a linked list.
 } task_t;
