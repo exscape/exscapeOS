@@ -7,49 +7,44 @@
 #include <kernel/task.h>
 #include <kernel/gdt.h> /* set_kernel_stack */
 
-/* Our globals */
-volatile task_t *current_task; // the currently running task
-volatile task_t *ready_queue;  // the start of the task linked list
-
 /* Externs; three from paging.c, one from an assembly file */
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 extern void alloc_frame_to_page(page_t *, bool, bool);
 extern uint32 read_eip(void);
 
-uint32 next_pid = 1;
+volatile bool task_switching = false;
 
-int schedule(void) {
-	/* TODO: this is a temporary function... or is it? */
+uint32 next_pid = 2; /* kernel_task has PID 1 */
 
-	current_task = current_task->next;
-	if (current_task == NULL)
-		current_task = ready_queue;
+task_t kernel_task = {
+	.id = 1,
+	.esp = 0,
+	.ebp = 0,
+	.ss = 0,
+	.eip = 0,
+	.stack = 0, /* not used for this task */
+	.page_directory = 0,
+	.next = 0
+};
 
-	current_directory = current_task->page_directory;
-	set_kernel_stack(current_task->stack);
-
-	return 1;
-}
+/* Our globals */
+volatile task_t *current_task = &kernel_task; // the currently running task
+volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
 
 void init_tasking(void) {
 	disable_interrupts();
 
-	/* Initialize the kernel task */
-	/* TODO: does it work to simply set esp/ebp/eip to 0 here? */
-	current_task = ready_queue = (task_t *)kmalloc(sizeof(task_t));
-	current_task->id = next_pid++;
-	current_task->esp = current_task->ebp = 0;
-	current_task->eip = 0;
-	current_task->page_directory = current_directory;
-	current_task->next = 0;
-	current_task->stack = kmalloc_a(8192); // Hmm. FIXME
+	kernel_task.page_directory = kernel_directory;
 
+	task_switching = true;
 	enable_interrupts();
 }
 
 task_t *create_task( void (*entry_point)(void) ) {
 	disable_interrupts(); /* not sure if this is needed */
+	task_switching = false;
+
 	task_t *task = kmalloc(sizeof(task_t));
 	memset(task, 0, sizeof(task_t));
 
@@ -97,116 +92,62 @@ task_t *create_task( void (*entry_point)(void) ) {
 		tmp = tmp->next;
 	tmp->next = task;
 
+	task_switching = true;
 	enable_interrupts(); /* not sure if this is needed */
 	return task;
 }
 
-void switch_task(void) {
-	/* Since this will be called by the timer, probably before we're done booting, make sure to 
-	 * exit gracefully if that occurs. */
-	if (current_task == NULL)
-		return;
+uint32 switch_task(task_t *new_task) {
+	if (current_task == NULL || task_switching == false) {
+		panic("switch_task with no current_task or task_switching disabled");
+		// return 0;
+	}
 
-	/* If the current task is the ONLY task, don't attempt to switch */
-	if (current_task == ready_queue && ready_queue->next == NULL)
-		return;
+	disable_interrupts();
+	task_switching = false;
 
-	uint32 esp, ebp, eip;
-	asm volatile("mov %%esp, %0" : "=r"(esp));
-	asm volatile("mov %%ebp, %0" : "=r"(ebp));
+	current_task = new_task;
 
-	// Read the instruction pointer. We do some cunning logic here:
-   // One of two things could have happened when this function exits -
-   // (a) We called the function and it returned the EIP as requested.
-   // (b) We have just switched tasks, and because the saved EIP is essentially
-   // the instruction after read_eip(), it will seem as if read_eip has just
-   // returned.
-   // In the second case we need to return immediately. To detect it we put a dummy
-   // value in EAX further down at the end of this function. As C returns values in EAX,
-   // it will look like the return value is this dummy value! (0x12345).
-   eip = read_eip();
+	/* TODO: Switch page directories here */
 
-   // Have we just switched tasks?
-   if (eip == 0x12345)
-       return; 
+	/* Update the TSS */
+	assert(current_task->stack != NULL);
+	assert(current_task->esp != 0);
+	assert(current_task->ss == 0x10);
+	tss_switch((uint32)current_task->stack, current_task->esp, current_task->ss);
 
-	/* We didn't switch tasks just now, so let's prepare to do so! */
-    /* Reset the CURRENT (pre-switch) task to the if statement above */
-	current_task->eip = eip;
-	current_task->esp = esp;
-	current_task->ebp = ebp;
-	/* TODO: the following 4 lines are new */
-	if (!schedule()) return;
-	eip = current_task->eip;
-	esp = current_task->esp;
-	ebp = current_task->ebp;
 
-#if 0	
-	/* Get the next task to run. If we reached the end of the list, start over at the beginning. */
-	current_task = current_task->next;
-	if (current_task == NULL)
-		current_task = ready_queue;
 
-	/* current_task is now pointed to the NEW task - the one we are going to switch to */
 
-	esp = current_task->esp;
-	ebp = current_task->ebp;
-#endif
 
-	// Here we:
-   // * Stop interrupts so we don't get interrupted.
-   // * Temporarily put the new EIP location in ECX.
-   // * Load the stack and base pointers from the new task struct.
-   // * Change page directory to the physical address (physicalAddr) of the new directory.
-   // * Put a dummy value (0x12345) in EAX so that above we can recognise that we've just
-   // switched task.
-   // * Restart interrupts. The STI instruction has a delay - it doesn't take effect until after
-   // the next instruction.
-   // * Jump to the location in ECX (remember we put the new EIP in there).
-   asm volatile("         \
-     cli;                 \
-     mov %0, %%ecx;       \
-     mov %1, %%esp;       \
-     mov %2, %%ebp;       \
-     mov %3, %%cr3;       \
-     mov $0x12345, %%eax; \
-     sti;                 \
-     jmp *%%ecx           "
-                : : "r"(eip), "r"(esp), "r"(ebp), "r"(current_directory->physical_address));
+
+
+	task_switching = true;
+	enable_interrupts();
+
+	return current_task->esp;
 } 
 
-#if 0
-/* Now in assembly! See usermode.s */
-void switch_to_user_mode(void) {
-	/* Set up the segment registers and the stack for user mode */
+uint32 scheduler_taskSwitch(uint32 esp) {
+	if (task_switching == false || (current_task == &kernel_task && current_task->next == NULL))
+		return esp;
 
-	/* iret expects the following on the stack:
-	 * 1) an EIP value to jump to
-	 * 2) a CS selector
-	 * 3) an EFLAGS register to load
-	 * 4) a stack pointer to load
-	 * 5) a stack segment selector
-	 */
-	asm volatile("cli;"
-				 "mov $0x23, %ax;" /* user data segment (0x20) OR 3 (3 meaning ring 3) */
-				 "mov %ax, %ds;"   /* set all the data segments */
-				 "mov %ax, %es;"
-				 "mov %ax, %fs;"
-				 "mov %ax, %gs;"
+	//task_saveState(esp);
+	current_task->esp = esp; // same as the commented out version above
 
-				 "mov %esp, %eax;" 
-				 "pushl $0x23;"   /* SS selector */
-				 "pushl %eax;"    /* stack pointer */
-				 "pushf;"         /* EFLAGS */
-				 "pop %eax;"      /* read EFLAGS back */
-				 "or $0x200, %eax;" /* Set the Interrupt Flag (we can't use sti in user mode!) */
-				 "push %eax;"     /* write it back */
-				 "pushl $0x1b;"   /* CS selector */
-				 "push $1f;"      /* EIP (the location of the 1: label below) */
-				 "iret;"          /* let's go! */
-				 "1:");
+	task_t* old_task = (task_t*)current_task;
+    task_t* new_task = current_task->next;
+	if (new_task == NULL)
+		new_task = (task_t *)ready_queue;
+
+    if (old_task == new_task) {
+		/* no point in switching, eh? */
+        return(esp);
+	}
+
+    return switch_task(new_task);
 }
-#endif
+
 
 int getpid(void) {
 	return current_task->id;

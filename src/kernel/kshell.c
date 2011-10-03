@@ -72,6 +72,15 @@ void kshell(void) {
 		else if (strcmp(p, "reboot") == 0) {
 			reboot();
 		}
+		else if (strcmp(p, "pagefault") == 0) {
+			uint32 *pf = (uint32 *)0xffff0000;
+			*pf = 10;
+		}
+		else if(strcmp(p, "divzero") == 0) {
+			asm volatile("mov $100, %eax;"
+						 "mov $0, %ebx;"
+						 "div %ebx;");
+		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */
 		}
@@ -82,6 +91,8 @@ void kshell(void) {
 			printk("ls: show the files on the initrd image\n");
 			printk("clear: clear the screen\n");
 			printk("reboot: reboots the system\n");
+			printk("pagefault: generate a page fault and crash\n");
+			printk("divzero: divide by zero\n");
 			printk("help: show this help message\n");
 		}
 		else {

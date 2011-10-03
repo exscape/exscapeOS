@@ -2,7 +2,7 @@
 #include <kernel/monitor.h>
 #include <kernel/interrupts.h>
 
-static void syscall_handler(registers_t regs);
+static void syscall_handler(uint32);
 
 static void *syscalls[] = {
 	&print,
@@ -13,13 +13,14 @@ void init_syscalls(void) {
 	register_interrupt_handler(0x80, &syscall_handler);
 }
 
-void syscall_handler(registers_t regs) {
+void syscall_handler(uint32 esp) {
+	registers_t *regs = (registers_t *)esp;
 	/* Make sure this is a valid syscall */
-	if (regs.eax >= num_syscalls)
+	if (regs->eax >= num_syscalls)
 		return;
 
 	/* Get the function */
-	void *func = syscalls[regs.eax];
+	void *func = syscalls[regs->eax];
 
 	/* Since we don't know how many arguments the function needs, pass along
 	 * them all, and let it use however many it needs to. */
@@ -36,9 +37,9 @@ void syscall_handler(registers_t regs) {
 				 "pop %%ebx;"
 				 "pop %%ebx;"
 				 "pop %%ebx;"
-				 : "=a" (ret) : "r" (regs.edi), "r" (regs.esi), "r" (regs.edx), "r" (regs.ecx), "r" (regs.ebx), "r" (func));
+				 : "=a" (ret) : "r" (regs->edi), "r" (regs->esi), "r" (regs->edx), "r" (regs->ecx), "r" (regs->ebx), "r" (func));
 
-	regs.eax = ret;
+	regs->eax = ret;
 }
 
 DEFN_SYSCALL1(print, 0, const char *);

@@ -24,7 +24,7 @@ typedef struct ringbuffer {
 
 static volatile ringbuffer_t *keybuffer;
 
-void keyboard_callback(registers_t regs);
+void keyboard_callback(uint32);
 
 /* Set up the keyboard handler */
 void init_keyboard(void) {
@@ -189,7 +189,7 @@ unsigned char getchar(void) {
 	return ret;
 }
 
-void keyboard_callback(registers_t regs) {
+void keyboard_callback(uint32 esp __attribute__((unused))) {
 	/* 
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
 	 * After looking through a table of possibilities, none of them
@@ -199,7 +199,6 @@ void keyboard_callback(registers_t regs) {
 	 * ignoring the 0xe0 byte means nothing bad.
 	 */
 
-	regs = regs; // avoid a warning
 	unsigned char scancode = inb(0x60);
 	unsigned char c;
 	if (scancode == 0xe0)

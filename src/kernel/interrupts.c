@@ -3,6 +3,10 @@
 #include <kernel/interrupts.h>
 #include <kernel/monitor.h>
 #include <kernel/kernutil.h>
+#include <kernel/task.h>
+
+/* task.c */
+extern bool task_switching;
 
 void disable_interrupts(void) {
 	/* disable NMI */
@@ -215,37 +219,51 @@ const char *exception_name[] = {
 };
 
 /* Called from the assembly code in kernel.s */
-void isr_handler(registers_t regs) {
-	printk("Received interrupt: %d (%s)\n", regs.int_no, exception_name[regs.int_no]);
+uint32 isr_handler(uint32 esp) {
+	registers_t *regs = (registers_t *)esp;
+	printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
 
-	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs.eax, regs.ebx, regs.ecx, regs.edx);
-	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs.esi, regs.edi, regs.esp, regs.ebp);
-	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs.cs, regs.eip, regs.eflags, regs.useresp);
-	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs.int_no, regs.err_code, regs.ds);
+	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
+	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
+	printk("WARNING: esp value may be unreliable at the moment\n");
 
-	if (interrupt_handlers[regs.int_no] != 0) {
-		isr_t handler = interrupt_handlers[regs.int_no];
-		handler(regs);
+	if (interrupt_handlers[regs->int_no] != 0) {
+		isr_t handler = interrupt_handlers[regs->int_no];
+		handler(esp);
 	}
 	else {
 		panic("Interrupt not handled (no handler registered for interrupt number)");
 	}
+
+	return esp;
 }
 
 /* Called from the assembly code in kernel.s */
-void irq_handler(registers_t regs) {
+uint32 irq_handler(uint32 esp) {
+	registers_t *regs = (registers_t *)esp;
 	/* If this interrupt came from the slave PIC, send an
 	   EOI (End Of Interrupt) ta it */
-	if (regs.int_no >= IRQ8) {
+	if (regs->int_no >= IRQ8) {
 		outb(0xa0, 0x20);
 	}
 
-	/* Send an EOI to the master PIC in either case, since slave IRQs goes through it anyway */
+	/* Send an EOI to the master PIC in either case, since slave IRQs go through it, too */
 	outb(0x20, 0x20);
 
 	/* Call the interrupt handler, if there is one. */
-	if (interrupt_handlers[regs.int_no] != 0) {
-		isr_t handler = interrupt_handlers[regs.int_no];
-		handler(regs);
+	if (interrupt_handlers[regs->int_no] != 0) {
+		isr_t handler = interrupt_handlers[regs->int_no];
+
+		if (regs->int_no == 0x20) {
+			/* the timer interrupted; switch task if need be */
+			if (task_switching)
+				esp = scheduler_taskSwitch(esp);
+		}
+
+		handler(esp);
 	}
+
+	return esp;
 }

@@ -54,6 +54,6 @@ struct tss_entry
 
 typedef struct tss_entry tss_entry_t;
 
-void set_kernel_stack(void *stack);
+void tss_switch(uint32 esp0, uint32 esp, uint32 ss);
 
 #endif

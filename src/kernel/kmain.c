@@ -89,7 +89,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	printk("Initializing syscalls... ");
 	init_syscalls();
 	printk("done\n");
-
+/*
 	printk("Initializing multitasking and setting up the kernel task... ");
 	init_tasking();
 	printk("done\n");
@@ -104,7 +104,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	for (;;) {
 		printk("in kmain()\n");
 	}
-
+*/
 	//switch_to_user_mode();
 	//asm volatile("hlt");
 

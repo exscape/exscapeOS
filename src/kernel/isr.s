@@ -63,27 +63,45 @@ ISR_NOERRCODE 128
 ; Our ISR stub. It saves the processor state, sets up for kernel mode segments,
 ; calls the C-level fault handler, and restores the stack frame.
 isr_common_stub:
-	pusha     ; edi, esi, ebp, esp, ebx, edx, ecx, eax
-	mov ax, ds
 	push eax
+    push ecx
+    push edx
+    push ebx
+    push ebp
+    push esi
+    push edi
 
-	mov ax, 0x10  ; load the kernel data segment descriptor
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
+    push ds
+    push es
+    push fs
+    push gs
 
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+	push esp
 	call isr_handler
+	mov esp, eax
 
-	pop eax       ; reload the original data segment descriptor
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
+	pop gs
+    pop fs
+    pop es
+    pop ds
 
-	popa
-	add esp, 8    ; clean up the pushed error code and ISR number
-	iret
+    pop edi
+    pop esi
+    pop ebp
+    pop ebx
+    pop edx
+    pop ecx
+    pop eax
+
+    add esp, 8
+    iret
+
 
 ; ---------
 ; IRQ handling
@@ -118,25 +136,41 @@ IRQ  15,    47
 
 ; This is called/jumped to by the handlers created by the macros above.
 irq_common_stub:
-	pusha
+	push eax
+    push ecx
+    push edx
+    push ebx
+    push ebp
+    push esi
+    push edi
 
-	mov ax, ds
-	push eax ; same the data segment descriptor
+    push ds
+    push es
+    push fs
+    push gs
 
-	mov ax, 0x10 ; load the kernel data segment descriptor
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
 
-	call irq_handler ; implemented in C
+	push esp
+	call irq_handler
+	mov esp, eax
 
-	pop ebx ; reload the original data segment descriptor
-	mov ds, bx
-	mov es, bx
-	mov fs, bx
-	mov gs, bx
+	pop gs
+    pop fs
+    pop es
+    pop ds
 
-	popa ; pop the rest
-	add esp, 8 ; clean up the pushed error code/ISP number
-	iret
+    pop edi
+    pop esi
+    pop ebp
+    pop ebx
+    pop edx
+    pop ecx
+    pop eax
+
+    add esp, 8
+    iret

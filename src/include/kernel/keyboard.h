@@ -3,7 +3,7 @@
 
 #include <kernel/interrupts.h> /* registers_t */
 
-void keyboard_callback(registers_t regs);
+void keyboard_callback(uint32 esp);
 void init_keyboard(void);
 unsigned char getchar(void);
 uint32 availkeys(void);

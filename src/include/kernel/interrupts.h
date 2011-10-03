@@ -42,16 +42,16 @@ struct idt_ptr {
 	uint32 base;
 } __attribute__((packed));
 
-typedef struct registers
+typedef struct
 {
-   uint32 ds;
-   uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax;
-   uint32 int_no, err_code;
-   uint32 eip, cs, eflags, useresp, ss; // Pushed by the processor automatically.
-} registers_t; 
+    uint32 gs, fs, es, ds;
+    uint32 edi, esi, ebp, ebx, edx, ecx, eax;
+    uint32 int_no, err_code;
+    uint32 eip, cs, eflags, useresp, ss;
+} __attribute__((packed)) registers_t;
 
 /* Used to register callbacks for interrupts. */
-typedef void (*isr_t)(registers_t);
+typedef void (*isr_t)(uint32);
 void register_interrupt_handler(uint8 n, isr_t handler);
 
 /* The mapping of IRQs to ISR handlers. */

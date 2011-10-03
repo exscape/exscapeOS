@@ -29,10 +29,9 @@ void sleep(uint32 milliseconds) {
 	}
 }
 
-void timer_handler(registers_t regs __attribute__((unused))) {
+void timer_handler(uint32 esp __attribute__((unused))) {
 	/* Increase the tick count */
 	timer_ticks++;
-	switch_task();
 }
 
 /*
