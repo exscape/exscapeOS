@@ -121,8 +121,7 @@ void kshell(void) {
 						 "mov $0, %ebx;"
 						 "div %ebx;");
 		}
-		else if ((strlen(p) >= strlen("kill 1")) && p[0] == 'k' && p[1] == 'i' && p[2] == 'l' && p[3] == 'l' && p[4] == ' ') {
-			/* TODO: create a string function to make the above silliness unnecessary! */
+		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
 
 			/* p now points to the argument */
