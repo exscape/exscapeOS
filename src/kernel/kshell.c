@@ -76,8 +76,18 @@ void kshell(void) {
 			uint32 *pf = (uint32 *)0xffff0000;
 			*pf = 10;
 		}
+		else if (strcmp(p, "uptime") == 0) {
+			uint32 up = uptime();
+			uint32 ticks = gettickcount();
+			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
+		}
 		else if(strcmp(p, "divzero") == 0) {
-			asm volatile("mov $100, %eax;"
+			asm volatile("mov $1, %ecx;"
+						 "mov $2, %edx;"
+						 "mov $3, %esi;"
+						 "mov $4, %edi;"
+						 "mov $5, %ebp;"
+						"mov $100, %eax;"
 						 "mov $0, %ebx;"
 						 "div %ebx;");
 		}
@@ -92,7 +102,8 @@ void kshell(void) {
 			printk("clear: clear the screen\n");
 			printk("reboot: reboots the system\n");
 			printk("pagefault: generate a page fault and crash\n");
-			printk("divzero: divide by zero\n");
+			printk("divzero: divide by zero after setting most registers to test values\n");
+			printk("uptime: display the current uptime\n");
 			printk("help: show this help message\n");
 		}
 		else {
