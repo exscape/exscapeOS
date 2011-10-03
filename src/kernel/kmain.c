@@ -23,6 +23,14 @@ extern uint32 placement_address;
 void test_task(void) {
 	for (;;) {
 		printk("In test_task()\n");
+		sleep(1000);
+		//loopsleep();
+	}
+}
+
+void idle_task(void) {
+	for (;;) {
+		asm volatile("hlt");
 	}
 }
 
@@ -96,13 +104,21 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("All initialization complete!\n\n");
 
-	printk("Starting test_task... ");
-	create_task(test_task);
+	//printk("Starting test_task... ");
+	//create_task(test_task);
+	//printk("done\n");
+
+	printk("Starting idle_task... ");
+	create_task(idle_task);
 	printk("done\n");
 
+	/*
 	for (;;) {
 		printk("in kmain()\n");
+		loopsleep();
 	}
+	*/
+	kshell();
 
 	//switch_to_user_mode();
 	//asm volatile("hlt");

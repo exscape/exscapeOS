@@ -15,6 +15,8 @@ extern uint32 read_eip(void);
 
 volatile bool task_switching = false;
 
+#define KERNEL_STACK_SIZE 8192
+
 uint32 next_pid = 2; /* kernel_task has PID 1 */
 
 task_t kernel_task = {
@@ -31,6 +33,46 @@ task_t kernel_task = {
 /* Our globals */
 volatile task_t *current_task = &kernel_task; // the currently running task
 volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
+
+void kill(task_t *task) {
+	assert(task != (task_t *)&kernel_task);
+	task_switching = false;
+
+	/* TODO: destroy user page directory */
+
+	/* Delete this task from the queue */
+	/* Since the list is singly-linked, we need to hack acound that a bit. */
+
+	task_t *p = (task_t *)ready_queue;
+	if (p == task) {
+		ready_queue = task->next;
+	}
+	else {
+		while (p != NULL && p->next != NULL) {
+			if (p->next == task) {
+				p->next = task->next;
+			}
+			p = p->next;
+		}
+	}
+
+	kfree((void *)(  (uint32)task->stack - KERNEL_STACK_SIZE ) );
+	kfree(task);
+
+	task_switching = true;
+
+	/* TODO */
+	if (task == current_task) {
+		/* TODO: Force a task switch, so that this task can disappear forever in a pretty way */
+		while (true) {
+			asm volatile("hlt");
+		}
+	}
+}
+
+void exit_proc(void) {
+	kill((task_t *)current_task);
+}
 
 void init_tasking(uint32 kerntask_esp0) {
 	disable_interrupts();
@@ -53,13 +95,16 @@ task_t *create_task( void (*entry_point)(void) ) {
 	task->ebp = 0; // FIXME: is this OK?
 	task->esp = 0;
 	task->eip = 0;
-	task->stack = (void *)( (uint32)kmalloc_a(8192) + 8192 );
+	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
 	task->page_directory = current_directory;
 	task->next = 0;
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
 	uint32 code_segment = 0x08;
+
+	/* Functions will call this automatically when they attempt to return */
+	*(--kernelStack) = (uint32)&exit_proc;
 
 	*(--kernelStack) = 0x0202; /* EFLAGS: IF = 1, IOPL = 0 */
 	*(--kernelStack) = code_segment;        /* CS */
@@ -117,12 +162,6 @@ uint32 switch_task(task_t *new_task) {
 	assert(current_task->ss == 0x10);
 	tss_switch((uint32)current_task->stack, current_task->esp, current_task->ss);
 
-
-
-
-
-
-
 	task_switching = true;
 	//enable_interrupts(); // let the ISR do this
 
@@ -148,7 +187,6 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
     return switch_task(new_task);
 }
-
 
 int getpid(void) {
 	return current_task->id;

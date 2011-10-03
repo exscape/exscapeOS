@@ -5,6 +5,7 @@
 #include <kernel/kheap.h>
 #include <string.h>
 #include <kernel/kernutil.h>
+#include <kernel/task.h>
 
 /* for heaptest() */
 #include <kernel/paging.h>
@@ -16,6 +17,22 @@
 
 void heaptest(void);
 void ls_initrd(void);
+
+extern task_t *ready_queue;
+
+static void permaidle(void) {
+	printk("permaidle task launched. no further output will be generated\n");
+	for(;;) {
+		asm volatile("hlt");
+	}
+}
+
+static void sleep_test(void) {
+	for (int i=0; i < 5; i++) {
+		printk("sleep task: i = %d\n", i);
+		sleep(1000);
+	}
+}
 
 void kshell(void) {
 	unsigned char *buf = kmalloc(1024);
@@ -58,7 +75,7 @@ void kshell(void) {
 		char *p = trim((char *)buf);
 
 		if (strcmp(p, "heaptest") == 0) {
-			heaptest();
+			create_task(&heaptest);
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -72,6 +89,12 @@ void kshell(void) {
 		else if (strcmp(p, "reboot") == 0) {
 			reboot();
 		}
+		else if (strcmp(p, "sleeptest") == 0) {
+			create_task(&sleep_test);
+		}
+		else if (strcmp(p, "permaidle") == 0) {
+			create_task(&permaidle);
+		}
 		else if (strcmp(p, "pagefault") == 0) {
 			uint32 *pf = (uint32 *)0xffff0000;
 			*pf = 10;
@@ -80,6 +103,13 @@ void kshell(void) {
 			uint32 up = uptime();
 			uint32 ticks = gettickcount();
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
+		}
+		else if (strcmp(p, "ps") == 0) {
+			task_t *task = ready_queue;
+			while (task) {
+				printk("PID: %d\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\n----------\n", task->id, task->esp, task->stack, task->page_directory);
+				task = task->next;
+			}
 		}
 		else if(strcmp(p, "divzero") == 0) {
 			asm volatile("mov $1, %ecx;"
@@ -104,6 +134,7 @@ void kshell(void) {
 			printk("pagefault: generate a page fault and crash\n");
 			printk("divzero: divide by zero after setting most registers to test values\n");
 			printk("uptime: display the current uptime\n");
+			printk("ps: basic info about the running tasks\n");
 			printk("help: show this help message\n");
 		}
 		else {
