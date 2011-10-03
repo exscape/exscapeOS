@@ -72,6 +72,7 @@ extern void irq12(void);
 extern void irq13(void);
 extern void irq14(void);
 extern void irq15(void);
+extern void irq126(void);
 
 /* The array of ISR handlers */
 isr_t interrupt_handlers[256] = {0};
@@ -142,6 +143,9 @@ void idt_install(void) {
 	idt_set_gate(29, (uint32)isr29, 0x08, 0x8e);
 	idt_set_gate(30, (uint32)isr30, 0x08, 0x8e);
 	idt_set_gate(31, (uint32)isr31, 0x08, 0x8e);
+
+	/* interrupt vector that forces a task switch */
+	idt_set_gate(0x7e, (uint32)irq126, 0x08, 0x8e);
 
 	/* the syscall handler */
 	idt_set_gate(128, (uint32)isr128, 0x08, 0x8e);
@@ -245,24 +249,31 @@ uint32 irq_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* If this interrupt came from the slave PIC, send an
 	   EOI (End Of Interrupt) ta it */
-	if (regs->int_no >= IRQ8) {
+	if (regs->int_no >= IRQ8 && regs->int_no != 0x7e) {
 		outb(0xa0, 0x20);
 	}
 
 	/* Send an EOI to the master PIC in either case, since slave IRQs go through it, too */
-	outb(0x20, 0x20);
+	if (regs->int_no != 0x7e) {
+		/* Don't do this if this is vector 0x7e, aka. the task switch vector */
+		outb(0x20, 0x20);
+	}
 
 	/* Call the interrupt handler, if there is one. */
-	if (interrupt_handlers[regs->int_no] != 0) {
+	if (interrupt_handlers[regs->int_no] != 0 || regs->int_no == 0x7e) {
 		isr_t handler = interrupt_handlers[regs->int_no];
 
-		if (regs->int_no == 0x20) {
-			/* the timer interrupted; switch task if need be */
+		if (regs->int_no == 0x20 || regs->int_no == 0x7e) {
+			/* 0x20 is the timer; 0x7e is a custom interrupt that does nothing except execute this clause (to force a task switch) */
 			if (task_switching)
 				esp = scheduler_taskSwitch(esp);
 		}
 
-		handler(esp);
+		if (regs->int_no != 0x7e) {
+			/* Ugly hack; we need to enter the parent clause despite no handling being set up for interrupt 0x7e,
+			 * so we would try to call a NULL handler here without this check. */
+			handler(esp);
+		}
 	}
 
 	return esp;

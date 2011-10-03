@@ -133,6 +133,7 @@ IRQ  12,    44
 IRQ  13,    45
 IRQ  14,    46
 IRQ  15,    47
+IRQ 126,    126 ; the task switch vector
 
 ; This is called/jumped to by the handlers created by the macros above.
 irq_common_stub:

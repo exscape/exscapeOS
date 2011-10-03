@@ -1,12 +1,7 @@
 global switch_to_user_mode
-global read_eip
 
 section .text
 align 4
-
-read_eip:
-	pop eax
-	jmp eax
 
 switch_to_user_mode:
 

@@ -21,5 +21,6 @@ void switch_to_user_mode(void);
 task_t *create_task( void (*entry_point)(void) );
 uint32 scheduler_taskSwitch(uint32 esp);
 uint32 switch_task(task_t *new_task);
+bool kill_pid(int pid);
 
 #endif

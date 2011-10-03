@@ -7,11 +7,10 @@
 #include <kernel/task.h>
 #include <kernel/gdt.h> /* set_kernel_stack */
 
-/* Externs; three from paging.c, one from an assembly file */
+/* Externs from paging.c */
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 extern void alloc_frame_to_page(page_t *, bool, bool);
-extern uint32 read_eip(void);
 
 volatile bool task_switching = false;
 
@@ -61,13 +60,30 @@ void kill(task_t *task) {
 
 	task_switching = true;
 
-	/* TODO */
+	/* If the task being killed is currently active, force a switch from it.
+	 * The pointer is still valid, even though the memory it's pointing to is not, so we can still use it for a comparison. */
 	if (task == current_task) {
-		/* TODO: Force a task switch, so that this task can disappear forever in a pretty way */
-		while (true) {
-			asm volatile("hlt");
-		}
+		/* Force a task switch */
+		asm volatile("int $0x7E");
+		panic("Should not be reached (kill() after forcing a task switch from the killed task)");
 	}
+}
+
+bool kill_pid(int pid) {
+	/* Kills the task with a certain PID */
+	task_t *task = (task_t *)ready_queue;
+	while (task->id != pid && task->next != NULL)
+		task = task->next;
+
+	if (task->id == pid) {
+		kill(task);
+		return true;
+	}
+	else {
+		/* we didn't find the task! */
+		return false;
+	}
+
 }
 
 void exit_proc(void) {
