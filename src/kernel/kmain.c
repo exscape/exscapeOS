@@ -105,11 +105,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("All initialization complete!\n\n");
 
 	//printk("Starting test_task... ");
-	//create_task(test_task);
+	//create_task(test_task, "test_task");
 	//printk("done\n");
 
 	printk("Starting idle_task... ");
-	create_task(idle_task);
+	create_task(idle_task, "idle_task");
 	printk("done\n");
 
 	/*

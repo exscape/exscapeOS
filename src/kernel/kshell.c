@@ -68,14 +68,10 @@ void kshell(void) {
 
 		putchar('\n');
 
-		//printk("\ngetchar loop done, command entered: \"%s\"\n", buf);
-
-		/* TODO: trim() or such */
-
 		char *p = trim((char *)buf);
 
 		if (strcmp(p, "heaptest") == 0) {
-			create_task(&heaptest);
+			create_task(&heaptest, "heaptest");
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -90,10 +86,10 @@ void kshell(void) {
 			reboot();
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
-			create_task(&sleep_test);
+			create_task(&sleep_test, "sleeptest");
 		}
 		else if (strcmp(p, "permaidle") == 0) {
-			create_task(&permaidle);
+			create_task(&permaidle, "permaidle");
 		}
 		else if (strcmp(p, "pagefault") == 0) {
 			uint32 *pf = (uint32 *)0xffff0000;
@@ -106,10 +102,13 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "ps") == 0) {
 			task_t *task = ready_queue;
+			int n = 0;
 			while (task) {
-				printk("PID: %d\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\n----------\n", task->id, task->esp, task->stack, task->page_directory);
+				n++;
+				printk("PID: %d\nNAME: %s\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\n----------\n", task->id, task->name, task->esp, task->stack, task->page_directory);
 				task = task->next;
 			}
+			printk("%d tasks running\n", n);
 		}
 		else if(strcmp(p, "divzero") == 0) {
 			asm volatile("mov $1, %ecx;"

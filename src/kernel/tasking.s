@@ -25,7 +25,7 @@ switch_to_user_mode:
 	push 0x23     ; SS (0x20 | 3)
 	push eax      ; ESP
 	pushfd        ; EFLAGS
-;;	or [esp], 0x200 ; set IF in the flags ; TODO: enable this (disabled for testing) 
+	or dword [esp], 0x200 ; set IF in the flags on the stack
 	push 0x1b     ; CS (0x18 | 3)
 	push start_here ; EIP
 	iret

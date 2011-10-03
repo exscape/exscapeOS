@@ -21,7 +21,6 @@ uint32 next_pid = 2; /* kernel_task has PID 1 */
 task_t kernel_task = {
 	.id = 1,
 	.esp = 0,
-	.ebp = 0,
 	.ss = 0x10,
 	.eip = 0,
 	.stack = 0, /* set later */
@@ -95,12 +94,13 @@ void init_tasking(uint32 kerntask_esp0) {
 
 	kernel_task.page_directory = kernel_directory;
 	kernel_task.stack = (void *)kerntask_esp0;
+	strlcpy(kernel_task.name, "kernel_task", TASK_NAME_LEN);
 
 	task_switching = true;
 	enable_interrupts();
 }
 
-task_t *create_task( void (*entry_point)(void) ) {
+task_t *create_task( void (*entry_point)(void), const char *name) {
 	disable_interrupts(); /* not sure if this is needed */
 	task_switching = false;
 
@@ -108,12 +108,12 @@ task_t *create_task( void (*entry_point)(void) ) {
 	memset(task, 0, sizeof(task_t));
 
 	task->id = next_pid++;
-	task->ebp = 0; // FIXME: is this OK?
 	task->esp = 0;
 	task->eip = 0;
 	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
 	task->page_directory = current_directory;
 	task->next = 0;
+	strlcpy(task->name, name, TASK_NAME_LEN);
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
@@ -139,12 +139,13 @@ task_t *create_task( void (*entry_point)(void) ) {
 
 	uint32 data_segment = 0x10;
 
-	/* Data segments (DS, ES, FS, GS I assume, need to look at the ISR. TODO */
+	/* Data segments (DS, ES, FS, GS) */
 	*(--kernelStack) = data_segment;
 	*(--kernelStack) = data_segment;
 	*(--kernelStack) = data_segment;
 	*(--kernelStack) = data_segment;
 
+	/* Now that we're done on the stack, set the stack pointers in the task structure */
 	task->esp = (uint32)kernelStack;
 	task->ss = data_segment;
 

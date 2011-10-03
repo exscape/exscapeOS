@@ -76,7 +76,6 @@ void gdt_install(void) {
 static void write_tss(sint32 num, uint16 ss0, uint32 esp0) {
 	/* Calculate what we need for the GDT entry */
 	uint32 base = (uint32)&tss_entry;
-	//uint32 limit = base + sizeof(tss_entry_t); /* TODO: FIXME: should this really be base plus... or just the size? */
 	uint32 limit = sizeof(tss_entry_t);
 
 	gdt_set_gate(num, base, limit, 0xe9, 0x00);
