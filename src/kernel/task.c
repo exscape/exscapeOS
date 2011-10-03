@@ -21,9 +21,9 @@ task_t kernel_task = {
 	.id = 1,
 	.esp = 0,
 	.ebp = 0,
-	.ss = 0,
+	.ss = 0x10,
 	.eip = 0,
-	.stack = 0, /* not used for this task */
+	.stack = 0, /* set later */
 	.page_directory = 0,
 	.next = 0
 };
@@ -32,10 +32,11 @@ task_t kernel_task = {
 volatile task_t *current_task = &kernel_task; // the currently running task
 volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
 
-void init_tasking(void) {
+void init_tasking(uint32 kerntask_esp0) {
 	disable_interrupts();
 
 	kernel_task.page_directory = kernel_directory;
+	kernel_task.stack = (void *)kerntask_esp0;
 
 	task_switching = true;
 	enable_interrupts();
@@ -123,7 +124,7 @@ uint32 switch_task(task_t *new_task) {
 
 
 	task_switching = true;
-	enable_interrupts();
+	//enable_interrupts(); // let the ISR do this
 
 	return current_task->esp;
 } 

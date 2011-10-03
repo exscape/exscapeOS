@@ -24,10 +24,11 @@ STACKSIZE equ 0x4000
  
 loader:
    mov esp, stack+STACKSIZE           ; set up the stack
+   push stack                         ; pass the initial stack ESP0
    push eax                           ; pass Multiboot magic number
    push ebx                           ; pass Multiboot info structure
  
-   call  kmain                       ; call kernel proper
+   call  kmain                       ; call the kernel
  
    cli
 	.hang:

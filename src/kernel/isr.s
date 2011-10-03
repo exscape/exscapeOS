@@ -136,6 +136,7 @@ IRQ  15,    47
 
 ; This is called/jumped to by the handlers created by the macros above.
 irq_common_stub:
+	; interrupts are already off
 	push eax
     push ecx
     push edx

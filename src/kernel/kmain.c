@@ -26,7 +26,7 @@ void test_task(void) {
 	}
 }
 
-void kmain(multiboot_info_t *mbd, unsigned int magic) {
+void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
@@ -91,7 +91,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic) {
 	printk("done\n");
 
 	printk("Initializing multitasking and setting up the kernel task... ");
-	init_tasking();
+	init_tasking(init_esp0);
 	printk("done\n");
 
 	printk("All initialization complete!\n\n");

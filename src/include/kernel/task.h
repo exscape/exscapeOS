@@ -15,8 +15,7 @@ typedef struct task
    struct task *next;     // The next task in a linked list.
 } task_t;
 
-
-void init_tasking(void);
+void init_tasking(uint32 kerntask_esp0);
 int getpid(void);
 void switch_to_user_mode(void);
 task_t *create_task( void (*entry_point)(void) );
