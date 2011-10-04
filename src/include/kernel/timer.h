@@ -3,7 +3,6 @@
 
 #include <types.h>
 
-void sleep(uint32 milliseconds);
 uint32 uptime(void);
 uint32 gettickcount(void);
 

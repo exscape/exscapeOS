@@ -8,15 +8,20 @@
 
 typedef struct task
 {
-   int id;                // Process ID.
-   char name[TASK_NAME_LEN];
-   uint32 esp;
-   uint32 ss;
-   uint32 eip;            // Instruction pointer.
-   void *stack; // This task's kernel stack
-   page_directory_t *page_directory; // Page directory.
-   struct task *next;     // The next task in a linked list.
+	int id;                // Process ID.
+	char name[TASK_NAME_LEN];
+	uint32 esp;
+	uint32 ss;
+	uint32 eip;            // Instruction pointer.
+	void *stack; // This task's kernel stack
+	page_directory_t *page_directory; // Page directory.
+	uint32 state; /* e.g. running, sleeping */
+	uint32 wakeup_time; /* for sleeping tasks only: at which tick this task should be woken */
+	struct task *next;     // The next task in a linked list.
 } task_t;
+
+#define TASK_RUNNING (1 << 0)
+#define TASK_SLEEPING (1 << 1)
 
 void init_tasking(uint32 kerntask_esp0);
 int getpid(void);
@@ -25,5 +30,6 @@ task_t *create_task( void (*entry_point)(void), const char *name);
 uint32 scheduler_taskSwitch(uint32 esp);
 uint32 switch_task(task_t *new_task);
 bool kill_pid(int pid);
+void sleep(uint32 milliseconds);
 
 #endif

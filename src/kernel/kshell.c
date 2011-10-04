@@ -23,15 +23,14 @@ extern task_t *ready_queue;
 static void permaidle(void) {
 	printk("permaidle task launched. no further output will be generated\n");
 	for(;;) {
-		asm volatile("hlt");
+		sleep(100000);
 	}
 }
 
 static void sleep_test(void) {
-	for (int i=0; i < 5; i++) {
-		printk("sleep task: i = %d\n", i);
-		sleep(1000);
-	}
+	printk("sleep_test: sleeping for 20 seconds\n");
+	sleep(20000);
+	printk("sleep test done\n");
 }
 
 void kshell(void) {
@@ -105,7 +104,8 @@ void kshell(void) {
 			int n = 0;
 			while (task) {
 				n++;
-				printk("PID: %d\nNAME: %s\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\n----------\n", task->id, task->name, task->esp, task->stack, task->page_directory);
+				printk("PID: %d\nNAME: %s\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\nstate: %s\n----------\n", task->id, task->name, task->esp, task->stack, task->page_directory,
+						(task->state == TASK_RUNNING ? "RUNNING" : (task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
 				task = task->next;
 			}
 			printk("%d tasks running\n", n);

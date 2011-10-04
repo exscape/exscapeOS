@@ -18,17 +18,6 @@ uint32 uptime(void) {
 	return timer_ticks / TIMER_HZ;
 }
 
-void sleep(uint32 milliseconds) {
-	const uint32 start_ticks = timer_ticks;
-
-	if (milliseconds == 0)
-		return;
-
-	while (timer_ticks < start_ticks + milliseconds/10) {
-		asm volatile("hlt");
-	}
-}
-
 void timer_handler(uint32 esp __attribute__((unused))) {
 	/* Increase the tick count */
 	timer_ticks++;

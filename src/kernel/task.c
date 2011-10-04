@@ -6,11 +6,15 @@
 #include <kernel/monitor.h>
 #include <kernel/task.h>
 #include <kernel/gdt.h> /* set_kernel_stack */
+#include <kernel/timer.h>
 
 /* Externs from paging.c */
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 extern void alloc_frame_to_page(page_t *, bool, bool);
+
+/* timer.c */
+extern const uint16 TIMER_HZ;
 
 volatile bool task_switching = false;
 
@@ -25,7 +29,9 @@ task_t kernel_task = {
 	.eip = 0,
 	.stack = 0, /* set later */
 	.page_directory = 0,
-	.next = 0
+	.next = 0,
+	.state = TASK_RUNNING,
+	.wakeup_time = 0,
 };
 
 /* Our globals */
@@ -82,7 +88,6 @@ bool kill_pid(int pid) {
 		/* we didn't find the task! */
 		return false;
 	}
-
 }
 
 void exit_proc(void) {
@@ -114,6 +119,10 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 	task->page_directory = current_directory;
 	task->next = 0;
 	strlcpy(task->name, name, TASK_NAME_LEN);
+
+	/* All tasks are running by default */
+	task->state = TASK_RUNNING;
+	task->wakeup_time = 0;
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
@@ -185,6 +194,7 @@ uint32 switch_task(task_t *new_task) {
 	return current_task->esp;
 } 
 
+/* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && current_task->next == NULL))
 		return esp;
@@ -192,19 +202,82 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	//task_saveState(esp);
 	current_task->esp = esp; // same as the commented out version above
 
-	task_t* old_task = (task_t*)current_task;
-    task_t* new_task = current_task->next;
+	/* Look through the list of tasks to find sleeping tasks; if
+	 * any are found, check whether they should be woken up now.
+	 * In the event that we find multiple tasks that should be woken this
+	 * very instant, wake the first one, and let the next be woken on the
+	 * next call to the scheduler. */
+	task_t *p = (task_t *)ready_queue;
+	const uint32 ticks = gettickcount(); /* fetch just the once; interrupts are disabled, so the tick count can't change */
+	while (p != NULL) {
+		if (p->state == TASK_SLEEPING && p->wakeup_time <= ticks) {
+			/* Wake this task! */
+			p->wakeup_time = 0;
+			p->state = TASK_RUNNING;
+			printk("Waking task from sleep: PID %d (name %s)\n", p->id, p->name);
+			return switch_task(p);
+		}
+
+		p = p->next;
+	}
+
+	/* We didn't find any sleeping tasks to wake right now; let's focus on switching tasks as usual instead */
+	task_t *old_task = (task_t*)current_task;
+    task_t *new_task = current_task->next;
 	if (new_task == NULL)
 		new_task = (task_t *)ready_queue;
+
+	task_t *orig_task = new_task; /* hack: store the task we're currently on in the list (see below) */
+	/* Ignore sleeping tasks */
+	while (new_task->state == TASK_SLEEPING) {
+		new_task = new_task->next;
+		if (new_task == NULL)
+			new_task = (task_t *)ready_queue;
+
+		if (new_task == orig_task) {
+			/* If we've looped through all the tasks, and they're all sleeping... */
+			panic("No running tasks found! TODO: run a HLT task here");
+		}
+	}
+
+	/* new_task now points towards the task we want to run */
 
     if (old_task == new_task) {
 		/* no point in switching, eh? */
         return(esp);
 	}
+	
+	/* Looks like we found a running task to switch to! Let's do so. */
 
     return switch_task(new_task);
 }
 
 int getpid(void) {
 	return current_task->id;
+}
+
+/* Takes a task off the run queue until enough time has passed */
+void sleep(uint32 milliseconds) {
+	if (milliseconds == 0)
+		return;
+
+	const uint32 start_ticks = gettickcount();
+	uint32 ticks_to_wait = milliseconds / (1000 / TIMER_HZ);
+
+	/* Wait a minimum of 1 tick; if the caller called sleep() with a nonzero argument, they
+	 * may not be happy with an instant return. */
+	if (ticks_to_wait == 0)
+		ticks_to_wait = 1;
+
+	/* Sanity checks */
+	assert(current_task->state != TASK_SLEEPING);
+	assert(current_task->wakeup_time == 0);
+	assert(current_task != &kernel_task);
+
+	/* Mark the task as sleeping */
+	current_task->state = TASK_SLEEPING;
+	current_task->wakeup_time = start_ticks + ticks_to_wait;
+
+	/* Force a task switch */
+	asm volatile("int $0x7e");
 }
