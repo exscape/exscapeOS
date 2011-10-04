@@ -313,6 +313,30 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	}
 }
 
+uint32 virtual_to_physical(uint32 virt_addr) {
+	/* Converts a virtual address (in the current address space) to a physical address, if possible. */
+
+	assert(virt_addr >= 0x1000); /* addresses below 0x1000 are unmapped, and nobody should ask for them */
+
+	page_t *page = get_page(virt_addr, false, current_directory);
+	if (page == NULL) {
+		panic("virtual_to_physical on non-created page");
+	}
+
+	if (page->present == 0 || page->frame == 0) {
+		/* Frame 0 is probably never used in protected mode; nevertheless, this is a minor bug (IF frame 0 is valid;
+		 * from memory, I do believe they're 0-indexed) */
+		panic("virtual_to_physical: page not present");
+	}
+
+	/* calculate the address for the beginning of the frame */
+	uint32 phys_addr = page->frame * 0x1000;
+	/* add the offset within the page */
+	phys_addr += (virt_addr & 0xfff);
+
+	return phys_addr;
+}
+
 void copy_page_physical (uint32 src, uint32 dest);
 
 page_directory_t *create_user_page_dir(void) {

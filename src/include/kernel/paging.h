@@ -74,4 +74,7 @@ page_directory_t *clone_directory(page_directory_t *src);
 /* Returns the number of bytes free in PHYSICAL memory. */
 uint32 free_bytes(void);
 
+/* Converts a virtual address to a physical one (within the current address space, i.e. current_directory is used) */
+uint32 virtual_to_physical(uint32 virt_addr);
+
 #endif /* header guard */
