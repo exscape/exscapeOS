@@ -15,10 +15,35 @@
 /* for ls_initrd() */
 #include <kernel/initrd.h>
 
+/* for ps */
+extern volatile task_t *current_task;
+
 void heaptest(void);
 void ls_initrd(void);
 
 extern task_t *ready_queue;
+
+static void infinite_loop(void) {
+	for(;;);
+}
+
+static void create_pagefault(void) {
+	uint32 *pf = (uint32 *)0xffff0000;
+	*pf = 10;
+}
+
+static void testbench(void) {
+	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
+	uint32 start_tick = gettickcount();
+	asm volatile("mov $0xDEADBEEF, %edi;"); /* TODO: just for testing */
+	printk("start testbench at tick %u...\n", start_tick);
+	for (int i = 100000000; i != 0; i--) {
+		int a = i * 10 + 4;
+		i |= (a & 0); /* nop */
+	}
+	uint32 end_tick = gettickcount();
+	printk("finish testbunch at tick %u; time taken: %u ticks (%u ms)\n", end_tick, (end_tick - start_tick), (end_tick - start_tick)*10);
+}
 
 static void permaidle(void) {
 	printk("permaidle task launched. no further output will be generated\n");
@@ -36,6 +61,8 @@ static void sleep_test(void) {
 void kshell(void) {
 	unsigned char *buf = kmalloc(1024);
 	memset(buf, 0, 1024);
+	char *last_cmd = kmalloc(1024);
+	memset(last_cmd, 0, 1024);
 
 	while (true) {
 		printk("kshell # ");
@@ -68,6 +95,10 @@ void kshell(void) {
 		putchar('\n');
 
 		char *p = trim((char *)buf);
+		if (strcmp(p, "!!") == 0 && *last_cmd != 0) {
+			/* fetch the last command run */
+			strlcpy(p, last_cmd, 1024);
+		}
 
 		if (strcmp(p, "heaptest") == 0) {
 			create_task(&heaptest, "heaptest");
@@ -91,21 +122,35 @@ void kshell(void) {
 			create_task(&permaidle, "permaidle");
 		}
 		else if (strcmp(p, "pagefault") == 0) {
-			uint32 *pf = (uint32 *)0xffff0000;
-			*pf = 10;
+			create_task(&create_pagefault, "create_pagefault");
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
 			uint32 ticks = gettickcount();
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
 		}
+		else if (strcmp(p, "infloop_task") == 0) {
+			create_task(&infinite_loop, "infinite_loop");
+		}
 		else if (strcmp(p, "ps") == 0) {
 			task_t *task = ready_queue;
 			int n = 0;
 			while (task) {
 				n++;
-				printk("PID: %d\nNAME: %s\nESP: 0x%08x\nstack: 0x%08x\npage dir: 0x%08x\nstate: %s\n----------\n", task->id, task->name, task->esp, task->stack, task->page_directory,
+				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", task->id, task->name, task->stack, task->page_directory,
 						(task->state == TASK_RUNNING ? "RUNNING" : (task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
+
+				if (current_task != task) {
+					registers_t *regs = (registers_t *)( (uint32)task->esp );
+					assert(regs->ds == 0x10);
+					assert(regs->cs == 0x08);
+					printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, task->esp, regs->ebp);
+					printk("CS =%08x    EIP=%08x    EFLAGS=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+				}
+
+				printk("--------------\n");
+
 				task = task->next;
 			}
 			printk("%d tasks running\n", n);
@@ -133,6 +178,12 @@ void kshell(void) {
 				printk("unable to kill task with PID %d; task not found?\n", pid);
 			}
 		}
+		else if (strcmp(p, "testbench") == 0) {
+			testbench();
+		}
+		else if (strcmp(p, "testbench_task") == 0) {
+			create_task(&testbench, "testbench");
+		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */
 		}
@@ -148,11 +199,15 @@ void kshell(void) {
 			printk("uptime: display the current uptime\n");
 			printk("ps: basic info about the running tasks\n");
 			printk("kill <pid>: kill a task\n");
+			printk("testbench, testbench_task: run a simple benchmark, in-kernel or as a task\n");
+			printk("sleeptest, permaidle: launch tasks that sleep 20 seconds once/sleep 100 seconds in a loop\n");
 			printk("help: show this help message\n");
 		}
 		else {
 			printk("Unknown command: \"%s\"\n", p);
 		}
+
+		strlcpy(last_cmd, p, 1024);
 	}
 }
 

@@ -177,7 +177,8 @@ uint32 availkeys(void) {
 unsigned char getchar(void) {
 	/* If no characters are available, loop until there's something. */
 	while (keybuffer->counter == 0) {
-		asm volatile("hlt");
+		/* Pass control to another task; TODO: this will cause lag when there are many processes! */
+		asm volatile("int $0x7e");
 	}
 
 	assert(keybuffer->counter != 0);

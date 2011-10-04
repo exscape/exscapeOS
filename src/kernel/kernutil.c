@@ -3,6 +3,9 @@
 #include <kernel/monitor.h>
 #include <kernel/interrupts.h>
 #include <string.h>
+#include <kernel/task.h>
+
+extern task_t *current_task;
 
 // Write a byte to the specified port
 void outb(uint16 port, uint8 value)
@@ -27,7 +30,7 @@ uint16 inw(uint16 port)
 void panic(const char *str) {
 //	clrscr();
 	asm volatile("cli");
-	printk("\nPANIC: %s", str);
+	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
 	asm("hangloop: hlt ; jmp hangloop");
 }
 

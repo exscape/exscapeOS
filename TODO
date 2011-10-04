@@ -1,6 +1,7 @@
 * TODO: set up a separate double fault handler (see OSDev / Triple_Fault)
 
-1) Multitasking
-2) User mode (including system calls)
-3) ELF parsing + executable loading (from the initrd)?
+1) Multitasking - first part is complete! (Kernel mode only; no separate address spaces)
+2) Consoles?
+3) User mode (including system calls)
+4) ELF parsing + executable loading (from the initrd)?
 * Serial port output (for debugging)?
