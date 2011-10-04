@@ -35,7 +35,6 @@ static void create_pagefault(void) {
 static void testbench(void) {
 	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
 	uint32 start_tick = gettickcount();
-	asm volatile("mov $0xDEADBEEF, %edi;"); /* TODO: just for testing */
 	printk("start testbench at tick %u...\n", start_tick);
 	for (int i = 100000000; i != 0; i--) {
 		int a = i * 10 + 4;
@@ -114,6 +113,9 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "reboot") == 0) {
 			reboot();
+		}
+		else if (strcmp(p, "exit") == 0) {
+			break;
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
 			create_task(&sleep_test, "sleeptest");

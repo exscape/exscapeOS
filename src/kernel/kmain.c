@@ -139,10 +139,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 	*/
 
-
-	/* Start the kernel shell */
-	kshell();
-
 	printk("\n\n");
 	printk("kmain() done; running infinite loop\n");
 
@@ -153,6 +149,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	for (;;) {
 		get_time(&t);
 		print_time(&t);
-		asm volatile("hlt"); /* Since the PIT fires every 10ms or so, sleep the CPU until then. QEMU CPU usage goes from 100% to 4% with this line. */
+		asm volatile("int $0x7e");
 	}
 }
