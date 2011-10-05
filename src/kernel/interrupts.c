@@ -7,6 +7,8 @@
 
 /* task.c */
 extern bool task_switching;
+extern volatile task_t *current_task;
+extern task_t kernel_task;
 
 void disable_interrupts(void) {
 	/* disable NMI */
@@ -101,6 +103,15 @@ void idt_set_gate(uint8 num, uint32 base, uint16 sel, uint8 flags) {
 	idt[num].flags   = flags;
 }
 
+static void divzero_handler(uint32 esp) {
+	printk("In divzero handler, esp = %p\n", esp);
+	if (current_task != &kernel_task) {
+		kill((task_t *)current_task);
+	}
+	else
+		panic("Division by zero in kernel_task!");
+}
+
 /* Installs the IDT; called from kmain() */
 void idt_install(void) {
 	/* Set the limit up - same theory here as with the GDT */
@@ -182,6 +193,9 @@ void idt_install(void) {
 
 	/* Load the new IDT */
 	idt_load();
+
+	/* Add a division by zero handler */
+	register_interrupt_handler(0, divzero_handler);
 }
 
 const char *exception_name[] = {

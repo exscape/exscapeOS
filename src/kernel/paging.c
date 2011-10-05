@@ -187,9 +187,6 @@ void init_paging(unsigned long upper_mem) {
 	kernel_directory->physical_address = (uint32)kernel_directory->tables_physical;
 
 	/* Create all the page tables... */
-	/* So, this is an ugly hack. However, it may in fact be less ugly to me than to use kmalloc() in heap_expand(), 
-	 * which is called by kmalloc() WHEN WE HAVE NO MEMORY LEFT IN THE HEAP! */
-
 #if 0
 	assert(kernel_directory != NULL);
 	for (uint32 i = 0; i < 1024; i++) {

@@ -30,6 +30,7 @@ task_t *create_task( void (*entry_point)(void), const char *name);
 uint32 scheduler_taskSwitch(uint32 esp);
 uint32 switch_task(task_t *new_task);
 bool kill_pid(int pid);
+void kill(task_t *task);
 void sleep(uint32 milliseconds);
 
 #endif

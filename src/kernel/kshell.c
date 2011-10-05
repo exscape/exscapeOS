@@ -32,6 +32,12 @@ static void create_pagefault(void) {
 	*pf = 10;
 }
 
+static void divzero(void) {
+	printk("in divzero; dividing now\n");
+	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
+	printk("divzero: after dividing\n");
+}
+
 static void testbench(void) {
 	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
 	uint32 start_tick = gettickcount();
@@ -158,14 +164,10 @@ void kshell(void) {
 			printk("%d tasks running\n", n);
 		}
 		else if(strcmp(p, "divzero") == 0) {
-			asm volatile("mov $1, %ecx;"
-						 "mov $2, %edx;"
-						 "mov $3, %esi;"
-						 "mov $4, %edi;"
-						 "mov $5, %ebp;"
-						"mov $100, %eax;"
-						 "mov $0, %ebx;"
-						 "div %ebx;");
+			divzero();
+		}
+		else if(strcmp(p, "divzero_task") == 0) {
+			create_task(&divzero, "divzero");
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
