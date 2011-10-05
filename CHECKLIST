@@ -1,0 +1,17 @@
+[x] Screen output (vsprintf)
+[x] GDTs set up
+[x] IDTs set up
+[x] ISRs/IRQ handling
+[x] PIT support
+[x] Paging
+[x] Keyboard input
+[x] Kernel heap
+[x] VFS layer + basic initrd
+[ ] Proper console support
+[ ] Multitasking
+	[x] Basic kernel mode multitasking (shared page directory)
+	[ ] User mode support
+[ ] Syscalls
+	// The basics are there, but the only syscall defined is puts
+[ ] Executable loading (ELF parsing, etc.)
+[ ] User-mode libc

@@ -47,7 +47,7 @@ static void testbench(void) {
 		i |= (a & 0); /* nop */
 	}
 	uint32 end_tick = gettickcount();
-	printk("finish testbunch at tick %u; time taken: %u ticks (%u ms)\n", end_tick, (end_tick - start_tick), (end_tick - start_tick)*10);
+	printk("finish testbench at tick %u; time taken: %u ticks (%u ms)\n", end_tick, (end_tick - start_tick), (end_tick - start_tick)*10);
 }
 
 static void permaidle(void) {
