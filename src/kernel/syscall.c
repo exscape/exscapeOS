@@ -1,5 +1,5 @@
 #include <kernel/syscall.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/interrupts.h>
 
 static void syscall_handler(uint32);

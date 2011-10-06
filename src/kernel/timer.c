@@ -1,6 +1,6 @@
 #include <kernel/kernutil.h>
 #include <kernel/interrupts.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/task.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */

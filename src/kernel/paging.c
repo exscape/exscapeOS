@@ -4,7 +4,7 @@
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/kheap.h>
-#include <kernel/monitor.h> /* printk */
+#include <kernel/console.h> /* printk */
 
 // The kernel's page directory
 page_directory_t *kernel_directory = 0;

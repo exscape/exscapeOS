@@ -4,7 +4,7 @@
 #include <kernel/kheap.h>
 #include <string.h>
 #include <stdio.h> /* sprintf, for a debugging change only! */
-#include <kernel/monitor.h> /* printk, same as above */
+#include <kernel/console.h> /* printk, same as above */
 
 sint8 standard_lessthan_predicate(type_t a, type_t b) {
 	return (a < b) ? 1 : 0;

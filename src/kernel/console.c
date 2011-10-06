@@ -1,4 +1,4 @@
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <string.h>
 #include <stdlib.h>
 #include <kernel/kernutil.h>
@@ -12,7 +12,7 @@ static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 static uint16 *videoram = (uint16 *) 0xb8000;
 Point cursor;
 
-/* Used for double buffering when scrolling (due to a lack of memmove())*/
+/* Used for double buffering when scrolling (due to a lack of memmove()) */
 uint16 *vram_buffer = NULL;
 
 /* Syscall test function */
@@ -30,12 +30,6 @@ int print(const char *s) {
 
 void print_time(const Time *t) {
 	// Prints the time in the bottom corner.
-
-	/* Guard to make sure we only print once per update */
-	static unsigned char old_sec = 255;
-	if (old_sec == t->second)
-		return;
-	old_sec = t->second;
 
 	// Save the cursor (since printk will modify it)
 	Point p = cursor;

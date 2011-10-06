@@ -1,5 +1,5 @@
-#ifndef _MONITOR_H
-#define _MONITOR_H
+#ifndef _CONSOLE_H
+#define _CONSOLE_H
 #include <types.h>
 
 int putchar(int c);

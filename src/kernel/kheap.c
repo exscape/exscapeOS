@@ -1,7 +1,7 @@
 #include <kernel/kheap.h>
 #include <kernel/kernutil.h>
 #include <kernel/paging.h>
-#include <kernel/monitor.h> /* for print_heap_index() */
+#include <kernel/console.h> /* for print_heap_index() */
 #include <stdio.h> /* sprintf */
 #include <string.h> /* memset */
 

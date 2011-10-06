@@ -1,7 +1,7 @@
 #include <types.h>
 #include <string.h>
 #include <kernel/interrupts.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/kernutil.h>
 #include <kernel/task.h>
 

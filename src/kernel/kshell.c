@@ -1,6 +1,6 @@
 #include <types.h>
 #include <kernel/kshell.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/keyboard.h>
 #include <kernel/kheap.h>
 #include <string.h>

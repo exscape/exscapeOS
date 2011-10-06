@@ -2,7 +2,7 @@
 #include <stdlib.h> /* itoa(), reverse() */
 #include <string.h> /* memset(), strlen() */
 #include <kernel/kernutil.h> /* inb, inw, outw */
-#include <kernel/monitor.h> /* printing, scrolling etc. */
+#include <kernel/console.h> /* printing, scrolling etc. */
 #include <kernel/gdt.h>
 #include <kernel/interrupts.h>
 #include <stdio.h>

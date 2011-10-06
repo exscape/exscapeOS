@@ -1,7 +1,7 @@
 #include <types.h>
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h> /* panic */
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/kheap.h>
 
 /* The different modifier keys we support */

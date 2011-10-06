@@ -1,7 +1,7 @@
 #include <kernel/vfs.h>
 #include <types.h>
 #include <kernel/kernutil.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 
 /* The root of the filesystem hierarchy */
 fs_node_t *fs_root = NULL;

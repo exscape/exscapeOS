@@ -1,6 +1,6 @@
 #include <kernel/kernutil.h>
 #include <stdio.h>
-#include <kernel/monitor.h>
+#include <kernel/console.h>
 #include <kernel/interrupts.h>
 #include <string.h>
 #include <kernel/task.h>
