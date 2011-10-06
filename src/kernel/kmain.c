@@ -141,7 +141,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("\n\n");
 	printk("kmain() done; running infinite loop\n");
+	for(;;);
 
+	/*
 	Time t;
 	memset(&t, 0, sizeof(t));
 	get_time(&t);
@@ -151,4 +153,5 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		print_time(&t);
 		asm volatile("int $0x7e");
 	}
+	*/
 }

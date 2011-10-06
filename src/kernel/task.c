@@ -47,6 +47,7 @@ task_t kernel_task = {
 	.next = 0,
 	.state = TASK_RUNNING,
 	.wakeup_time = 0,
+	.console = &kernel_console,
 };
 
 /* Our globals */
