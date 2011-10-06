@@ -5,7 +5,7 @@
 #include <kernel/paging.h>
 #include <kernel/monitor.h>
 #include <kernel/task.h>
-#include <kernel/gdt.h> /* set_kernel_stack */
+#include <kernel/gdt.h>
 #include <kernel/timer.h>
 
 /*
@@ -64,11 +64,14 @@ void kill(task_t *task) {
 
 	task_t *p = (task_t *)ready_queue;
 	if (p == task) {
+		/* If the task is the first one in the queue, just move the queue's start pointer to the next task. */
 		ready_queue = task->next;
 	}
 	else {
 		while (p != NULL && p->next != NULL) {
 			if (p->next == task) {
+				/* p points to the task before the task to remove in the linked list.
+				 * Change its next pointer to the task AFTER us, thus removing us from the linked list. */
 				p->next = task->next;
 			}
 			p = p->next;
