@@ -8,6 +8,21 @@
 #include <kernel/gdt.h> /* set_kernel_stack */
 #include <kernel/timer.h>
 
+/*
+ * Here's a overview of how the multitasking works in exscapeOS.
+ * The PIT raises an interrupt (IRQ0) every 10 ms. The IRQ handler
+ * automatically saves all registers, EFLAGS and EIP on the stack
+ * of the current (to-be-switched-out) task.
+ * After deciding which task to switch to, the task switching code
+ * updates the TSS, switches to the correct page directory, etc.,
+ * and returns the ESP of the new task. That points the CPU to 
+ * the stack of the NEW task, where the ISR automatically pops off
+ * the values of all the registers (except ESP, of course), 
+ * plus EFLAGS, EIP and all that. After that's done, the IRET
+ * instruction jumps to the EIP it just popped off, and the 
+ * task has been switched!
+ */
+
 /* Externs from paging.c */
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
@@ -175,6 +190,7 @@ uint32 switch_task(task_t *new_task) {
 		// return 0;
 	}
 
+	/* this should really be a no-op, since, interrupts should already be disabled from the ISR. */
 	disable_interrupts();
 	task_switching = false;
 
@@ -191,6 +207,12 @@ uint32 switch_task(task_t *new_task) {
 	task_switching = true;
 	//enable_interrupts(); // let the ISR do this
 
+	/* 
+	 * Return the ESP of the new task (which is now set as current_task).
+	 * The next line of code to execute is the one in the ISR that updates the ESP register to this value.
+	 * After that, the ISR pops off all the registers etc. and continues execution at the EIP found
+	 * at this ESP value. Since all those belong to the new task, we will have switched tasks.
+	 */
 	return current_task->esp;
 } 
 
@@ -199,7 +221,6 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && current_task->next == NULL))
 		return esp;
 
-	//task_saveState(esp);
 	current_task->esp = esp; // same as the commented out version above
 
 	/* Look through the list of tasks to find sleeping tasks; if

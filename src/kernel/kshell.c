@@ -32,6 +32,10 @@ static void create_pagefault(void) {
 	*pf = 10;
 }
 
+static void fpu_task(void) {
+	asm volatile("fldpi");
+}
+
 static void divzero(void) {
 	printk("in divzero; dividing now\n");
 	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
@@ -125,6 +129,9 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
 			create_task(&sleep_test, "sleeptest");
+		}
+		else if (strcmp(p, "fpu_task") == 0) {
+			create_task(&fpu_task, "fpu_task");
 		}
 		else if (strcmp(p, "permaidle") == 0) {
 			create_task(&permaidle, "permaidle");
