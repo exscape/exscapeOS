@@ -19,22 +19,66 @@ uint16 *vram_buffer = NULL;
 extern volatile task_t *current_task;
 extern task_t kernel_task;
 
-/* Defines a single virtual console */
-/*
-typedef struct console {
-	task_t *task;
-	bool active;
-	uint16_t videoram[80 * 25];
-	Point cursor;
-} console_t;
-*/
+/* TODO: mutexes! */
 
 volatile console_t *current_console;
+
 console_t kernel_console = {
 	.task = &kernel_task,
 	.active = true,
 	.cursor = { .x = 0, .y = 0},
+	.prev_console = NULL,
 };
+
+void console_switch(console_t *new) {
+	assert(new != NULL);
+
+	if (new == current_console)
+		return;
+
+	/* Copy the video memory of the new console to the actual video RAM, to display it */
+	memcpy(videoram, new->videoram, 80*25*2);
+	//memcpy(
+
+	/* Switch the consoles */
+	current_console->active = false;
+	new->active = true;
+	current_console = new;
+}
+
+/* Creates a new console for the specified task */
+console_t *console_create(task_t *owning_task) {
+	assert(owning_task != NULL);
+	assert(owning_task != &kernel_task);
+
+	console_t *new = kmalloc(sizeof(console_t));
+	new->task = owning_task;
+	new->active = false;
+
+	/* Copy the screen content and cursor position from the currently displayed console */
+	memcpy(new->videoram, ((console_t *)current_console)->videoram, 80*25*2);
+	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
+
+	new->prev_console = (console_t *)current_console;
+
+	return new;
+}
+
+/* Destroy a console (free its memory, etc.) and switch to the previous one */
+void console_destroy(console_t *con) {
+	assert(con->prev_console != NULL);
+	console_t *prev = con->prev_console;
+
+	/* Copy the new display back to the previous console */
+	memcpy(prev->videoram, con->videoram, 80*25*2);
+	memcpy(&prev->cursor, &con->cursor, sizeof(Point));
+
+	if (current_console == con) {
+		console_switch(con->prev_console);
+	}
+
+	kfree(con);
+}
 
 /* Syscall test function */
 int print(const char *s) {
@@ -81,7 +125,11 @@ void init_video(void) {
 }
 
 void clrscr(void) {
-	memsetw(videoram, blank, 80*25);
+	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
+	if (current_console->task == current_task) {
+		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
+		memsetw(videoram, blank, 80*25);
+	}
 
 	Point *cursor = &current_task->console->cursor;
 	cursor->x = 0;
@@ -98,7 +146,7 @@ void cursor_left(void) {
 
 void cursor_right(void) {
 	Point *cursor = &current_task->console->cursor;
-	if (cursor->x != 79)
+	if (cursor->x < 79) /* TODO: is this correct? I'm slightly unsure about the indexing... */
 		cursor->x++;
 	else {
 		cursor->x = 0;
@@ -115,14 +163,20 @@ void scroll(void) {
 		return;
 
 	/* Copy the entire screen to the buffer */
-	memcpy(vram_buffer, videoram, 80*25*2);
+	memcpy(vram_buffer, current_task->console->videoram, 80*25*2);
 	
 	/* Copy back the lower 24 lines
 	 * Note that we add 80, not 80*2, due to pointer arithmetic! (vram_buffer is a uint16 *) */
-	memcpy(videoram, vram_buffer + 80, 80*24*2);
+	memcpy(current_task->console->videoram, vram_buffer + 80, 80*24*2);
 
 	/* Blank the last line */
-	memsetw(videoram + 24*80, blank, 80);
+	memsetw(current_task->console->videoram + 24*80, blank, 80);
+
+	/* Also update the screen, if this console is currently displayed */
+	if (current_console->task == current_task) {
+		assert(current_console->active == true);
+		memcpy(videoram, current_task->console->videoram, 80*25*2);
+	}
 
 	/* Move the cursor */
 	cursor->y = 24;
@@ -145,7 +199,12 @@ int putchar(int c) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
-		videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		if (current_console->task == current_task) {
+			/* Also update the actual video ram if this console is currently displayed */
+			assert(current_console->active == true);
+			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		}
 
 		if (cursor->x + 1 == 80) {
 			// Wrap to the next line
@@ -166,7 +225,7 @@ int putchar(int c) {
 
 void update_cursor(void) {
 	// Moves the hardware cursor to the current position specified by the cursor struct
-	Point *cursor = &current_task->console->cursor;
+	Point *cursor = &current_task->console->cursor; /* TODO: use current_console instead? */
 	uint16 loc = cursor->y * 80 + cursor->x;
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);

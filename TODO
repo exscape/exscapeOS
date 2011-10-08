@@ -1,4 +1,5 @@
 * TODO: set up a separate double fault handler (see OSDev / Triple_Fault)
+* TODO: implement mutexes and start placing them where needed
 
 1) Multitasking - first part is complete! (Kernel mode only; no separate address spaces)
 2) Consoles?

@@ -33,6 +33,7 @@ extern const uint16 TIMER_HZ;
 
 volatile bool task_switching = false;
 
+/* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
 #define KERNEL_STACK_SIZE 8192
 
 uint32 next_pid = 2; /* kernel_task has PID 1 */
@@ -55,8 +56,11 @@ volatile task_t *current_task = &kernel_task; // the currently running task
 volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
 
 void kill(task_t *task) {
-	assert(task != (task_t *)&kernel_task);
+	assert(task != &kernel_task);
 	task_switching = false;
+
+	/* Switch from (if necessary) and destroy this task's console */
+	console_destroy(task->console);
 
 	/* TODO: destroy user page directory */
 
@@ -95,6 +99,7 @@ void kill(task_t *task) {
 
 bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
+	assert(pid != 1); /* kernel_task has PID 1 */
 	task_t *task = (task_t *)ready_queue;
 	while (task->id != pid && task->next != NULL)
 		task = task->next;
@@ -143,6 +148,9 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 	task->state = TASK_RUNNING;
 	task->wakeup_time = 0;
 
+	/* Set up a console for the new task */
+	task->console = console_create(task);
+
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
 	uint32 code_segment = 0x08;
@@ -182,6 +190,9 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 	while (tmp->next)
 		tmp = tmp->next;
 	tmp->next = task;
+
+	/* Switch to the new console */
+	console_switch(task->console);
 
 	task_switching = true;
 	enable_interrupts(); /* not sure if this is needed */
@@ -225,7 +236,8 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && current_task->next == NULL))
 		return esp;
 
-	current_task->esp = esp; // same as the commented out version above
+	/* Save the current ESP (the one for the task we're switching FROM) */
+	current_task->esp = esp;
 
 	/* Look through the list of tasks to find sleeping tasks; if
 	 * any are found, check whether they should be woken up now.

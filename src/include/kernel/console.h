@@ -7,14 +7,19 @@ typedef struct task task_t;
 typedef struct console {
 	task_t *task;
 	bool active;
-	uint16 *videoram[80 * 25];
+	uint16 videoram[80 * 25];
 	Point cursor;
+	struct console *prev_console;
 } console_t;
 
 #include <kernel/task.h>
 
 extern volatile console_t *current_console;
 extern console_t kernel_console;
+
+void console_destroy(console_t *con);
+console_t *console_create(task_t *owning_task);
+void console_switch(console_t *new);
 
 int putchar(int c);
 void init_video(void);
