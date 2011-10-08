@@ -104,13 +104,16 @@ void kshell(void) {
 
 	while (true) {
 
-		/* sleep while the current task runs */
+		/* Don't "return" to a new shell prompt until the current task in finished.
+		 * Due to how the scheduler works and the lack of a HLT task (that doesn't use 1/num_processes CPU *constantly*),
+		 * this will use 100% CPU if no tasks use the CPU.
+		 */
 		while (task != NULL) {
-			//sleep(10); // FIXME! A dynamic HLT task is needed first!
 			if (does_task_exist(task) == false) {
 				task = NULL;
 				break;
 			}
+			asm volatile("int $0x7e");
 		}
 
 		printk("kshell # ");
