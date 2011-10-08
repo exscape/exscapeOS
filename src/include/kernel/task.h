@@ -25,6 +25,7 @@ typedef struct task
 #define TASK_RUNNING (1 << 0)
 #define TASK_SLEEPING (1 << 1)
 
+bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);
 int getpid(void);
 void switch_to_user_mode(void);

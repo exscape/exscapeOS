@@ -36,6 +36,33 @@ static void fpu_task(void) {
 	asm volatile("fldpi");
 }
 
+static void guess_num(void) {
+	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
+	 * for keyboard input. */
+
+	int num = RAND_RANGE(0, 9);
+	int guess = -1;
+	int num_guesses = 0;
+
+	while (guess != num) {
+		num_guesses++;
+		printk("Guess the number (0-9): ");
+		guess = getchar();
+		printk("%c  ", guess);
+		guess -= 0x30; /* ASCII to num */
+		if (guess == num) {
+			printk("You got it! I was looking for %d.\nIt took you %d guesses to find it.\n", num, num_guesses);
+			break;
+		}
+		else if (guess > num) {
+			printk("Nope. Try lower.\n");
+		}
+		else if (guess < num) {
+			printk("Nope. Try higher.\n");
+		}
+	}
+}
+
 static void divzero(void) {
 	printk("in divzero; dividing now\n");
 	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
@@ -73,7 +100,19 @@ void kshell(void) {
 	char *last_cmd = kmalloc(1024);
 	memset(last_cmd, 0, 1024);
 
+	task_t *task = NULL;
+
 	while (true) {
+
+		/* sleep while the current task runs */
+		while (task != NULL) {
+			//sleep(10); // FIXME! A dynamic HLT task is needed first!
+			if (does_task_exist(task) == false) {
+				task = NULL;
+				break;
+			}
+		}
+
 		printk("kshell # ");
 		unsigned char ch;
 		uint32 i = 0;
@@ -110,7 +149,7 @@ void kshell(void) {
 		}
 
 		if (strcmp(p, "heaptest") == 0) {
-			create_task(&heaptest, "heaptest");
+			task = create_task(&heaptest, "heaptest");
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -128,16 +167,16 @@ void kshell(void) {
 			break;
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
-			create_task(&sleep_test, "sleeptest");
+			task = create_task(&sleep_test, "sleeptest");
 		}
 		else if (strcmp(p, "fpu_task") == 0) {
-			create_task(&fpu_task, "fpu_task");
+			task = create_task(&fpu_task, "fpu_task");
 		}
 		else if (strcmp(p, "permaidle") == 0) {
-			create_task(&permaidle, "permaidle");
+			task = create_task(&permaidle, "permaidle");
 		}
 		else if (strcmp(p, "pagefault") == 0) {
-			create_task(&create_pagefault, "create_pagefault");
+			task = create_task(&create_pagefault, "create_pagefault");
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
@@ -145,36 +184,39 @@ void kshell(void) {
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
 		}
 		else if (strcmp(p, "infloop_task") == 0) {
-			create_task(&infinite_loop, "infinite_loop");
+			task = create_task(&infinite_loop, "infinite_loop");
 		}
 		else if (strcmp(p, "ps") == 0) {
-			task_t *task = ready_queue;
+			task_t *cur_task = ready_queue;
 			int n = 0;
-			while (task) {
+			while (cur_task) {
 				n++;
-				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", task->id, task->name, task->stack, task->page_directory,
-						(task->state == TASK_RUNNING ? "RUNNING" : (task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
+				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
+						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
 
-				if (current_task != task) {
-					registers_t *regs = (registers_t *)( (uint32)task->esp );
+				if (current_task != cur_task) {
+					registers_t *regs = (registers_t *)( (uint32)cur_task->esp );
 					assert(regs->ds == 0x10);
 					assert(regs->cs == 0x08);
 					printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
-					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, task->esp, regs->ebp);
+					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, cur_task->esp, regs->ebp);
 					printk("CS =%08x    EIP=%08x    EFLAGS=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
 				}
 
 				printk("--------------\n");
 
-				task = task->next;
+				cur_task = cur_task->next;
 			}
 			printk("%d tasks running\n", n);
 		}
 		else if(strcmp(p, "divzero") == 0) {
 			divzero();
 		}
+		else if (strcmp(p, "guess") == 0) {
+			task = create_task(&guess_num, "guess_num");
+		}
 		else if(strcmp(p, "divzero_task") == 0) {
-			create_task(&divzero, "divzero");
+			task = create_task(&divzero, "divzero");
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
@@ -193,7 +235,7 @@ void kshell(void) {
 			testbench();
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
-			create_task(&testbench, "testbench");
+			task = create_task(&testbench, "testbench");
 		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */
@@ -354,8 +396,6 @@ void heaptest(void) {
 /****************************
   *** STRESS TEST PART II ***
   ***************************/
-
-#define RAND_RANGE(x,y) ( rand() % (y - x + 1) + x )
 
 #define NUM_OUTER_LOOPS 1
 

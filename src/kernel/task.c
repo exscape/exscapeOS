@@ -55,6 +55,16 @@ task_t kernel_task = {
 volatile task_t *current_task = &kernel_task; // the currently running task
 volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
 
+/* true if the function exists and is running/sleeping; false if it has exited (or never ever existed) */
+bool does_task_exist(task_t *task) {
+	for (task_t *cur = (task_t *)ready_queue; cur != NULL; cur = cur->next) {
+		if (cur == task)
+			return true;
+	}
+
+	return false;
+}
+
 void kill(task_t *task) {
 	assert(task != &kernel_task);
 	task_switching = false;
