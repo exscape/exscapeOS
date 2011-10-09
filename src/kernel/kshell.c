@@ -33,6 +33,15 @@ static void create_pagefault(void) {
 	*pf = 10;
 }
 
+static void print_1_sec(void) {
+	for (int i=0; i < 10; i++) {
+		printk("print_1_sec: loop %d of 10\n", i+1);
+		sleep(1000);
+	}
+	printk("print_1_sec exiting\n");
+}
+
+
 static void fpu_task(void) {
 	asm volatile("fldpi");
 }
@@ -173,6 +182,9 @@ void kshell(void) {
 		else if (strcmp(p, "exit") == 0) {
 			break;
 		}
+		else if (strcmp(p, "print_1_sec") == 0) {
+			create_task(&print_1_sec, "print_1_sec");
+		}
 		else if (strcmp(p, "sleeptest") == 0) {
 			task = create_task(&sleep_test, "sleeptest");
 		}
@@ -261,6 +273,7 @@ void kshell(void) {
 			printk("kill <pid>: kill a task\n");
 			printk("testbench, testbench_task: run a simple benchmark, in-kernel or as a task\n");
 			printk("sleeptest, permaidle: launch tasks that sleep 20 seconds once/sleep 100 seconds in a loop\n");
+			printk("print_1_sec: launch a task that loops 10 times, printing a message and then sleeping 1 second\n");
 			printk("help: show this help message\n");
 		}
 		else {

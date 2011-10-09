@@ -236,10 +236,11 @@ int putchar(int c) {
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		if (current_console->task == current_task) {
+			/* Also update the actual video ram if this console is currently displayed */
+
 			assert(current_task->console == current_console);
 			assert(current_console == current_task->console);
 			assert(current_task == current_console->task);
-			/* Also update the actual video ram if this console is currently displayed */
 			assert(current_console->active == true);
 
 			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
