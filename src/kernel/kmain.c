@@ -118,7 +118,18 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		loopsleep();
 	}
 	*/
-	kshell();
+
+	task_t *ksh = create_task(&kshell, "kshell");
+	/* wait for the shell to exit... uggh HACK! */
+
+	while (ksh != NULL) {
+		if (does_task_exist(ksh) == false) {
+			ksh = NULL;
+			break;
+		}
+		asm volatile("int $0x7e");
+	}
+
 
 	//switch_to_user_mode();
 	//asm volatile("hlt");

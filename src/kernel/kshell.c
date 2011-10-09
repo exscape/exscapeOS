@@ -17,6 +17,7 @@
 
 /* for ps */
 extern volatile task_t *current_task;
+extern task_t kernel_task;
 
 void heaptest(void);
 void ls_initrd(void);
@@ -102,6 +103,9 @@ void kshell(void) {
 
 	task_t *task = NULL;
 
+	/* Make sure the current code spawns a new task for the kernel shell; otherwise, sleep() won't work. */
+	assert(current_task != &kernel_task);
+
 	while (true) {
 
 		/* Don't "return" to a new shell prompt until the current task in finished.
@@ -113,7 +117,7 @@ void kshell(void) {
 				task = NULL;
 				break;
 			}
-			asm volatile("int $0x7e");
+			sleep(10);
 		}
 
 		printk("kshell # ");
