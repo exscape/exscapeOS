@@ -7,7 +7,7 @@
 [x] Keyboard input
 [x] Kernel heap
 [x] VFS layer + basic initrd
-[ ] Proper console support
+[x] Proper console support (not sure how "proper" it is, but... it's decent!)
 [ ] Multitasking
 	[x] Basic kernel mode multitasking (shared page directory)
 	[ ] User mode support

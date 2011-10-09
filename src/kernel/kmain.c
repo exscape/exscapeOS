@@ -159,10 +159,9 @@ typedef struct console {
 
 	console_switch(&virtual_consoles[0]);
 
-	/* Turn this into the idle task */
-	/* NOTE: this will use a slice of CPU time as is */
 	while (true) {
-		asm volatile("sti; hlt");
+		//asm volatile("sti; hlt");
+		asm volatile("int $0x7e");
 	}
 
 
