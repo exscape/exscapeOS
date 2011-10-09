@@ -139,7 +139,23 @@ void init_tasking(uint32 kerntask_esp0) {
 	enable_interrupts();
 }
 
+static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console);
+
 task_t *create_task( void (*entry_point)(void), const char *name) {
+	console_t *con = console_create();
+	assert(con != NULL);
+	task_t *task = create_task_int(entry_point, name, con);
+	assert(task != NULL);
+
+	assert(task->console == con);
+	assert(con->task == task);
+	//task->console = con;
+	//con->task = task;
+
+	return task;
+}
+
+static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console) {
 	disable_interrupts(); /* not sure if this is needed */
 	task_switching = false;
 
@@ -159,7 +175,8 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 	task->wakeup_time = 0;
 
 	/* Set up a console for the new task */
-	task->console = console_create(task);
+	task->console = console;
+	task->console->task = task;
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
@@ -261,7 +278,6 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 			/* Wake this task! */
 			p->wakeup_time = 0;
 			p->state = TASK_RUNNING;
-			printk("Waking task from sleep: PID %d (name %s)\n", p->id, p->name);
 			return switch_task(p);
 		}
 

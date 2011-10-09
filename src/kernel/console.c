@@ -8,7 +8,7 @@
 #include <kernel/task.h>
 
 /* A character representing empty space on the screen */
-static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
+const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 
 static uint16 *videoram = (uint16 *) 0xb8000;
 
@@ -22,6 +22,11 @@ extern task_t kernel_task;
 /* TODO: mutexes! */
 
 volatile console_t *current_console;
+
+/* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
+#define NUM_VIRTUAL_CONSOLES 4
+console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
+/* These are set up properly in kmain() */
 
 console_t kernel_console = {
 	.task = &kernel_task,
@@ -38,21 +43,21 @@ void console_switch(console_t *new) {
 
 	/* Copy the video memory of the new console to the actual video RAM, to display it */
 	memcpy(videoram, new->videoram, 80*25*2);
-	//memcpy(
 
 	/* Switch the consoles */
 	current_console->active = false;
 	new->active = true;
 	current_console = new;
+	update_cursor();
 }
 
 /* Creates a new console for the specified task */
-console_t *console_create(task_t *owning_task) {
-	assert(owning_task != NULL);
-	assert(owning_task != &kernel_task);
+console_t *console_create(void) {
+	//assert(owning_task != NULL);
+	//assert(owning_task != &kernel_task);
 
 	console_t *new = kmalloc(sizeof(console_t));
-	new->task = owning_task;
+	//new->task = owning_task;
 	new->active = false;
 
 	/* Copy the screen content and cursor position from the currently displayed console */
@@ -201,8 +206,12 @@ int putchar(int c) {
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		if (current_console->task == current_task) {
+			assert(current_task->console == current_console);
+			assert(current_console == current_task->console);
+			assert(current_task == current_console->task);
 			/* Also update the actual video ram if this console is currently displayed */
 			assert(current_console->active == true);
+
 			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		}
 
@@ -225,7 +234,18 @@ int putchar(int c) {
 
 void update_cursor(void) {
 	// Moves the hardware cursor to the current position specified by the cursor struct
-	Point *cursor = &current_task->console->cursor; /* TODO: use current_console instead? */
+
+#if 0
+	if (current_console->task != current_task) {
+		/* This task's console isn't currently displayed. If we update the cursor now,
+		 * it will most likely be incorrectly placed on the console that is active.
+		 */
+		return;
+	}
+#endif
+
+	//Point *cursor = &current_task->console->cursor; /* TODO: use current_console instead? */
+	Point *cursor = & ((console_t *)current_console)->cursor;
 	uint16 loc = cursor->y * 80 + cursor->x;
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
@@ -244,7 +264,7 @@ size_t printk(const char *fmt, ...) {
 	int i;
 
 	va_start(args, fmt);
-	i=vsprintf(buf, fmt, args);
+	i = vsprintf(buf, fmt, args);
 	va_end(args);
 
 	if (i > 0) {
@@ -264,7 +284,7 @@ int sprintf(char *sprintf_buf, const char *fmt, ...)
 	int i;
 
 	va_start(args, fmt);
-	i=vsprintf(sprintf_buf,fmt,args);
+	i = vsprintf(sprintf_buf,fmt,args);
 	va_end(args);
 
 	return i;

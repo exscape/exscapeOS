@@ -213,8 +213,17 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 		reset();
 	}
 
-//	printk("in: %02x\n", scancode);
-
+	/* TODO: this is meant to be rather temporary. Perhaps implement proper hotkey hooks here? */
+	if (mod_keys == MOD_ALT && scancode == 0x3b) {
+		/* Alt+F1, temp */
+		console_switch(&virtual_consoles[0]);
+		return;
+	}
+	else if (mod_keys == MOD_ALT && scancode == 0x3c) {
+		console_switch(&virtual_consoles[1]);
+		return;
+	}
+	//printk("in: %02x\n", scancode);
 
 	/*
 	 * Check for modifier keycodes. If present, toggle their state (if necessary).

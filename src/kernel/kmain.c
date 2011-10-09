@@ -20,6 +20,9 @@
 /* kheap.c */
 extern uint32 placement_address;
 
+/* console.c */
+extern const uint16 blank;
+
 void test_task(void) {
 	for (;;) {
 		printk("In test_task()\n");
@@ -119,15 +122,33 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 	*/
 
-	task_t *ksh = create_task(&kshell, "kshell");
-	/* wait for the shell to exit... uggh HACK! */
+	/*
+typedef struct console {
+	task_t *task;
+	bool active;
+	uint16 videoram[80 * 25];
+	Point cursor;
+	struct console *prev_console;
+} console_t;
+*/
 
-	while (ksh != NULL) {
-		if (does_task_exist(ksh) == false) {
-			ksh = NULL;
-			break;
-		}
-		asm volatile("int $0x7e");
+	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
+	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
+		memsetw(&virtual_consoles[i].videoram, blank, 80*25);
+		virtual_consoles[i].cursor.x = 0;
+		virtual_consoles[i].cursor.y = 0;
+		virtual_consoles[i].task = create_task(&kshell, "kshell");
+		virtual_consoles[i].task->console = &virtual_consoles[i];
+		virtual_consoles[i].active = false;
+		virtual_consoles[i].prev_console = &kernel_console; /* TODO: is this right...? */
+	}
+
+	console_switch(&virtual_consoles[0]);
+
+	/* Turn this into the idle task */
+	/* NOTE: this will use a slice of CPU time as is */
+	while (true) {
+		asm volatile("sti; hlt");
 	}
 
 

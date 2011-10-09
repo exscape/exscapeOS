@@ -17,8 +17,11 @@ typedef struct console {
 extern volatile console_t *current_console;
 extern console_t kernel_console;
 
+#define NUM_VIRTUAL_CONSOLES 4
+extern console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
+
 void console_destroy(console_t *con);
-console_t *console_create(task_t *owning_task);
+console_t *console_create(void);
 void console_switch(console_t *new);
 
 int putchar(int c);
