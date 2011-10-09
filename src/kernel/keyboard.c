@@ -174,15 +174,13 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 	}
 
 	/* TODO: this is meant to be rather temporary. Perhaps implement proper hotkey hooks here? */
-	if (mod_keys == MOD_ALT && scancode == 0x3b) {
-		/* Alt+F1, temp */
-		console_switch(&virtual_consoles[0]);
+	if (mod_keys == MOD_ALT && (scancode >= 0x3b && scancode <= 0x3e)) {
+		/* Alt + Fn (F1 through F4, inclusive) */
+		/* Switch to virtual console 0 - 3 */
+		console_switch(&virtual_consoles[scancode - 0x3b]);
 		return;
 	}
-	else if (mod_keys == MOD_ALT && scancode == 0x3c) {
-		console_switch(&virtual_consoles[1]);
-		return;
-	}
+
 	//printk("in: %02x\n", scancode);
 
 	/*
@@ -253,6 +251,7 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 
 	struct ringbuffer *keybuffer = (struct ringbuffer *)&current_console->keybuffer;
 	assert(keybuffer != NULL);
+	assert(keybuffer->write_ptr != NULL);
 
 	if (keybuffer->counter == KEYBUFFER_SIZE) 
 		panic("Keyboard ring buffer full! This shouldn't happen without bugs somewhere...");

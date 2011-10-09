@@ -45,6 +45,7 @@ unsigned char getchar(void) {
 	}
 
 	assert(keybuffer->counter != 0);
+	assert(keybuffer->read_ptr != NULL);
 	unsigned char ret = *(keybuffer->read_ptr++);
 	keybuffer->counter--;
 	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE)
