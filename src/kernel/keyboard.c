@@ -13,26 +13,8 @@
 /* The modifier keys currently pressed */
 static unsigned char mod_keys = 0;
 
-/* A ring buffer that stores keystrokes */
-#define KEYBUFFER_SIZE 256
-typedef struct ringbuffer {
-	volatile unsigned char data[KEYBUFFER_SIZE];
-	volatile unsigned char *read_ptr;
-	volatile unsigned char *write_ptr; /* volatile is probably not needed */
-	volatile uint32 counter; /* how much unread data is stored? */
-} ringbuffer_t;
-
-static volatile ringbuffer_t *keybuffer;
-
-void keyboard_callback(uint32);
-
 /* Set up the keyboard handler */
 void init_keyboard(void) {
-	keybuffer = (ringbuffer_t *)kmalloc(sizeof(ringbuffer_t));
-	keybuffer->read_ptr = keybuffer->data;
-	keybuffer->write_ptr = keybuffer->data;
-	keybuffer->counter = 0;
-
 	register_interrupt_handler(IRQ1, keyboard_callback);
 }
 
@@ -168,28 +150,6 @@ unsigned char kbdse_alt[128] =
     0,	/* All other keys are undefined */
 };		
 
-/* Returns the number of characters available in the keyboard buffer. */
-uint32 availkeys(void) {
-	return keybuffer->counter;
-}
-
-/* Returns a key from the keyboard buffer, if possible. */
-unsigned char getchar(void) {
-	/* If no characters are available, loop until there's something. */
-	while (keybuffer->counter == 0) {
-		/* Pass control to another task; TODO: this will cause lag when there are many processes! */
-		asm volatile("int $0x7e");
-	}
-
-	assert(keybuffer->counter != 0);
-	unsigned char ret = *(keybuffer->read_ptr++);
-	keybuffer->counter--;
-	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE)
-		keybuffer->read_ptr = keybuffer->data;
-
-	return ret;
-}
-
 void keyboard_callback(uint32 esp __attribute__((unused))) {
 	/* 
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
@@ -285,9 +245,14 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 		return;
 	}
 
-	/* Add the key to the ring buffer */
+	/* Add the key to the current console's ring buffer */
 	if (c == 0)
 		return;
+
+	assert(current_console != NULL);
+
+	struct ringbuffer *keybuffer = (struct ringbuffer *)&current_console->keybuffer;
+	assert(keybuffer != NULL);
 
 	if (keybuffer->counter == KEYBUFFER_SIZE) 
 		panic("Keyboard ring buffer full! This shouldn't happen without bugs somewhere...");

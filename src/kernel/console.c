@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <kernel/kheap.h>
-#include <kernel/task.h>
 
 /* A character representing empty space on the screen */
 const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
@@ -28,12 +27,31 @@ volatile console_t *current_console;
 console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
 /* These are set up properly in kmain() */
 
+#include <kernel/task.h>
 console_t kernel_console = {
 	.task = &kernel_task,
 	.active = true,
 	.cursor = { .x = 0, .y = 0},
 	.prev_console = NULL,
 };
+
+/* Returns a key from the keyboard buffer, if possible. */
+unsigned char getchar(void) {
+	/* If no characters are available, loop until there's something. */
+
+	volatile struct ringbuffer *keybuffer = (volatile struct ringbuffer *) & current_task->console->keybuffer;
+	while (keybuffer->counter == 0) {
+		sleep(10);
+	}
+
+	assert(keybuffer->counter != 0);
+	unsigned char ret = *(keybuffer->read_ptr++);
+	keybuffer->counter--;
+	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE)
+		keybuffer->read_ptr = keybuffer->data;
+
+	return ret;
+}
 
 void console_switch(console_t *new) {
 	assert(new != NULL);
@@ -57,16 +75,27 @@ console_t *console_create(void) {
 	//assert(owning_task != &kernel_task);
 
 	console_t *new = kmalloc(sizeof(console_t));
+
+	console_init(new);
+
+	return new;
+}
+
+/* Initalize a console. Used during console creation; only called manually for static console_t's */
+void console_init(console_t *new) {
 	//new->task = owning_task;
 	new->active = false;
+
+	/* Set up the keyboard ring buffer for this console */
+	new->keybuffer.read_ptr = new->keybuffer.data;
+	new->keybuffer.write_ptr = new->keybuffer.data;
+	new->keybuffer.counter = 0;
 
 	/* Copy the screen content and cursor position from the currently displayed console */
 	memcpy(new->videoram, ((console_t *)current_console)->videoram, 80*25*2);
 	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
 
 	new->prev_console = (console_t *)current_console;
-
-	return new;
 }
 
 /* Destroy a console (free its memory, etc.) and switch to the previous one */

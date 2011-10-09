@@ -3,9 +3,9 @@
 
 #include <kernel/interrupts.h> /* registers_t */
 
+#define KEYBUFFER_SIZE 256
+
 void keyboard_callback(uint32 esp);
 void init_keyboard(void);
-unsigned char getchar(void);
-uint32 availkeys(void);
 
 #endif

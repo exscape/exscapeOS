@@ -38,6 +38,14 @@ void idle_task(void) {
 }
 
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
+
+	/* Set up the kernel console keybuffer, to prevent panics on keyboard input.
+	 * The kernel console isn't dynamically allocated, so this can be done
+	 * this early without problems. */
+	kernel_console.keybuffer.read_ptr = kernel_console.keybuffer.data;
+	kernel_console.keybuffer.write_ptr = kernel_console.keybuffer.data;
+	kernel_console.keybuffer.counter = 0;
+
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
 	}
@@ -134,6 +142,11 @@ typedef struct console {
 
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
 	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
+		console_init(&virtual_consoles[i]);
+		virtual_consoles[i].task = create_task(&kshell, "kshell");
+		virtual_consoles[i].task->console = &virtual_consoles[i];
+		virtual_consoles[i].active = false;
+#if 0
 		memsetw(&virtual_consoles[i].videoram, blank, 80*25);
 		virtual_consoles[i].cursor.x = 0;
 		virtual_consoles[i].cursor.y = 0;
@@ -141,6 +154,7 @@ typedef struct console {
 		virtual_consoles[i].task->console = &virtual_consoles[i];
 		virtual_consoles[i].active = false;
 		virtual_consoles[i].prev_console = &kernel_console; /* TODO: is this right...? */
+#endif
 	}
 
 	console_switch(&virtual_consoles[0]);
