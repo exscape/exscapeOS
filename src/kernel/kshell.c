@@ -6,6 +6,7 @@
 #include <string.h>
 #include <kernel/kernutil.h>
 #include <kernel/task.h>
+#include <kernel/list.h>
 
 /* for heaptest() */
 #include <kernel/paging.h>
@@ -22,7 +23,7 @@ extern task_t kernel_task;
 void heaptest(void);
 void ls_initrd(void);
 
-extern task_t *ready_queue;
+extern list_t *ready_queue;
 
 static void infinite_loop(void) {
 	for(;;);
@@ -206,9 +207,10 @@ void kshell(void) {
 			task = create_task(&infinite_loop, "infinite_loop");
 		}
 		else if (strcmp(p, "ps") == 0) {
-			task_t *cur_task = ready_queue;
+			node_t *cur_task_node = ready_queue->head;
 			int n = 0;
-			while (cur_task) {
+			while (cur_task_node != NULL) {
+				task_t *cur_task = (task_t *)cur_task_node->data;
 				n++;
 				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
 						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
@@ -224,7 +226,7 @@ void kshell(void) {
 
 				printk("--------------\n");
 
-				cur_task = cur_task->next;
+				cur_task_node = cur_task_node->next;
 			}
 			printk("%d tasks running\n", n);
 		}

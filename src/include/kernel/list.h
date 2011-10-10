@@ -26,6 +26,5 @@ void list_remove(list_t *list, node_t *elem);
 void list_destroy(list_t *list);
 node_t *list_find_first(list_t *list, void *data);
 node_t *list_find_last(list_t *list, void *data);
-static void list_validate(list_t *list); /* debug function; should NOT be called in release mode as it's very, very expensive */
 
 #endif

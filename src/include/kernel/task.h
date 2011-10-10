@@ -18,7 +18,7 @@ typedef struct task
 	page_directory_t *page_directory; // Page directory.
 	uint32 state; /* e.g. running, sleeping */
 	uint32 wakeup_time; /* for sleeping tasks only: at which tick this task should be woken */
-	struct task *next;     // The next task in a linked list.
+	/*struct task *next;     // The next task in a linked list.*/
 	console_t *console;
 } task_t;
 

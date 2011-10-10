@@ -7,6 +7,7 @@
 #include <kernel/task.h>
 #include <kernel/gdt.h>
 #include <kernel/timer.h>
+#include <kernel/list.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -45,7 +46,6 @@ task_t kernel_task = {
 	.eip = 0,
 	.stack = 0, /* set later */
 	.page_directory = 0,
-	.next = 0,
 	.state = TASK_RUNNING,
 	.wakeup_time = 0,
 	.console = &kernel_console,
@@ -53,16 +53,24 @@ task_t kernel_task = {
 
 /* Our globals */
 volatile task_t *current_task = &kernel_task; // the currently running task
-volatile task_t *ready_queue = &kernel_task;  // the start of the task linked list
+
+extern volatile list_t ready_queue; /* "forward declare" the variable, since they link to each other */
+volatile node_t kernel_task_node = {
+	.data = (void *)&kernel_task,
+	.prev = NULL,
+	.next = NULL,
+	.list = (list_t *)&ready_queue,
+};
+
+volatile list_t ready_queue = {
+	.head = (node_t *)&kernel_task_node,
+	.tail = (node_t *)&kernel_task_node,
+	.count = 1,
+};
 
 /* true if the function exists and is running/sleeping; false if it has exited (or never ever existed) */
 bool does_task_exist(task_t *task) {
-	for (task_t *cur = (task_t *)ready_queue; cur != NULL; cur = cur->next) {
-		if (cur == task)
-			return true;
-	}
-
-	return false;
+	return (list_find_first((list_t *)&ready_queue, (void *)task) != NULL);
 }
 
 void kill(task_t *task) {
@@ -75,23 +83,7 @@ void kill(task_t *task) {
 	/* TODO: destroy user page directory */
 
 	/* Delete this task from the queue */
-	/* Since the list is singly-linked, we need to hack acound that a bit. */
-
-	task_t *p = (task_t *)ready_queue;
-	if (p == task) {
-		/* If the task is the first one in the queue, just move the queue's start pointer to the next task. */
-		ready_queue = task->next;
-	}
-	else {
-		while (p != NULL && p->next != NULL) {
-			if (p->next == task) {
-				/* p points to the task before the task to remove in the linked list.
-				 * Change its next pointer to the task AFTER us, thus removing us from the linked list. */
-				p->next = task->next;
-			}
-			p = p->next;
-		}
-	}
+	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
 	kfree((void *)(  (uint32)task->stack - KERNEL_STACK_SIZE ) );
 	kfree(task);
@@ -110,18 +102,17 @@ void kill(task_t *task) {
 bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
 	assert(pid != 1); /* kernel_task has PID 1 */
-	task_t *task = (task_t *)ready_queue;
-	while (task->id != pid && task->next != NULL)
-		task = task->next;
 
-	if (task->id == pid) {
-		kill(task);
-		return true;
+	/* TODO: add a list_find function that uses a user-supplied comparison function? */
+
+	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+		if ( ((task_t *)it->data)->id == pid) {
+			kill((task_t *)it->data);
+			return true;
+		}
 	}
-	else {
-		/* we didn't find the task! */
-		return false;
-	}
+
+	return false;
 }
 
 void exit_proc(void) {
@@ -167,7 +158,6 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	task->eip = 0;
 	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
 	task->page_directory = current_directory;
-	task->next = 0;
 	strlcpy(task->name, name, TASK_NAME_LEN);
 
 	/* All tasks are running by default */
@@ -212,11 +202,8 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	task->esp = (uint32)kernelStack;
 	task->ss = data_segment;
 
-	/* Add the new task to the end of the task queue */
-	task_t *tmp = (task_t *)ready_queue;
-	while (tmp->next)
-		tmp = tmp->next;
-	tmp->next = task;
+	/* Add the new task in the ready queue; we'll insert it so it runs next */
+	list_node_insert_after(list_find_first((list_t *)&ready_queue, (void *)current_task), (void *)task);
 
 	/* Switch to the new console */
 	console_switch(task->console);
@@ -260,7 +247,7 @@ uint32 switch_task(task_t *new_task) {
 
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
-	if (task_switching == false || (current_task == &kernel_task && current_task->next == NULL))
+	if (task_switching == false || (current_task == &kernel_task && ready_queue.count == 1))
 		return esp;
 
 	/* Save the current ESP (the one for the task we're switching FROM) */
@@ -271,41 +258,51 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	 * In the event that we find multiple tasks that should be woken this
 	 * very instant, wake the first one, and let the next be woken on the
 	 * next call to the scheduler. */
-	task_t *p = (task_t *)ready_queue;
 	const uint32 ticks = gettickcount(); /* fetch just the once; interrupts are disabled, so the tick count can't change */
-	while (p != NULL) {
+	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+		task_t *p = (task_t *)it->data;
 		if (p->state == TASK_SLEEPING && p->wakeup_time <= ticks) {
 			/* Wake this task! */
 			p->wakeup_time = 0;
 			p->state = TASK_RUNNING;
 			return switch_task(p);
 		}
-
-		p = p->next;
 	}
 
 	/* We didn't find any sleeping tasks to wake right now; let's focus on switching tasks as usual instead */
-	task_t *old_task = (task_t*)current_task;
-    task_t *new_task = current_task->next;
-	if (new_task == NULL)
-		new_task = (task_t *)ready_queue;
+	node_t *old_task_node = list_find_first((list_t *)&ready_queue, (void *)current_task);
+    node_t *new_task_node = old_task_node->next;
+	if (new_task_node == NULL)
+		new_task_node = ready_queue.head;
 
-	task_t *orig_task = new_task; /* hack: store the task we're currently on in the list (see below) */
+	node_t *orig_task_node = new_task_node; /* hack: store the task we're currently on in the list (see below) */
 	/* Ignore sleeping tasks */
-	while (new_task->state == TASK_SLEEPING) {
-		new_task = new_task->next;
-		if (new_task == NULL)
-			new_task = (task_t *)ready_queue;
+	task_t *new_task = NULL;
+	while(true) {
+		new_task = (task_t *)new_task_node->data;
 
-		if (new_task == orig_task) {
-			/* If we've looped through all the tasks, and they're all sleeping... */
-			panic("No running tasks found! TODO: run a HLT task here");
+		if (new_task->state == TASK_SLEEPING) {
+			new_task_node = new_task_node->next;
+			if (new_task_node == NULL)
+					new_task_node = ready_queue.head;
+			new_task = (task_t *)new_task_node->data;
+			if (new_task->state != TASK_SLEEPING)
+				break;
+
+			if (new_task_node == orig_task_node) {
+				/* If we've looped through all the tasks, and they're all sleeping... */
+				panic("No running tasks found! TODO: run a HLT task here");
+			}
+		}
+		else  {
+			/* We found a non-sleeping task - let's switch to it! */
+			break;
 		}
 	}
 
 	/* new_task now points towards the task we want to run */
 
-    if (old_task == new_task) {
+    if (old_task_node == new_task_node) {
 		/* no point in switching, eh? */
         return(esp);
 	}
