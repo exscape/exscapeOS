@@ -23,7 +23,7 @@ extern task_t kernel_task;
 void heaptest(void);
 void ls_initrd(void);
 
-extern list_t *ready_queue;
+extern volatile list_t ready_queue;
 
 static void infinite_loop(void) {
 	for(;;);
@@ -207,7 +207,7 @@ void kshell(void) {
 			task = create_task(&infinite_loop, "infinite_loop");
 		}
 		else if (strcmp(p, "ps") == 0) {
-			node_t *cur_task_node = ready_queue->head;
+			node_t *cur_task_node = ready_queue.head;
 			int n = 0;
 			while (cur_task_node != NULL) {
 				task_t *cur_task = (task_t *)cur_task_node->data;
