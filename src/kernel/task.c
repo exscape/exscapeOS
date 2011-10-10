@@ -276,29 +276,23 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		new_task_node = ready_queue.head;
 
 	node_t *orig_task_node = new_task_node; /* hack: store the task we're currently on in the list (see below) */
+
 	/* Ignore sleeping tasks */
 	task_t *new_task = NULL;
-	while(true) {
+	do {
 		new_task = (task_t *)new_task_node->data;
-
-		if (new_task->state == TASK_SLEEPING) {
-			new_task_node = new_task_node->next;
-			if (new_task_node == NULL)
-					new_task_node = ready_queue.head;
-			new_task = (task_t *)new_task_node->data;
-			if (new_task->state != TASK_SLEEPING)
-				break;
-
-			if (new_task_node == orig_task_node) {
-				/* If we've looped through all the tasks, and they're all sleeping... */
-				panic("No running tasks found! TODO: run a HLT task here");
-			}
-		}
-		else  {
-			/* We found a non-sleeping task - let's switch to it! */
+		if (new_task->state != TASK_SLEEPING)
 			break;
+		
+		new_task_node = new_task_node->next;
+		if (new_task_node == NULL)
+			new_task_node = ready_queue.head;
+
+		if (new_task_node == orig_task_node) {
+			/* We've looped through all the tasks, and they're all sleeping... */
+			panic("No running tasks found!");
 		}
-	}
+	} while (true);
 
 	/* new_task now points towards the task we want to run */
 
