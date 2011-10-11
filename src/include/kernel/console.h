@@ -23,6 +23,9 @@ typedef struct console {
 } console_t;
 #include <kernel/task.h> /* must be done after defining console_t */
 
+/* If true, all output will be on the current console, no matter who's writing */
+extern volatile bool force_current_console;
+
 unsigned char getchar(void);
 
 extern volatile console_t *current_console;

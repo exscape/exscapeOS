@@ -279,25 +279,37 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	/* We didn't find any sleeping tasks to wake right now; let's focus on switching tasks as usual instead */
 	node_t *old_task_node = list_find_first((list_t *)&ready_queue, (void *)current_task);
 
-	/* Find the next task to run (exclude sleeping tasks) */
-	node_t *new_task_node = list_node_find_next_predicate(old_task_node, task_not_sleeping_predicate);
+	task_t *old_task = (task_t *)current_task;
+	task_t *new_task = NULL;
 
-	if (new_task_node == NULL) {
-		/* all tasks are asleep, possibly except for the current one! */
-		if ( ((task_t *)old_task_node->data)->state != TASK_SLEEPING) {
-			/* only the current process is not sleeping; let's not switch, then! */
-			return (esp);
+	if (old_task_node == NULL) {
+		/* The "current task" is not on the run queue. This would happen if
+		 * it had just been killed. Start over. */
+		new_task = (task_t *)(ready_queue.head->data);
+	}
+	else {
+		/* Find the next task to run (exclude sleeping tasks) */
+		node_t *new_task_node = list_node_find_next_predicate(old_task_node, task_not_sleeping_predicate);
+
+		if (new_task_node == NULL) {
+			/* all tasks are asleep, possibly except for the current one! */
+			if ( ((task_t *)old_task_node->data)->state != TASK_SLEEPING) {
+				/* only the current process is not sleeping; let's not switch, then! */
+				return (esp);
+			}
+			else {
+				panic("No running tasks found! TODO: run a HLT task here");
+			}
 		}
-		else {
-			panic("No running tasks found! TODO: run a HLT task here");
-		}
+
+		new_task = (task_t *)new_task_node->data;
 	}
 
-	task_t *new_task = (task_t *)new_task_node->data;
+	assert(new_task != NULL);
 
 	/* new_task now points towards the task we want to run */
 
-    if (old_task_node == new_task_node) {
+    if (old_task == new_task) {
 		/* no point in switching, eh? */
         return(esp);
 	}

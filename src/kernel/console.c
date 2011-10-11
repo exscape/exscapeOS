@@ -22,6 +22,9 @@ extern task_t kernel_task;
 
 volatile console_t *current_console;
 
+/* If true, all output will be on the current console, no matter who's writing */
+volatile bool force_current_console = false;
+
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
 console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
@@ -161,7 +164,7 @@ void init_video(void) {
 
 void clrscr(void) {
 	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
-	if (current_console->task == current_task) {
+	if (current_console->task == current_task || force_current_console == true) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
 	}
@@ -235,13 +238,15 @@ int putchar(int c) {
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		if (current_console->task == current_task) {
+		if (current_console->task == current_task || force_current_console == true) {
 			/* Also update the actual video ram if this console is currently displayed */
 
-			assert(current_task->console == current_console);
-			assert(current_console == current_task->console);
-			assert(current_task == current_console->task);
-			assert(current_console->active == true);
+			if (!force_current_console) {
+				assert(current_task->console == current_console);
+				assert(current_console == current_task->console);
+				assert(current_task == current_console->task);
+				assert(current_console->active == true);
+			}
 
 			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		}

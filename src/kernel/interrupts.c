@@ -240,10 +240,10 @@ const char *exception_name[] = {
 uint32 isr_handler(uint32 esp) {
 
 	/* Make sure this output is visible! */
-	console_switch(&kernel_console);
-	current_task = &kernel_task;
+	force_current_console = true;
 
 	registers_t *regs = (registers_t *)esp;
+	assert(regs->int_no <= 31);
 	printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
 
 	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
@@ -259,6 +259,10 @@ uint32 isr_handler(uint32 esp) {
 	else {
 		panic("Interrupt not handled (no handler registered for interrupt number)");
 	}
+
+	/* Return the console, in case we didn't actually panic */
+
+	force_current_console = false;
 
 	return esp;
 }
