@@ -473,6 +473,13 @@ void heap_free(void *p, heap_t *heap) {
 	if (p == NULL)
 		return;
 
+	/* Don't try to free memory that is clearly not from the heap.
+	 * Note that max_address is NOT the current highest address (eas determined by heap size),
+	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
+	 */
+	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address )
+		return;
+
 	/* Calculate the header and footer locations */
 	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
 	area_footer_t *footer = FOOTER_FROM_HEADER(header);
