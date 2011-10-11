@@ -335,6 +335,29 @@ node_t *list_find_last(list_t *list, void *data) {
 	return NULL;
 }
 
+node_t *list_node_find_next_predicate(node_t *node, bool (*predicate_func)(node_t *) ) {
+	assert(node != NULL);
+	assert(predicate_func != NULL);
+	/* Look through the remainer of the list first */
+	for (node_t *it = node->next; it != NULL; it = it->next) {
+		if (predicate_func(it))
+			return it;
+	}
+
+	/* Restart at the beginning of the list and try up to the point where we started */
+	/* Note that /node/ itself is not tested, because the function should return the NEXT match,
+	 * not the one the user passed in! */
+	for (node_t *it = node->list->head; it != node; it = it->next) {
+		if (predicate_func(it)) {
+			assert(it != node); /* TODO: remove this check after debugging */
+			return it;
+		}
+	}
+
+	/* We didn't find anything! */
+	return NULL;
+}
+
 #if 0
 /* This function is meant for debugging only. */
 node_t *RAND_ELEMENT(list_t *list) {

@@ -27,4 +27,9 @@ void list_destroy(list_t *list);
 node_t *list_find_first(list_t *list, void *data);
 node_t *list_find_last(list_t *list, void *data);
 
+/* I'm not overly proud about this one. It finds the next node that the predicate function returns true for.
+ * The name, despite its length, doesn't point out that it "loops back" to the beginning of the list
+ * if the end is reached without a hit, though. Essentially this is a "ring" function, not a "list" one. */
+node_t *list_node_find_next_predicate(node_t *node, bool (*predicate_func)(node_t *) );
+
 #endif

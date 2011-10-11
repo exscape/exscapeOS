@@ -238,6 +238,11 @@ const char *exception_name[] = {
 
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
+
+	/* Make sure this output is visible! */
+	console_switch(&kernel_console);
+	current_task = &kernel_task;
+
 	registers_t *regs = (registers_t *)esp;
 	printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
 

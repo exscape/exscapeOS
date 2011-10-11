@@ -245,6 +245,13 @@ uint32 switch_task(task_t *new_task) {
 	return current_task->esp;
 } 
 
+static bool task_not_sleeping_predicate(node_t *node) {
+	assert(node != NULL);
+	assert(node->data != NULL);
+	task_t *t = (task_t *)node->data;
+	return (t->state != TASK_SLEEPING);
+}
+
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && ready_queue.count == 1))
@@ -271,28 +278,22 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
 	/* We didn't find any sleeping tasks to wake right now; let's focus on switching tasks as usual instead */
 	node_t *old_task_node = list_find_first((list_t *)&ready_queue, (void *)current_task);
-    node_t *new_task_node = old_task_node->next;
-	if (new_task_node == NULL)
-		new_task_node = ready_queue.head;
 
-	node_t *orig_task_node = new_task_node; /* hack: store the task we're currently on in the list (see below) */
+	/* Find the next task to run (exclude sleeping tasks) */
+	node_t *new_task_node = list_node_find_next_predicate(old_task_node, task_not_sleeping_predicate);
 
-	/* Ignore sleeping tasks */
-	task_t *new_task = NULL;
-	do {
-		new_task = (task_t *)new_task_node->data;
-		if (new_task->state != TASK_SLEEPING)
-			break;
-		
-		new_task_node = new_task_node->next;
-		if (new_task_node == NULL)
-			new_task_node = ready_queue.head;
-
-		if (new_task_node == orig_task_node) {
-			/* We've looped through all the tasks, and they're all sleeping... */
-			panic("No running tasks found!");
+	if (new_task_node == NULL) {
+		/* all tasks are asleep, possibly except for the current one! */
+		if ( ((task_t *)old_task_node->data)->state != TASK_SLEEPING) {
+			/* only the current process is not sleeping; let's not switch, then! */
+			return (esp);
 		}
-	} while (true);
+		else {
+			panic("No running tasks found! TODO: run a HLT task here");
+		}
+	}
+
+	task_t *new_task = (task_t *)new_task_node->data;
 
 	/* new_task now points towards the task we want to run */
 
