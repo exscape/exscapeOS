@@ -258,6 +258,10 @@ void kshell(void) {
 		else if (strcmp(p, "testbench_task") == 0) {
 			task = create_task(&testbench, "testbench");
 		}
+		else if (strcmp(p, "kshell") == 0) {
+			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
+			task = create_task(&kshell, "kshell (nested)");
+		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */
 		}

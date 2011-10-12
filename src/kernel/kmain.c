@@ -115,47 +115,16 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("All initialization complete!\n\n");
 
-	//printk("Starting test_task... ");
-	//create_task(test_task, "test_task");
-	//printk("done\n");
-
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task");
 	//printk("done\n");
-
-	/*
-	for (;;) {
-		printk("in kmain()\n");
-		loopsleep();
-	}
-	*/
-
-	/*
-typedef struct console {
-	task_t *task;
-	bool active;
-	uint16 videoram[80 * 25];
-	Point cursor;
-	struct console *prev_console;
-} console_t;
-*/
 
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
 	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
 		console_init(&virtual_consoles[i]);
 		node_t *new_node = list_append(virtual_consoles[i].tasks, create_task(&kshell, "kshell"));
 		((task_t *)new_node->data)->console = &virtual_consoles[i];
-		//((task_t *)virtual_consoles[i].tasks->tail)->console = &virtual_consoles[i];
 		virtual_consoles[i].active = false;
-#if 0
-		memsetw(&virtual_consoles[i].videoram, blank, 80*25);
-		virtual_consoles[i].cursor.x = 0;
-		virtual_consoles[i].cursor.y = 0;
-		virtual_consoles[i].task = create_task(&kshell, "kshell");
-		virtual_consoles[i].task->console = &virtual_consoles[i];
-		virtual_consoles[i].active = false;
-		virtual_consoles[i].prev_console = &kernel_console; /* TODO: is this right...? */
-#endif
 	}
 
 	console_switch(&virtual_consoles[0]);

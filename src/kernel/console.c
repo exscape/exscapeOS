@@ -199,12 +199,13 @@ void cursor_left(void) {
 	Point *cursor = &current_task->console->cursor;
 	if (cursor->x != 0)
 		cursor->x--;
+
 	update_cursor();
 }
 
 void cursor_right(void) {
 	Point *cursor = &current_task->console->cursor;
-	if (cursor->x < 79) /* TODO: is this correct? I'm slightly unsure about the indexing... */
+	if (cursor->x < 79)
 		cursor->x++;
 	else {
 		cursor->x = 0;
