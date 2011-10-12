@@ -2,6 +2,7 @@
 #define _CONSOLE_H
 #include <types.h>
 #include <kernel/keyboard.h>
+#include <kernel/list.h>
 
 /* A ring buffer that stores keystrokes to a console */
 typedef struct ringbuffer {
@@ -14,7 +15,7 @@ typedef struct ringbuffer {
 typedef struct task task_t;
 /* Defines a single virtual console */
 typedef struct console {
-	task_t *task;
+	list_t *tasks;
 	bool active;
 	uint16 videoram[80 * 25];
 	Point cursor;

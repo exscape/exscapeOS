@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <kernel/kheap.h>
+#include <kernel/list.h>
 
 /* A character representing empty space on the screen */
 const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
@@ -31,8 +32,23 @@ console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
 /* These are set up properly in kmain() */
 
 #include <kernel/task.h>
+
+/* I'm NOT happy about this mess, but it really should be set up statically... */
+extern list_t kernel_console_tasks;
+static node_t tmp = {
+	.next = NULL,
+	.prev = NULL,
+	.list = &kernel_console_tasks,
+	.data = &kernel_task
+};
+list_t kernel_console_tasks = {
+	.head = &tmp,
+	.tail = &tmp,
+	.count = 1
+};
+
 console_t kernel_console = {
-	.task = &kernel_task,
+	.tasks = &kernel_console_tasks,
 	.active = true,
 	.cursor = { .x = 0, .y = 0},
 	.prev_console = NULL,
@@ -79,6 +95,7 @@ console_t *console_create(void) {
 	//assert(owning_task != &kernel_task);
 
 	console_t *new = kmalloc(sizeof(console_t));
+	memset(new, 0, sizeof(console_t));
 
 	console_init(new);
 
@@ -87,13 +104,16 @@ console_t *console_create(void) {
 
 /* Initalize a console. Used during console creation; only called manually for static console_t's */
 void console_init(console_t *new) {
-	//new->task = owning_task;
 	new->active = false;
 
 	/* Set up the keyboard ring buffer for this console */
 	new->keybuffer.read_ptr = new->keybuffer.data;
 	new->keybuffer.write_ptr = new->keybuffer.data;
 	new->keybuffer.counter = 0;
+
+	/* Set up the tasks list. kmalloc should be available any time this is called */
+	assert(new->tasks == NULL);
+	new->tasks = list_create();
 
 	/* Copy the screen content and cursor position from the currently displayed console */
 	memcpy(new->videoram, ((console_t *)current_console)->videoram, 80*25*2);
@@ -164,7 +184,7 @@ void init_video(void) {
 
 void clrscr(void) {
 	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
-	if (current_console->task == current_task || force_current_console == true) {
+	if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
 	}
@@ -211,7 +231,7 @@ void scroll(void) {
 	memsetw(current_task->console->videoram + 24*80, blank, 80);
 
 	/* Also update the screen, if this console is currently displayed */
-	if (current_console->task == current_task) {
+	if ((task_t *)current_console->tasks->tail->data == current_task) {
 		assert(current_console->active == true);
 		memcpy(videoram, current_task->console->videoram, 80*25*2);
 	}
@@ -220,6 +240,7 @@ void scroll(void) {
 	cursor->y = 24;
 //	update_cursor();
 }
+
 
 int putchar(int c) {
 	Point *cursor = &current_task->console->cursor;
@@ -238,13 +259,13 @@ int putchar(int c) {
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		if (current_console->task == current_task || force_current_console == true) {
+		if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
 			/* Also update the actual video ram if this console is currently displayed */
 
 			if (!force_current_console) {
 				assert(current_task->console == current_console);
 				assert(current_console == current_task->console);
-				assert(current_task == current_console->task);
+				assert(current_task == (task_t *)current_console->tasks->tail->data);
 				assert(current_console->active == true);
 			}
 

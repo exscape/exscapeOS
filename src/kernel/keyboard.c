@@ -177,7 +177,18 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 	if (mod_keys == MOD_ALT && (scancode >= 0x3b && scancode <= 0x3e)) {
 		/* Alt + Fn (F1 through F4, inclusive) */
 		/* Switch to virtual console 0 - 3 */
-		console_switch(&virtual_consoles[scancode - 0x3b]);
+
+		/* Hack: when switching to a virtual console, what we REALLY want to do is switch to
+		 * the console belonging to the current task of that console. Otherwise, if a task is running
+		 * (with its own console), the UI of that task will not be displayed, but rather
+		 * the way the console looked just when it was launched will be displayed.
+		 *
+		 * Thus, this code finds the CURRENT console and displays that. */
+
+		console_t *virt = &virtual_consoles[scancode - 0x3b];
+		task_t *cur_task = (task_t *)virt->tasks->tail->data;
+		console_switch(cur_task->console);
+
 		return;
 	}
 

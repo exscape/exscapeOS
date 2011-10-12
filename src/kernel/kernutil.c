@@ -37,6 +37,8 @@ void panic(const char *str) {
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
 	asm volatile("cli");
 
+	force_current_console = true;
+
 	printk("PANIC: Assertion failed: %s (%s:%d)\n", desc, file, line);
 	asm("asserthang: hlt; jmp asserthang");
 }

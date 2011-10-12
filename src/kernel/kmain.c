@@ -143,8 +143,9 @@ typedef struct console {
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
 	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
 		console_init(&virtual_consoles[i]);
-		virtual_consoles[i].task = create_task(&kshell, "kshell");
-		virtual_consoles[i].task->console = &virtual_consoles[i];
+		node_t *new_node = list_append(virtual_consoles[i].tasks, create_task(&kshell, "kshell"));
+		((task_t *)new_node->data)->console = &virtual_consoles[i];
+		//((task_t *)virtual_consoles[i].tasks->tail)->console = &virtual_consoles[i];
 		virtual_consoles[i].active = false;
 #if 0
 		memsetw(&virtual_consoles[i].videoram, blank, 80*25);
