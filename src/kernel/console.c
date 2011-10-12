@@ -139,7 +139,7 @@ void console_destroy(console_t *con) {
 }
 
 /* Syscall test function */
-int print(const char *s) {
+int puts(const char *s) {
 	size_t len = strlen(s);
 
 	for (size_t j = 0; j < len; j++) {
@@ -263,7 +263,8 @@ int putchar(int c) {
 		if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
 			/* Also update the actual video ram if this console is currently displayed */
 
-			if (!force_current_console) {
+			if (!force_current_console && current_task->privilege == 0) {
+				/* TODO: The privilege check above is a temporary HACK to make user mode code able to use puts() easily. */
 				assert(current_task->console == current_console);
 				assert(current_console == current_task->console);
 				assert(current_task == (task_t *)current_console->tasks->tail->data);

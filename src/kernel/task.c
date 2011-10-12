@@ -141,12 +141,12 @@ void init_tasking(uint32 kerntask_esp0) {
 	enable_interrupts();
 }
 
-static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console);
+static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege);
 
 task_t *create_task( void (*entry_point)(void), const char *name) {
 	console_t *con = console_create();
 	assert(con != NULL);
-	task_t *task = create_task_int(entry_point, name, con);
+	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */);
 	assert(task != NULL);
 
 	assert(task->console == con);
@@ -157,9 +157,23 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 	return task;
 }
 
-static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console) {
+task_t *create_task_user( void (*entry_point)(void), const char *name) {
+	console_t *con = console_create();
+	assert(con != NULL);
+	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */);
+	assert(task != NULL);
+
+	assert(task->console == con);
+	assert( (task_t *)con->tasks->head->data == task);
+
+	return task;
+}
+
+static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege) {
 	disable_interrupts(); /* not sure if this is needed */
 	task_switching = false;
+
+	assert(privilege == 0 || privilege == 3);
 
 	task_t *task = kmalloc(sizeof(task_t));
 	memset(task, 0, sizeof(task_t));
@@ -168,8 +182,28 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	task->esp = 0;
 	task->eip = 0;
 	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
-	task->page_directory = current_directory;
+	if (privilege == 0)
+		task->page_directory = current_directory;
+	else {
+		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
+	}
+
+	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
+
+#define USER_STACK_START 0xf0000000
+#define USER_STACK_SIZE 32768 /* overkill? */
+
+	if (task->privilege == 3) {
+		/* Set up a usermode stack for this task */
+		// void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
+		uint32 addr = USER_STACK_START;
+		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
+			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
+		}
+		/* allocate a guard page */
+		alloc_frame(addr, task->page_directory, true, false);
+	}
 
 	/* All tasks are running by default */
 	task->state = TASK_RUNNING;
@@ -193,6 +227,12 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	/* Functions will call this automatically when they attempt to return */
 	*(--kernelStack) = (uint32)&exit_proc;
 
+	if (task->privilege == 3) {
+		*(--kernelStack) = 0x23; /* SS */
+		*(--kernelStack) = USER_STACK_START; /* ESP */
+		code_segment = 0x1b; /* 0x18 | 3 */
+	}
+
 	*(--kernelStack) = 0x0202; /* EFLAGS: IF = 1, IOPL = 0 */
 	*(--kernelStack) = code_segment;        /* CS */
 	*(--kernelStack) = (uint32)entry_point; /* EIP */
@@ -208,7 +248,7 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	*(--kernelStack) = 0;
 	*(--kernelStack) = 0;
 
-	uint32 data_segment = 0x10;
+	uint32 data_segment = (privilege == 3) ? 0x23 : 0x10;
 
 	/* Data segments (DS, ES, FS, GS) */
 	*(--kernelStack) = data_segment;
@@ -241,14 +281,15 @@ uint32 switch_task(task_t *new_task) {
 	disable_interrupts();
 	task_switching = false;
 
-	current_task = new_task;
+	if (new_task->page_directory != current_task->page_directory)
+		switch_page_directory(new_task->page_directory);
 
-	/* TODO: Switch page directories here */
+	current_task = new_task;
 
 	/* Update the TSS */
 	assert(current_task->stack != NULL);
 	assert(current_task->esp != 0);
-	assert(current_task->ss == 0x10);
+	assert(current_task->ss == 0x10 || current_task->ss == 0x23);
 	tss_switch((uint32)current_task->stack, current_task->esp, current_task->ss);
 
 	task_switching = true;

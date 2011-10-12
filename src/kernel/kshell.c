@@ -7,6 +7,7 @@
 #include <kernel/kernutil.h>
 #include <kernel/task.h>
 #include <kernel/list.h>
+#include <kernel/syscall.h>
 
 /* for heaptest() */
 #include <kernel/paging.h>
@@ -72,6 +73,11 @@ static void guess_num(void) {
 			printk("Nope. Try higher.\n");
 		}
 	}
+}
+
+static void user_test(void) {
+	/* A task that runs in user mode */
+	syscall_puts("Hellooooooo, USER MODE WORLD!");
 }
 
 static void divzero(void) {
@@ -257,6 +263,10 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
 			task = create_task(&testbench, "testbench");
+		}
+		else if (strcmp(p, "user_test") == 0) {
+			/* launch a user mode test task */
+			create_task_user(&user_test, "user_test");
 		}
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */

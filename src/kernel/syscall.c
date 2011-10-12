@@ -1,11 +1,11 @@
 #include <kernel/syscall.h>
-#include <kernel/console.h>
+#include <kernel/console.h> /* puts */
 #include <kernel/interrupts.h>
 
 static void syscall_handler(uint32);
 
 static void *syscalls[] = {
-	&print,
+	&puts,
 };
 uint32 num_syscalls = 1;
 
@@ -42,4 +42,4 @@ void syscall_handler(uint32 esp) {
 	regs->eax = ret;
 }
 
-DEFN_SYSCALL1(print, 0, const char *);
+DEFN_SYSCALL1(puts, 0, const char *);

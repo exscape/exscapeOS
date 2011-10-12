@@ -77,4 +77,6 @@ uint32 free_bytes(void);
 /* Converts a virtual address to a physical one (within the current address space, i.e. current_directory is used) */
 uint32 virtual_to_physical(uint32 virt_addr);
 
+page_directory_t *create_user_page_dir(void);
+
 #endif /* header guard */

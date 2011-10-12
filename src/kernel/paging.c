@@ -143,6 +143,7 @@ void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmod
 	alloc_frame_to_page(page, kernelmode, writable);
 
 	/* Make sure the CPU doesn't cache the old values */
+	/* TODO: there's no need to invalidate the TLB in the wrong address space, is there? Check for this! */
 	invalidate_tlb((void *)virtual_addr);
 }
 
@@ -224,7 +225,7 @@ void init_paging(unsigned long upper_mem) {
 
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
+		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
 		addr += PAGE_SIZE;
 	}
 
@@ -263,7 +264,6 @@ void init_paging(unsigned long upper_mem) {
 /* Loads the page directory at /dir/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
 	current_directory = dir;
-//	uint32 new_cr3_contents = (uint32) & dir->tables_physical;
 	uint32 new_cr3_contents = (uint32) dir->physical_address;
 	/* bit 3 and 4 (i.e. with values 8 and 16) are used to control write-through and cache, but we don't want either set.
 	 * the rest of the low bits are ignored, according to Intel docs. Still, I prefer them to be 0, just in case. */

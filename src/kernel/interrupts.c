@@ -159,7 +159,7 @@ void idt_install(void) {
 	idt_set_gate(0x7e, (uint32)irq126, 0x08, 0x8e);
 
 	/* the syscall handler */
-	idt_set_gate(128, (uint32)isr128, 0x08, 0x8e);
+	idt_set_gate(0x80, (uint32)isr128, 0x08, 0xee); /* 0x8e with a DPL of 3, so user mode can use int $0x80 */
 
 	/* Reprogram the PICs, so that IRQs don't overlop with CPU exception interrupts */
 	outb(0x20, 0x11);
@@ -243,14 +243,18 @@ uint32 isr_handler(uint32 esp) {
 	force_current_console = true;
 
 	registers_t *regs = (registers_t *)esp;
-	assert(regs->int_no <= 31);
-	printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
+	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
-	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
-	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
-	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
-	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
-	printk("WARNING: esp value may be unreliable at the moment\n");
+	if (regs->int_no != 0x80) {
+		/* Don't print all this if the interrupt is the syscall vector */
+		printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
+
+		printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+		printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
+		printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+		printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
+		printk("WARNING: esp value may be unreliable at the moment\n");
+	}
 
 	if (interrupt_handlers[regs->int_no] != 0) {
 		isr_t handler = interrupt_handlers[regs->int_no];
