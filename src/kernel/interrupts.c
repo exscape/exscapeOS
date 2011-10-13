@@ -275,7 +275,7 @@ uint32 isr_handler(uint32 esp) {
 uint32 irq_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* If this interrupt came from the slave PIC, send an
-	   EOI (End Of Interrupt) ta it */
+	   EOI (End Of Interrupt) to it */
 	if (regs->int_no >= IRQ8 && regs->int_no != 0x7e) {
 		outb(0xa0, 0x20);
 	}
@@ -301,6 +301,12 @@ uint32 irq_handler(uint32 esp) {
 			 * so we would try to call a NULL handler here without this check. */
 			handler(esp);
 		}
+	}
+	else if (regs->int_no > IRQ1) {
+		/* Make an exception for the timer (IRQ0), since it may fire before we set up the handler for it */
+		/* Also ignore the keyboard (IRQ1), just in case. */
+		printk("IRQ without handler: IRQ %d\n", regs->int_no - 32);
+		panic("See above");
 	}
 
 	return esp;

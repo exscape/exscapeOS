@@ -223,11 +223,11 @@ void kshell(void) {
 
 				if (current_task != cur_task) {
 					registers_t *regs = (registers_t *)( (uint32)cur_task->esp );
-					assert(regs->ds == 0x10);
-					assert(regs->cs == 0x08);
+					assert(regs->ds == 0x10 || regs->ds == 0x23);
+					assert(regs->cs == 0x08 || regs->cs == 0x1b);
 					printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
 					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, cur_task->esp, regs->ebp);
-					printk("CS =%08x    EIP=%08x    EFLAGS=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+					printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
 				}
 
 				printk("--------------\n");
