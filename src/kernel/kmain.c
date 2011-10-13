@@ -16,6 +16,7 @@
 #include <kernel/task.h>
 #include <kernel/syscall.h>
 #include <kernel/kshell.h>
+#include <kernel/ata.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -128,6 +129,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 
 	console_switch(&virtual_consoles[0]);
+
+	ata_init();
 
 	while (true) {
 		//asm volatile("sti; hlt");

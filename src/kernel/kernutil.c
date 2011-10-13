@@ -30,6 +30,7 @@ uint16 inw(uint16 port)
 void panic(const char *str) {
 //	clrscr();
 	asm volatile("cli");
+	force_current_console = true;
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
 	asm("hangloop: hlt ; jmp hangloop");
 }
