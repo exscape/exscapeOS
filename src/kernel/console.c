@@ -245,6 +245,8 @@ void scroll(void) {
 
 int putchar(int c) {
 	Point *cursor = &current_task->console->cursor;
+	if (force_current_console)
+		cursor = (Point *)&current_console->cursor;
 	if (c == '\n') {
 		// c == newline
 		cursor->x = 0;
@@ -272,7 +274,6 @@ int putchar(int c) {
 			}
 
 			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		}
 
 		if (cursor->x + 1 == 80) {
 			// Wrap to the next line
@@ -283,6 +284,7 @@ int putchar(int c) {
 			// Don't wrap
 			cursor->x++;
 		}
+	}
 	}
 
 	scroll(); // Scroll down, if need be

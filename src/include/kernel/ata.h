@@ -16,9 +16,13 @@ typedef struct ata_device {
 	bool exists;
 	uint8 channel; /* 0 (Primary) or 1 (Secondary) */
 	uint8 drive; /* 0 (Master) or 1 (Slave) */
-	uint16 capabilities;
+	bool is_atapi; /* false: regular ATA. true: ATAPI (mostly optical drives, these days) */
+	uint32 capabilities;
 	uint64 size; /* size in sectors */
-	unsigned char ident[64]; /* model + serial number */
+	char model[41];
+	char serial[21];
+	uint8 ata_ver; /* the ATA version this disk conforms to */
+	uint8 max_udma_mode; /* 0 through 5; other values are invalid */
 } ata_device_t;
 
 #define ATA_REG_BASE_PRI 0x1f0
@@ -26,16 +30,18 @@ typedef struct ata_device {
 
 /* Offsets from the base addresses above */
 #define ATA_REG_DATA 0
-#define ATA_REG_FEATURES_ERROR 1 /* is this used for non-ATAPI? */
+#define ATA_REG_ERROR 1
+#define ATA_REG_FEATURES 1 /* features on write; is this used for non-ATAPI? */
 #define ATA_REG_SECTOR_COUNT 2
 #define ATA_REG_LBA_LO 3 /* also sector number */
 #define ATA_REG_LBA_MID 4 /* also cylinder low */
 #define ATA_REG_LBA_HI 5 /* also cylinder high */
 #define ATA_REG_DRIVE_SELECT 6 /* also head */
-#define ATA_REG_COMMAND 7
-#define ATA_REG_STATUS 7
+#define ATA_REG_COMMAND 7 /* acts as command on write... */
+#define ATA_REG_STATUS 7 /* ... and status on read */
 
 #define ATA_REG_DEV_CONTROL 0xffff /* Used internally */
+#define ATA_REG_DEV_ALT_STATUS 0xffff /* Used internally */
 #define ATA_REG_DEV_CONTROL_PRI 0x3f6 /* device control / alt. status reg */
 #define ATA_REG_DEV_CONTROL_SEC 0x376
 
@@ -48,8 +54,9 @@ typedef struct ata_device {
 #define ATA_CMD_IDENTIFY 0xec
 
 /* Drive IDs to be sent to the drive select IO port */
-#define ATA_MASTER 0xa0
-#define ATA_SLAVE 0xb0
+#define ATA_DRIVE 0xa0 /* base command */
+#define ATA_MASTER 0 /* usage: ATA_DRIVE | (ATA_MASTER << 4) */
+#define ATA_SLAVE 1 /* usage: ATA_DRIVE | (ATA_SLAVE << 4) */
 
 /* Used internally (not defined in the ATA standard) */
 #define ATA_PRIMARY 0
@@ -64,5 +71,21 @@ typedef struct ata_device {
 /*#define ATA_SR_CORR 0x04*/ /* marked as obsolete in ATA-ATAPI 6 */
 /*#define ATA_SR_IDX 0x02*/ /* same as above */
 #define ATA_SR_ERR 0x01
+
+/* The flags in the error register */
+#define    ATA_ER_BBK      0x80
+#define    ATA_ER_UNC      0x40
+#define    ATA_ER_MC      0x20
+#define    ATA_ER_IDNF      0x10
+#define    ATA_ER_MCR      0x08
+#define    ATA_ER_ABRT      0x04
+#define    ATA_ER_TK0NF   0x02
+#define    ATA_ER_AMNF      0x01
+
+/* Flags used in the ata_device_t capabilities field - not defined in any standard */
+#define ATA_CAPABILITY_LBA28 (1 << 0)
+#define ATA_CAPABILITY_LBA48 (1 << 1)
+#define ATA_CAPABILITY_WRITE_CACHE (1 << 2)
+#define ATA_CAPABILITY_FLUSH_CACHE (1 << 3)
 
 #endif
