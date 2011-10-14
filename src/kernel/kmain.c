@@ -114,8 +114,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_tasking(init_esp0);
 	printk("done\n");
 
-	printk("All initialization complete!\n\n");
-
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task");
 	//printk("done\n");
@@ -130,7 +128,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	console_switch(&virtual_consoles[0]);
 
+	//printk("Detecting ATA devices and initializing them... ");
 	ata_init();
+	//printk("done\n");
+
+	printk("All initialization complete!\n\n");
 
 	while (true) {
 		//asm volatile("sti; hlt");
