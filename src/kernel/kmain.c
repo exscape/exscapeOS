@@ -120,6 +120,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	ata_init();
 	printk("done\n");
 
+	unsigned char *buf = kmalloc(512);
+	ata_read(&devices[0], 0, buf);
+	printk("Buffer contents: %512s\n", (char *)buf);
+	panic("Done");
 
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task");

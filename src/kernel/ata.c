@@ -9,19 +9,52 @@
 ata_channel_t channels[2];
 ata_device_t devices[4];
 
+static volatile uint8 *buf = 0; /* TODO! */
+
+static void ata_cmd(uint8 channel, uint8 cmd);
+static uint8 ata_reg_read(uint8 channel, uint16 reg);
+static void ata_reg_write(uint8 channel, uint16 reg, uint8 data);
+
 static void ata_interrupt_handler(uint32 esp) {
 	/* Minus 32 to map from ISR number to IRQ number (14 or 15), then
 	 * minus 14 to map from IRQ number (14 or 15) to channel (0 or 1 aka. primary or secondary). */
 	uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
 	assert(channel == 0 || channel == 1);
 	esp=esp;
+
+	/* TODO: once or 5 times? */
+	uint8 status;
+	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
+	
+	assert(!(status & ATA_SR_BSY));
+	assert(status & ATA_SR_DRQ);
+	assert(!(status & ATA_SR_ERR));
+
+	/* Let's do this thing */
+	uint16 *words = (uint16 *)buf;
+	for (int i=0; i < 256; i++) {
+		words[i] = inw(channels[channel].base);
+	}
+	
+	char *str = (char *)buf;
+	printk("Done! Buffer read is: %s\n", str);
+
 	panic("ATA interrupt!");
+}
+
+static void ata_cmd(uint8 channel, uint8 cmd) {
+	assert(channel == 0 || channel == 1);
+	outb(channels[channel].base + ATA_REG_COMMAND, cmd);
 }
 
 static uint8 ata_reg_read(uint8 channel, uint16 reg) {
 	assert(channel == 0 || channel == 1);
 
-	if (reg == ATA_REG_DEV_ALT_STATUS) {
+	if (reg == ATA_REG_ALT_STATUS) {
 		return inb(channels[channel].ctrl);
 	}
 	else if (reg <= 7) {
@@ -93,7 +126,7 @@ void ata_init(void) {
 
 			/* wait for the select to take effect */
 			for (int i=0; i<4; i++)
-				ata_reg_read(ch, ATA_REG_STATUS);
+				ata_reg_read(ch, ATA_REG_ALT_STATUS);
 
 			/* Prepare for identify */
 			ata_reg_write(ch, ATA_REG_SECTOR_COUNT, 0);
@@ -105,7 +138,7 @@ void ata_init(void) {
 			ata_reg_write(ch, ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 
 			/* check the status reg */
-			uint8 status = ata_reg_read(ch, ATA_REG_STATUS);
+			uint8 status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 
 			if (status == 0) {
 				/* drive does not exist */
@@ -117,7 +150,7 @@ void ata_init(void) {
 			while (true) {
 				if (! (status & ATA_SR_BSY))
 					break;
-				status = ata_reg_read(ch, ATA_REG_STATUS);
+				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 			}
 
 			/* check for ATAPI/SATA drives */
@@ -145,7 +178,7 @@ void ata_init(void) {
 
 			/* Poll until DRQ or ERR is set */
 			while ( (status & ATA_SR_DRQ) == 0 && (status & ATA_SR_ERR) == 0)
-				status = ata_reg_read(ch, ATA_REG_STATUS);
+				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 
 			/* make sure there was no error */
 			if ((status & ATA_SR_ERR)) {
@@ -256,10 +289,7 @@ void ata_init(void) {
 					((d->exists == true && d->is_atapi == true) ? "ATAPI device" : "not present")); 
 		}
 	}
-
 #endif
-
-	//panic("Success");
 
 	/* Re-enable ATA interrupts (clear the nIEN flag, along with SRST/HOB) */
 	ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, 0);
@@ -267,4 +297,34 @@ void ata_init(void) {
 
 	enable_interrupts();
 	force_current_console = false;
+}
+
+/* Reads a single sector at LBA /lba/. /buffer/ must be at least 512 bytes, or buffer overrun WILL occur. */
+bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
+	assert(dev != NULL);
+	assert(dev->exists);
+	assert(dev->size - 1 >= lba);
+	assert(buffer != NULL);
+
+	buf = buffer;
+
+	/* TODO: LBA48 */
+
+	/* Select the drive, and write the 4 high LBA bits */
+	ata_reg_write(dev->channel, ATA_REG_DRIVE_SELECT, 0xe0 | (dev->drive << 4) | ((lba >> 24) & 0x0f));
+
+	/* Wait for a while for the selection to stick... */
+	for (int i=0; i<4; i++)
+		ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+
+	/* Set the sector count and the lower 24 bits of the LBA address */
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, 1);
+	ata_reg_write(dev->channel, ATA_REG_LBA_LO, (lba & 0xff));
+	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
+	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
+	
+	/* Send the READ SECTOR(S) command */
+	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
+
+	return true;
 }
