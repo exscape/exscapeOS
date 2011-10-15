@@ -2,7 +2,7 @@
 #include <kernel/console.h> /* puts */
 #include <kernel/interrupts.h>
 
-static void syscall_handler(uint32);
+static uint32 syscall_handler(uint32);
 
 static void *syscalls[] = {
 	&puts,
@@ -13,11 +13,11 @@ void init_syscalls(void) {
 	register_interrupt_handler(0x80, &syscall_handler);
 }
 
-void syscall_handler(uint32 esp) {
+uint32 syscall_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* Make sure this is a valid syscall */
 	if (regs->eax >= num_syscalls)
-		return;
+		return esp;
 
 	/* Get the function */
 	void *func = syscalls[regs->eax];
@@ -40,6 +40,8 @@ void syscall_handler(uint32 esp) {
 				 : "=a" (ret) : "r" (regs->edi), "r" (regs->esi), "r" (regs->edx), "r" (regs->ecx), "r" (regs->ebx), "r" (func));
 
 	regs->eax = ret;
+
+	return esp;
 }
 
 DEFN_SYSCALL1(puts, 0, const char *);

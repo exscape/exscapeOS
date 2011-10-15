@@ -150,7 +150,7 @@ unsigned char kbdse_alt[128] =
     0,	/* All other keys are undefined */
 };		
 
-void keyboard_callback(uint32 esp __attribute__((unused))) {
+uint32 keyboard_callback(uint32 esp) {
 	/* 
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
 	 * After looking through a table of possibilities, none of them
@@ -163,7 +163,7 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 	unsigned char scancode = inb(0x60);
 	unsigned char c;
 	if (scancode == 0xe0)
-		return; // For now
+		return esp; // For now
 
 	if (mod_keys == (MOD_CTRL | MOD_ALT) && scancode == 0xd3) {
 		// Ctrl+Alt+Delete!
@@ -189,7 +189,7 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 		task_t *cur_task = (task_t *)virt->tasks->tail->data;
 		console_switch(cur_task->console);
 
-		return;
+		return esp;
 	}
 
 	//printk("in: %02x\n", scancode);
@@ -201,30 +201,30 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 		case 0x2a: /* shift down */
 		case 0x36: /* right shift down */
 			mod_keys |= MOD_SHIFT;
-			return;
+			return esp;
 			break;
 		case 0xaa: /* shift up */
 		case 0xb6: /* right shift up */
 			mod_keys &= ~MOD_SHIFT;
-			return;
+			return esp;
 			break;
 
 		case 0x1d: /* ctrl down */
 			mod_keys |= MOD_CTRL;
-			return;
+			return esp;
 			break;
 		case 0x9d: /* ctrl up */
 			mod_keys &= ~MOD_CTRL;
-			return;
+			return esp;
 			break;
 
 		case 0x38: /* alt down */
 			mod_keys |= MOD_ALT;
-			return;
+			return esp;
 			break;
 		case 0xb8: /* alt up */
 			mod_keys &= ~MOD_ALT;
-			return;
+			return esp;
 			break;
 
 		default:
@@ -247,16 +247,16 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 	}
 	else if ( !(scancode & 0x80) ) { // scancode isn't simply a supported key being released
 		printk("Not implemented (scancode = %02x)\n", scancode);
-		return;
+		return esp;
 	}
 	else if (scancode & 0x80) {
 		// Key was released
-		return;
+		return esp;
 	}
 
 	/* Add the key to the current console's ring buffer */
 	if (c == 0)
-		return;
+		return esp;
 
 	assert(current_console != NULL);
 
@@ -274,22 +274,5 @@ void keyboard_callback(uint32 esp __attribute__((unused))) {
 	if (keybuffer->write_ptr > keybuffer->data + KEYBUFFER_SIZE)
 		keybuffer->write_ptr = keybuffer->data;
 
-#if 0
-	if (!(scancode & 0x80) && c != 0) {
-		putchar(c);
-
-		if (c == 0x08) {
-			/* 
-			 * If this is a backspace, remove the previous character.
-			 * The cursor is decremented only because putchar increments it!
-			 * This isn't done in putchar() because printing a \b should only
-			 * move the cursor, not actually delete anything.
-			 */
-			putchar(' '); 
-			cursor.x--;
-		}
-		update_cursor(); /* as of right now, putchar() doesn't call this to save resources */
-	}
-#endif
-
+	return esp;
 }

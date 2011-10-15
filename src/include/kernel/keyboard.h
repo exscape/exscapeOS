@@ -5,7 +5,7 @@
 
 #define KEYBUFFER_SIZE 256
 
-void keyboard_callback(uint32 esp);
+uint32 keyboard_callback(uint32 esp);
 void init_keyboard(void);
 
 #endif

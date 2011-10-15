@@ -78,14 +78,14 @@ extern ata_device_t devices[4];
 #define ATA_SR_ERR 0x01
 
 /* The flags in the error register */
-#define    ATA_ER_BBK      0x80
-#define    ATA_ER_UNC      0x40
-#define    ATA_ER_MC      0x20
-#define    ATA_ER_IDNF      0x10
-#define    ATA_ER_MCR      0x08
-#define    ATA_ER_ABRT      0x04
-#define    ATA_ER_TK0NF   0x02
-#define    ATA_ER_AMNF      0x01
+#define ATA_ER_BBK 0x80
+#define ATA_ER_UNC 0x40
+#define ATA_ER_MC 0x20
+#define ATA_ER_IDNF 0x10
+#define ATA_ER_MCR 0x08
+#define ATA_ER_ABRT 0x04
+#define ATA_ER_TK0NF 0x02
+#define ATA_ER_AMNF 0x01
 
 /* Flags used in the ata_device_t capabilities field - not defined in any standard */
 #define ATA_CAPABILITY_LBA28 (1 << 0)

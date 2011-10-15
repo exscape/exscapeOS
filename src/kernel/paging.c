@@ -441,7 +441,7 @@ void flush_all_tlb(void) {
 }
 
 /* The page fault interrupt handler. */
-void page_fault_handler(uint32 esp) {
+uint32 page_fault_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* Whenever a page fault occurs, the CR2 register contains the fault address. */
 	uint32 faulting_address;
@@ -468,4 +468,6 @@ void page_fault_handler(uint32 esp) {
 	printk("Address is %s; heap end address is %p\n", (addr_is_mapped(faulting_address)) ? "mapped" : "UNMAPPED", (kheap == 0) ? 0 : kheap->end_address);
 
 	panic("Page fault");
+
+	return esp; /* not reached at the moment */
 }

@@ -55,7 +55,7 @@ void switch_page_directory(page_directory_t *new);
 page_t *get_page (uint32 addr, bool create, page_directory_t *dir);
 
 /* The page fault interrupt handler. */
-void page_fault_handler(uint32);
+uint32 page_fault_handler(uint32);
 
 void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable);
 void free_frame(uint32 virtual_addr, page_directory_t *page_dir);

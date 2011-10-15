@@ -18,9 +18,11 @@ uint32 uptime(void) {
 	return timer_ticks / TIMER_HZ;
 }
 
-void timer_handler(uint32 esp __attribute__((unused))) {
+uint32 timer_handler(uint32 esp) {
 	/* Increase the tick count */
 	timer_ticks++;
+
+	return esp;
 }
 
 /*

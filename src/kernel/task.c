@@ -151,8 +151,6 @@ task_t *create_task( void (*entry_point)(void), const char *name) {
 
 	assert(task->console == con);
 	assert( (task_t *)con->tasks->head->data == task);
-	//task->console = con;
-	//con->task = task;
 
 	return task;
 }
@@ -271,11 +269,52 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	return task;
 }
 
-uint32 switch_task(task_t *new_task) {
+/* Puts the calling process into the IOWAIT state, and returns to it(!). NOT called from ISRs. */
+void scheduler_set_iowait(void) {
+	current_task->state = TASK_IOWAIT;
+	/* TODO: set a timeout? */
+}
+
+static bool task_iowait_predicate(node_t *node) {
+	assert(node != NULL);
+	assert(node->data != NULL);
+	task_t *t = (task_t *)node->data;
+	return (t->state == TASK_IOWAIT);
+}
+
+/* Finds the (TODO! shouldn't be singular) IOWAIT process and wakes it, i.e. switches to it.
+ * This function *IS* called from ISRs. */
+uint32 scheduler_wake_iowait(uint32 esp) {
+	//assert(current_task->state != TASK_IOWAIT);
+
+	node_t *n = NULL;
+	if (current_task->state != TASK_IOWAIT) {
+		/* Only do this if the CURRENT task isn't the task to "wake" */
+		n = list_node_find_next_predicate(ready_queue.head, task_iowait_predicate);
+		assert(n != NULL);
+	}
+
+	/* make sure this is the ONLY process in IOWAIT */
+	if (n == NULL)
+		n = ready_queue.head;
+	assert(list_node_find_next_predicate(n, task_iowait_predicate) == NULL);
+
+	task_t *iotask = (task_t *)n->data;
+	assert(iotask->state == TASK_IOWAIT);
+
+	iotask->state = TASK_RUNNING;
+
+	return switch_task(iotask, esp);
+}
+
+uint32 switch_task(task_t *new_task, uint32 esp) {
 	if (current_task == NULL || task_switching == false) {
 		panic("switch_task with no current_task or task_switching disabled");
 		// return 0;
 	}
+
+	if (new_task == current_task)
+		return esp;
 
 	/* this should really be a no-op, since, interrupts should already be disabled from the ISR. */
 	disable_interrupts();
@@ -283,6 +322,9 @@ uint32 switch_task(task_t *new_task) {
 
 	if (new_task->page_directory != current_task->page_directory)
 		switch_page_directory(new_task->page_directory);
+
+	/* Store the current ESP */
+	current_task->esp = esp;
 
 	current_task = new_task;
 
@@ -308,16 +350,13 @@ static bool task_not_sleeping_predicate(node_t *node) {
 	assert(node != NULL);
 	assert(node->data != NULL);
 	task_t *t = (task_t *)node->data;
-	return (t->state != TASK_SLEEPING);
+	return (t->state != TASK_SLEEPING && t->state != TASK_IOWAIT);
 }
 
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && ready_queue.count == 1))
 		return esp;
-
-	/* Save the current ESP (the one for the task we're switching FROM) */
-	current_task->esp = esp;
 
 	/* Look through the list of tasks to find sleeping tasks; if
 	 * any are found, check whether they should be woken up now.
@@ -331,7 +370,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 			/* Wake this task! */
 			p->wakeup_time = 0;
 			p->state = TASK_RUNNING;
-			return switch_task(p);
+			return switch_task(p, esp);
 		}
 	}
 
@@ -353,7 +392,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
 		if (new_task_node == NULL) {
 			/* all tasks are asleep, possibly except for the current one! */
-			if ( ((task_t *)old_task_node->data)->state != TASK_SLEEPING) {
+			if ( ((task_t *)old_task_node->data)->state == TASK_RUNNING) {
 				/* only the current process is not sleeping; let's not switch, then! */
 				return (esp);
 			}
@@ -376,7 +415,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	
 	/* Looks like we found a running task to switch to! Let's do so. */
 
-    return switch_task(new_task);
+    return switch_task(new_task, esp);
 }
 
 int getpid(void) {
@@ -398,6 +437,7 @@ void sleep(uint32 milliseconds) {
 
 	/* Sanity checks */
 	assert(current_task->state != TASK_SLEEPING);
+	assert(current_task->state != TASK_IOWAIT);
 	assert(current_task->wakeup_time == 0);
 	assert(current_task != &kernel_task);
 

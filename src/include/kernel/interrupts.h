@@ -51,7 +51,7 @@ typedef struct
 } __attribute__((packed)) registers_t;
 
 /* Used to register callbacks for interrupts. */
-typedef void (*isr_t)(uint32);
+typedef uint32 (*isr_t)(uint32);
 void register_interrupt_handler(uint8 n, isr_t handler);
 
 /* The mapping of IRQs to ISR handlers. */

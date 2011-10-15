@@ -9,41 +9,21 @@
 ata_channel_t channels[2];
 ata_device_t devices[4];
 
-static volatile uint8 *buf = 0; /* TODO! */
+static volatile uint32 ata_interrupts_handled = 0;
 
 static void ata_cmd(uint8 channel, uint8 cmd);
 static uint8 ata_reg_read(uint8 channel, uint16 reg);
 static void ata_reg_write(uint8 channel, uint16 reg, uint8 data);
 
-static void ata_interrupt_handler(uint32 esp) {
+uint32 ata_interrupt_handler(uint32 esp) {
 	/* Minus 32 to map from ISR number to IRQ number (14 or 15), then
 	 * minus 14 to map from IRQ number (14 or 15) to channel (0 or 1 aka. primary or secondary). */
-	uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
-	assert(channel == 0 || channel == 1);
-	esp=esp;
+	//uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
+	//assert(channel == 0 || channel == 1);
+	//esp=esp;
 
-	/* TODO: once or 5 times? */
-	uint8 status;
-	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(ATA_PRIMARY /* TODO */, ATA_REG_ALT_STATUS);
-	
-	assert(!(status & ATA_SR_BSY));
-	assert(status & ATA_SR_DRQ);
-	assert(!(status & ATA_SR_ERR));
-
-	/* Let's do this thing */
-	uint16 *words = (uint16 *)buf;
-	for (int i=0; i < 256; i++) {
-		words[i] = inw(channels[channel].base);
-	}
-	
-	char *str = (char *)buf;
-	printk("Done! Buffer read is: %s\n", str);
-
-	panic("ATA interrupt!");
+	ata_interrupts_handled++;
+	return scheduler_wake_iowait(esp);
 }
 
 static void ata_cmd(uint8 channel, uint8 cmd) {
@@ -260,7 +240,6 @@ void ata_init(void) {
 	
 	/* We're done detecting drives! */
 
-#if 1
 	/* Print the info we have about each device */
 	for (int dev = 0; dev < 4; dev++) {
 		/* a shorthand */
@@ -289,7 +268,6 @@ void ata_init(void) {
 					((d->exists == true && d->is_atapi == true) ? "ATAPI device" : "not present")); 
 		}
 	}
-#endif
 
 	/* Re-enable ATA interrupts (clear the nIEN flag, along with SRST/HOB) */
 	ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, 0);
@@ -306,9 +284,10 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	assert(dev->size - 1 >= lba);
 	assert(buffer != NULL);
 
-	buf = buffer;
-
 	/* TODO: LBA48 */
+	/* TODO: add a mutex here; ata_read is hardly thread safe! */
+
+	disable_interrupts();
 
 	/* Select the drive, and write the 4 high LBA bits */
 	ata_reg_write(dev->channel, ATA_REG_DRIVE_SELECT, 0xe0 | (dev->drive << 4) | ((lba >> 24) & 0x0f));
@@ -322,9 +301,47 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	ata_reg_write(dev->channel, ATA_REG_LBA_LO, (lba & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
-	
+
 	/* Send the READ SECTOR(S) command */
+	uint32 old_handled = ata_interrupts_handled;
 	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
 
+	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
+	 * will wake it back up, hopefully just below the enable_interrupts() line. */
+	scheduler_set_iowait();
+
+	/* The process state is set, the ATA command is sent... take us out of here! */
+	enable_interrupts();
+	asm volatile("int $0x7e"); /* force a task switch */
+
+	/*************************************************************************
+	 * This void between these two lines is where we should return           *
+	 * once the interrupt has fired and the drive is ready to transfer data. *
+	 *************************************************************************/
+
+	asm volatile("nop");
+
+	/* The interrupt handlec should have increased this variable by one at this point! */
+	assert(ata_interrupts_handled == old_handled + 1);
+
+	/* TODO: once or 5 times? */
+	uint8 status;
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	
+	assert(!(status & ATA_SR_BSY));
+	assert(status & ATA_SR_DRQ);
+	assert(!(status & ATA_SR_ERR));
+
+	/* Let's do this thing */
+	uint16 *words = (uint16 *)buffer;
+	for (int i=0; i < 256; i++) {
+		words[i] = inw(channels[dev->channel].base);
+	}
+	
+	printk("Done! Buffer read is: %s\n", (char *)buffer);
 	return true;
 }

@@ -103,13 +103,15 @@ void idt_set_gate(uint8 num, uint32 base, uint16 sel, uint8 flags) {
 	idt[num].flags   = flags;
 }
 
-static void divzero_handler(uint32 esp) {
+static uint32 divzero_handler(uint32 esp) {
 	printk("In divzero handler, esp = %p\n", esp);
 	if (current_task != &kernel_task) {
 		kill((task_t *)current_task);
 	}
 	else
 		panic("Division by zero in kernel_task!");
+
+	return esp;
 }
 
 /* Installs the IDT; called from kmain() */
@@ -299,7 +301,7 @@ uint32 irq_handler(uint32 esp) {
 		if (regs->int_no != 0x7e) {
 			/* Ugly hack; we need to enter the parent clause despite no handling being set up for interrupt 0x7e,
 			 * so we would try to call a NULL handler here without this check. */
-			handler(esp);
+			esp = handler(esp);
 		}
 	}
 	else if (regs->int_no > IRQ1) {

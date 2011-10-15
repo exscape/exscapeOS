@@ -114,7 +114,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_tasking(init_esp0);
 	printk("done\n");
 
-
 	printk("Detecting ATA devices and initializing them... ");
 	printk("\n");
 	ata_init();
@@ -123,7 +122,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	unsigned char *buf = kmalloc(512);
 	ata_read(&devices[0], 0, buf);
 	printk("Buffer contents: %512s\n", (char *)buf);
-	panic("Done");
 
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task");

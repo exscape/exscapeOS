@@ -100,6 +100,7 @@ isr_common_stub:
     pop eax
 
     add esp, 8
+	sti
     iret
 
 
@@ -175,4 +176,5 @@ irq_common_stub:
     pop eax
 
     add esp, 8
+	sti
     iret
