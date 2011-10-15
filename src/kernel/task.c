@@ -143,26 +143,34 @@ void init_tasking(uint32 kerntask_esp0) {
 
 static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege);
 
-task_t *create_task( void (*entry_point)(void), const char *name) {
-	console_t *con = console_create();
-	assert(con != NULL);
+task_t *create_task( void (*entry_point)(void), const char *name, bool console) {
+	console_t *con = NULL;
+	if (console) {
+		con = console_create();
+		assert(con != NULL);
+	}
 	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */);
 	assert(task != NULL);
 
 	assert(task->console == con);
-	assert( (task_t *)con->tasks->head->data == task);
+	if (con != NULL)
+		assert( (task_t *)con->tasks->head->data == task);
 
 	return task;
 }
 
-task_t *create_task_user( void (*entry_point)(void), const char *name) {
-	console_t *con = console_create();
-	assert(con != NULL);
+task_t *create_task_user( void (*entry_point)(void), const char *name, bool console) {
+	console_t *con = NULL;
+	if (console) {
+		con = console_create();
+		assert(con != NULL);
+	}
 	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */);
 	assert(task != NULL);
 
 	assert(task->console == con);
-	assert( (task_t *)con->tasks->head->data == task);
+	if (con != NULL)
+		assert( (task_t *)con->tasks->head->data == task);
 
 	return task;
 }
@@ -209,13 +217,15 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 
 	/* Set up a console for the new task */
 	task->console = console;
-	list_append(task->console->tasks, task);
+	if (console) {
+		list_append(task->console->tasks, task);
 
-	/* TODO: this is not a great solution. Adds this task to the previous console's task list */
-	console_t *prev = task->console->prev_console;
-	while (prev != NULL) {
-		list_append(prev->tasks, task);
-		prev = prev->prev_console;
+		/* TODO: this is not a great solution. Adds this task to the previous console's task list */
+		console_t *prev = task->console->prev_console;
+		while (prev != NULL) {
+			list_append(prev->tasks, task);
+			prev = prev->prev_console;
+		}
 	}
 
 	/* Set up the kernel stack of the new process */
@@ -262,7 +272,8 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	list_node_insert_after(list_find_first((list_t *)&ready_queue, (void *)current_task), (void *)task);
 
 	/* Switch to the new console */
-	console_switch(task->console);
+	//if (console)
+		//console_switch(task->console);
 
 	task_switching = true;
 	enable_interrupts(); /* not sure if this is needed */
@@ -299,6 +310,7 @@ uint32 scheduler_wake_iowait(uint32 esp) {
 		n = ready_queue.head;
 	assert(list_node_find_next_predicate(n, task_iowait_predicate) == NULL);
 
+	/* Wake the task up, and switch to it! */
 	task_t *iotask = (task_t *)n->data;
 	assert(iotask->state == TASK_IOWAIT);
 

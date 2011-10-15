@@ -172,7 +172,7 @@ void kshell(void) {
 		}
 
 		if (strcmp(p, "heaptest") == 0) {
-			task = create_task(&heaptest, "heaptest");
+			task = create_task(&heaptest, "heaptest", true);
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -190,19 +190,19 @@ void kshell(void) {
 			break;
 		}
 		else if (strcmp(p, "print_1_sec") == 0) {
-			create_task(&print_1_sec, "print_1_sec");
+			create_task(&print_1_sec, "print_1_sec", true);
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
-			task = create_task(&sleep_test, "sleeptest");
+			task = create_task(&sleep_test, "sleeptest", true);
 		}
 		else if (strcmp(p, "fpu_task") == 0) {
-			task = create_task(&fpu_task, "fpu_task");
+			task = create_task(&fpu_task, "fpu_task", true);
 		}
 		else if (strcmp(p, "permaidle") == 0) {
-			task = create_task(&permaidle, "permaidle");
+			task = create_task(&permaidle, "permaidle", true);
 		}
 		else if (strcmp(p, "pagefault") == 0) {
-			task = create_task(&create_pagefault, "create_pagefault");
+			task = create_task(&create_pagefault, "create_pagefault", false);
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
@@ -210,7 +210,7 @@ void kshell(void) {
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
 		}
 		else if (strcmp(p, "infloop_task") == 0) {
-			task = create_task(&infinite_loop, "infinite_loop");
+			task = create_task(&infinite_loop, "infinite_loop", true);
 		}
 		else if (strcmp(p, "ps") == 0) {
 			node_t *cur_task_node = ready_queue.head;
@@ -221,6 +221,8 @@ void kshell(void) {
 				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
 						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
 
+#if 0
+				/* Doesn't work in VMware/Parallels! The alignment is off somehow, so all the values are wrong... */
 				if (current_task != cur_task) {
 					registers_t *regs = (registers_t *)( (uint32)cur_task->esp );
 					assert(regs->ds == 0x10 || regs->ds == 0x23);
@@ -229,6 +231,7 @@ void kshell(void) {
 					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, cur_task->esp, regs->ebp);
 					printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
 				}
+#endif
 
 				printk("--------------\n");
 
@@ -240,10 +243,10 @@ void kshell(void) {
 			divzero();
 		}
 		else if (strcmp(p, "guess") == 0) {
-			task = create_task(&guess_num, "guess_num");
+			task = create_task(&guess_num, "guess_num", true);
 		}
 		else if(strcmp(p, "divzero_task") == 0) {
-			task = create_task(&divzero, "divzero");
+			task = create_task(&divzero, "divzero", true);
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
@@ -262,15 +265,15 @@ void kshell(void) {
 			testbench();
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
-			task = create_task(&testbench, "testbench");
+			task = create_task(&testbench, "testbench", true);
 		}
 		else if (strcmp(p, "user_test") == 0) {
 			/* launch a user mode test task */
-			create_task_user(&user_test, "user_test");
+			create_task_user(&user_test, "user_test", true);
 		}
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
-			task = create_task(&kshell, "kshell (nested)");
+			task = create_task(&kshell, "kshell (nested)", true);
 		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */

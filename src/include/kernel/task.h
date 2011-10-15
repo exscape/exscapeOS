@@ -29,8 +29,8 @@ typedef struct task
 bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);
 int getpid(void);
-task_t *create_task( void (*entry_point)(void), const char *name);
-task_t *create_task_user( void (*entry_point)(void), const char *name);
+task_t *create_task( void (*entry_point)(void), const char *name, bool console);
+task_t *create_task_user( void (*entry_point)(void), const char *name, bool console);
 uint32 scheduler_taskSwitch(uint32 esp);
 uint32 switch_task(task_t *new_task, uint32 esp);
 bool kill_pid(int pid);

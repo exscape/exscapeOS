@@ -114,6 +114,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_tasking(init_esp0);
 	printk("done\n");
 
+	printk("Starting idle_task... ");
+	create_task(idle_task, "idle_task", /*console = */ false);
+	printk("done\n");
+
+#if 0
 	printk("Detecting ATA devices and initializing them... ");
 	printk("\n");
 	ata_init();
@@ -121,21 +126,25 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	unsigned char *buf = kmalloc(512);
 	ata_read(&devices[0], 0, buf);
-	printk("Buffer contents: %512s\n", (char *)buf);
+	force_current_console = true;
+	printk("Buffer contents LBA0: \"%512s\"\n", (char *)buf);
+	force_current_console = false;
 
-	//printk("Starting idle_task... ");
-	//create_task(idle_task, "idle_task");
-	//printk("done\n");
+	ata_read(&devices[0], 1, buf);
+	printk("Buffer contents LBA1: \"%512s\"\n", (char *)buf);
+#endif
 
+#if 1
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
 	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
 		console_init(&virtual_consoles[i]);
-		node_t *new_node = list_append(virtual_consoles[i].tasks, create_task(&kshell, "kshell"));
+		node_t *new_node = list_append(virtual_consoles[i].tasks, create_task(&kshell, "kshell", true));
 		((task_t *)new_node->data)->console = &virtual_consoles[i];
 		virtual_consoles[i].active = false;
 	}
 
 	console_switch(&virtual_consoles[0]);
+#endif
 
 	printk("All initialization complete!\n\n");
 

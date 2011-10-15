@@ -18,9 +18,12 @@ static void ata_reg_write(uint8 channel, uint16 reg, uint8 data);
 uint32 ata_interrupt_handler(uint32 esp) {
 	/* Minus 32 to map from ISR number to IRQ number (14 or 15), then
 	 * minus 14 to map from IRQ number (14 or 15) to channel (0 or 1 aka. primary or secondary). */
-	//uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
-	//assert(channel == 0 || channel == 1);
-	//esp=esp;
+	uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
+	assert(channel == 0 || channel == 1);
+
+	/* In this state, "the host shall read the device Status register.
+	 * Let's do so. */
+	inb(channels[channel].base + ATA_REG_STATUS);
 
 	ata_interrupts_handled++;
 	return scheduler_wake_iowait(esp);
@@ -304,6 +307,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* Send the READ SECTOR(S) command */
 	uint32 old_handled = ata_interrupts_handled;
+	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, 0); /* enable ATA interrupts */
 	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
 
 	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
@@ -331,6 +335,8 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	uint8 tmp = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
+	assert(status == tmp);
 	
 	assert(!(status & ATA_SR_BSY));
 	assert(status & ATA_SR_DRQ);
@@ -340,8 +346,12 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	uint16 *words = (uint16 *)buffer;
 	for (int i=0; i < 256; i++) {
 		words[i] = inw(channels[dev->channel].base);
+
 	}
+
+	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
 	
-	printk("Done! Buffer read is: %s\n", (char *)buffer);
+	//printk("Done! Buffer read is: %s\n", (char *)buffer);
 	return true;
 }
