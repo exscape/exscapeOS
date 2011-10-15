@@ -57,6 +57,7 @@ console_t kernel_console = {
 /* Returns a key from the keyboard buffer, if possible. */
 unsigned char getchar(void) {
 	/* If no characters are available, loop until there's something. */
+	assert(current_task->console != NULL);
 
 	volatile struct ringbuffer *keybuffer = (volatile struct ringbuffer *) & current_task->console->keybuffer;
 	while (keybuffer->counter == 0) {
@@ -184,6 +185,10 @@ void init_video(void) {
 
 void clrscr(void) {
 	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
+
+	if (current_task->console == NULL)
+		return;
+
 	if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
@@ -196,6 +201,8 @@ void clrscr(void) {
 }
 
 void cursor_left(void) {
+	if (current_task->console == NULL)
+		return;
 	Point *cursor = &current_task->console->cursor;
 	if (cursor->x != 0)
 		cursor->x--;
@@ -204,6 +211,8 @@ void cursor_left(void) {
 }
 
 void cursor_right(void) {
+	if (current_task->console == NULL)
+		return;
 	Point *cursor = &current_task->console->cursor;
 	if (cursor->x < 79)
 		cursor->x++;
@@ -217,6 +226,8 @@ void cursor_right(void) {
 }
 
 void scroll(void) {
+	if (current_task->console == NULL)
+		return;
 	Point *cursor = &current_task->console->cursor;
 	if (cursor->y < 25)
 		return;
@@ -244,9 +255,20 @@ void scroll(void) {
 
 
 int putchar(int c) {
-	Point *cursor = &current_task->console->cursor;
+	Point *cursor = NULL;
+	if (current_task->console == NULL && force_current_console == false) {
+		panic("putchar() in task with no console!");
+	}
+	else if (current_task->console != NULL)
+		cursor = &current_task->console->cursor;
+
 	if (force_current_console)
 		cursor = (Point *)&current_console->cursor;
+
+	Point tmp_ = {0, 0}; /* Extremely ugly HACK! TODO! */
+	if (cursor == NULL)
+		cursor = &tmp_;
+
 	if (c == '\n') {
 		// c == newline
 		cursor->x = 0;
@@ -261,7 +283,8 @@ int putchar(int c) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
-		current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		if (current_task->console != NULL)
+			current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
 			/* Also update the actual video ram if this console is currently displayed */
 

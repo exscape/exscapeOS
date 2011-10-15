@@ -23,7 +23,10 @@ uint32 ata_interrupt_handler(uint32 esp) {
 
 	/* In this state, "the host shall read the device Status register.
 	 * Let's do so. */
-	inb(channels[channel].base + ATA_REG_STATUS);
+	uint8 status = inb(channels[channel].base + ATA_REG_STATUS);
+	assert(!(status & ATA_SR_BSY));
+	assert(status & ATA_SR_DRQ);
+	assert(!(status & ATA_SR_ERR));
 
 	ata_interrupts_handled++;
 	return scheduler_wake_iowait(esp);
@@ -93,16 +96,33 @@ void ata_init(void) {
 	channels[ATA_SECONDARY].ctrl = ATA_REG_DEV_CONTROL_SEC;
 	channels[ATA_SECONDARY].bmide = 0;
 	channels[ATA_SECONDARY].nIEN = 1; /* disable interrupts */
-	
-	/* Disable ATA interrupts (temporarily, while we IDENTIFY) */
-	ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
-	ata_reg_write(ATA_SECONDARY, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
 
+	uint8 fl[2] = {0};
+
+	fl[ATA_PRIMARY] = ata_reg_read(ATA_PRIMARY, ATA_REG_STATUS);
+	fl[ATA_SECONDARY] = ata_reg_read(ATA_SECONDARY, ATA_REG_STATUS);
+	
 	for (int ch = 0; ch < 2; ch++) {
 		for  (int drive = 0; drive < 2; drive++) {
 
+			if (fl[ch] == 0xff) {
+				/* "Floating bus" - this channel is empty! */
+				devices[ch * 2 + 0].exists = false;
+				devices[ch * 2 + 1].exists = false;
+				continue;
+			}
+
+			/* Disable ATA interrupts (temporarily, while we IDENTIFY) */
+			/* Should be done outside the loop, but the float check above *MUST* come first */
+			/* TODO: is this per channel or per device? */
+			ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
+			ata_reg_write(ATA_SECONDARY, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
+
 			/* select the drive */
 			ata_reg_write(ch, ATA_REG_DRIVE_SELECT, ATA_DRIVE | (drive << 4));
+
+			/* disable interrupts for this drive */
+			ata_reg_write(ch, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
 
 			/* This drive's entry in the /devices/ structure */
 			uint8 dev = ch * 2 + drive;
@@ -123,7 +143,7 @@ void ata_init(void) {
 			/* check the status reg */
 			uint8 status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 
-			if (status == 0) {
+			if (status == 0 || status == 0xff) {
 				/* drive does not exist */
 				devices[dev].exists = false;
 				continue;
@@ -135,6 +155,14 @@ void ata_init(void) {
 					break;
 				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 			}
+
+			if (status & ATA_SR_ERR) {
+				devices[dev].exists = false;
+				printk("An error occured on IDENTIFY device for channel %u, drive %u. Ignoring drive!\n", ch, drive);
+				continue;
+			}
+
+			assert(!(status & ATA_SR_ERR));
 
 			/* check for ATAPI/SATA drives */
 			uint8 lo = ata_reg_read(ch, ATA_REG_LBA_MID);
@@ -298,6 +326,9 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* Wait for a while for the selection to stick... */
 	for (int i=0; i<4; i++)
 		ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+
+	/* Temporarily disable ATA interrupts for this drive (TODO: channel?!) */
+	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
 
 	/* Set the sector count and the lower 24 bits of the LBA address */
 	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, 1);

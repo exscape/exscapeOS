@@ -300,15 +300,21 @@ uint32 scheduler_wake_iowait(uint32 esp) {
 
 	node_t *n = NULL;
 	if (current_task->state != TASK_IOWAIT) {
-		/* Only do this if the CURRENT task isn't the task to "wake" */
-		n = list_node_find_next_predicate(ready_queue.head, task_iowait_predicate);
-		assert(n != NULL);
+		if (current_task != &kernel_task && kernel_task.state == TASK_IOWAIT)
+			n = ready_queue.head;
+		else {
+			/* Only do this if the CURRENT task isn't the task to "wake" */
+			n = list_node_find_next_predicate(ready_queue.head, task_iowait_predicate);
+			assert(n != NULL);
+		}
 	}
 
 	/* make sure this is the ONLY process in IOWAIT */
+	/* This needs work! */
 	if (n == NULL)
-		n = ready_queue.head;
-	assert(list_node_find_next_predicate(n, task_iowait_predicate) == NULL);
+		n = list_find_first((list_t *)&ready_queue, (void *)current_task);
+	if (n != NULL)
+		assert(list_node_find_next_predicate(n, task_iowait_predicate) == NULL);
 
 	/* Wake the task up, and switch to it! */
 	task_t *iotask = (task_t *)n->data;

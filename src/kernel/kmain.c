@@ -118,7 +118,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	create_task(idle_task, "idle_task", /*console = */ false);
 	printk("done\n");
 
-#if 0
+#if 1
 	printk("Detecting ATA devices and initializing them... ");
 	printk("\n");
 	ata_init();
@@ -127,12 +127,29 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	unsigned char *buf = kmalloc(512);
 	ata_read(&devices[0], 0, buf);
 	force_current_console = true;
-	printk("Buffer contents LBA0: \"%512s\"\n", (char *)buf);
+	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 	force_current_console = false;
 
-	ata_read(&devices[0], 1, buf);
-	printk("Buffer contents LBA1: \"%512s\"\n", (char *)buf);
+	ata_read(&devices[0], 2, buf);
+	printk("Buffer contents LBA1: \"%s\"\n", (char *)buf);
 #endif
+
+	uint32 start_t = gettickcount();
+	for (uint64 i = 0; i < 1000; i++) {
+		assert(buf != NULL);
+		ata_read(&devices[0], i, buf);
+		//assert(buf != NULL);
+		//if (*buf == 0)
+			//continue;
+		//printk("LBA%u: \"%s\"\n", i, (char *)buf);
+		//assert(buf != NULL);
+	}
+	uint32 end_t = gettickcount();
+	uint32 d = end_t - start_t;
+	d *= 10;
+	printk("Reading 1000 sectors took %u ms\n", d);
+
+	printk("All initialization complete!\n\n");
 
 #if 1
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
@@ -146,13 +163,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	console_switch(&virtual_consoles[0]);
 #endif
 
-	printk("All initialization complete!\n\n");
-
 	while (true) {
 		//asm volatile("sti; hlt");
 		asm volatile("int $0x7e");
 	}
-
 
 	//switch_to_user_mode();
 	//asm volatile("hlt");
