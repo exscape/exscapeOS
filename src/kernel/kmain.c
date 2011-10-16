@@ -38,6 +38,12 @@ void idle_task(void) {
 	}
 }
 
+void force_switch_task(void) {
+	for (;;) {
+		asm volatile("int $0x7e");
+	}
+}
+
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	/* Set up the kernel console keybuffer, to prevent panics on keyboard input.
@@ -114,9 +120,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_tasking(init_esp0);
 	printk("done\n");
 
-	printk("Starting idle_task... ");
-	create_task(idle_task, "idle_task", /*console = */ false);
-	printk("done\n");
+	//printk("Starting idle_task... ");
+	//create_task(idle_task, "idle_task", /*console = */ false);
+	//printk("done\n");
+
+	create_task(force_switch_task, "force_switch_task", false);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
@@ -135,7 +143,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 #endif
 
 	uint32 start_t = gettickcount();
-	for (uint64 i = 0; i < 1000; i++) {
+	for (uint64 i = 0; i < 64000; i++) {
 		assert(buf != NULL);
 		ata_read(&devices[0], i, buf);
 		//assert(buf != NULL);
@@ -147,7 +155,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	uint32 end_t = gettickcount();
 	uint32 d = end_t - start_t;
 	d *= 10;
-	printk("Reading 1000 sectors took %u ms\n", d);
+	printk("Reading 64000 sectors took %u ms\n", d);
 
 	printk("All initialization complete!\n\n");
 

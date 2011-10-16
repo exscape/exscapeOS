@@ -359,7 +359,7 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	 * Return the ESP of the new task (which is now set as current_task).
 	 * The next line of code to execute is the one in the ISR that updates the ESP register to this value.
 	 * After that, the ISR pops off all the registers etc. and continues execution at the EIP found
-	 * at this ESP value. Since all those belong to the new task, we will have switched tasks.
+	 * at this ESP value. Since all of those belong to the new task, we will have switched tasks.
 	 */
 	return current_task->esp;
 } 
@@ -432,6 +432,8 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	}
 	
 	/* Looks like we found a running task to switch to! Let's do so. */
+	
+	assert(new_task->state == TASK_RUNNING);
 
     return switch_task(new_task, esp);
 }

@@ -21,7 +21,7 @@ uint32 ata_interrupt_handler(uint32 esp) {
 	uint8 channel = ((registers_t *)esp)->int_no - 32 - 14;
 	assert(channel == 0 || channel == 1);
 
-	/* In this state, "the host shall read the device Status register.
+	/* In this state, "the host shall read the device Status register."
 	 * Let's do so. */
 	uint8 status = inb(channels[channel].base + ATA_REG_STATUS);
 	assert(!(status & ATA_SR_BSY));
@@ -366,14 +366,14 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
 
+	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
+	 * will wake it back up, hopefully just below the enable_interrupts() line. */
+	scheduler_set_iowait();
+
 	/* Send the READ SECTOR(S) command */
 	uint32 old_handled = ata_interrupts_handled;
 	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, 0); /* enable ATA interrupts */
 	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
-
-	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
-	 * will wake it back up, hopefully just below the enable_interrupts() line. */
-	scheduler_set_iowait();
 
 	/* The process state is set, the ATA command is sent... take us out of here! */
 	enable_interrupts();
@@ -413,7 +413,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
+	//printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
 	
 	//printk("Done! Buffer read is: %s\n", (char *)buffer);
 	return true;
