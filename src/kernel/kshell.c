@@ -158,7 +158,7 @@ void kshell(void) {
 			if (ch == 0x08) {
 				putchar(' '); cursor_left();
 			}
-			
+
 			update_cursor();
 		}
 		buf[i] = 0;

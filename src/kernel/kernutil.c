@@ -25,7 +25,7 @@ uint16 inw(uint16 port)
    uint16 ret;
    asm volatile ("inw %1, %0" : "=a" (ret) : "dN" (port));
    return ret;
-} 
+}
 
 void panic(const char *str) {
 //	clrscr();

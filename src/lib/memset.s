@@ -42,7 +42,7 @@ memset:
 	; likewise, al should contain the pattern we want (for stosb)
 
 	push eax ; store the value (temporarily, while we calculate the number of dwords and bytes)
-	
+
 	; Set ecx to the number of dwords to set
 	mov eax, ecx ; ecx = number of bytes to set
 	xor edx, edx ; clear edx before division

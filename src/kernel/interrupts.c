@@ -174,7 +174,7 @@ void idt_install(void) {
 	outb(0xA1, 0x01);
 	outb(0x21, 0x0);
 	outb(0xA1, 0x0);
- 
+
 	/* Add IRQ handlers to our IDT */
 	idt_set_gate(32, (uint32)irq0, 0x08, 0x8e);
     idt_set_gate(33, (uint32)irq1, 0x08, 0x8e);

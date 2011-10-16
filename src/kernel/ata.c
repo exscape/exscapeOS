@@ -101,7 +101,7 @@ void ata_init(void) {
 
 	fl[ATA_PRIMARY] = ata_reg_read(ATA_PRIMARY, ATA_REG_STATUS);
 	fl[ATA_SECONDARY] = ata_reg_read(ATA_SECONDARY, ATA_REG_STATUS);
-	
+
 	for (int ch = 0; ch < 2; ch++) {
 		for  (int drive = 0; drive < 2; drive++) {
 
@@ -148,7 +148,7 @@ void ata_init(void) {
 				devices[dev].exists = false;
 				continue;
 			}
-			
+
 			/* wait for the busy flag to clear */
 			while (true) {
 				if (! (status & ATA_SR_BSY))
@@ -298,7 +298,7 @@ void ata_init(void) {
 			printk("Set ch=%u drive=%u to PIO mode %u\n", ch, drive, devices[dev].max_pio_mode);
 		} /* end drive loop */
 	} /* end channel loop */
-	
+
 	/* We're done detecting drives! */
 
 	/* Print the info we have about each device */
@@ -398,7 +398,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 	uint8 tmp = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
 	assert(status == tmp);
-	
+
 	assert(!(status & ATA_SR_BSY));
 	assert(status & ATA_SR_DRQ);
 	assert(!(status & ATA_SR_ERR));
@@ -414,7 +414,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 	//printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
-	
+
 	//printk("Done! Buffer read is: %s\n", (char *)buffer);
 	return true;
 }

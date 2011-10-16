@@ -123,7 +123,7 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 	assert(type == AREA_USED || type == AREA_FREE);
 	assert(size > sizeof(area_header_t) + sizeof(area_footer_t));
 	assert(address >= heap->start_address && (address + size) <= heap->end_address);
-	
+
 	/* The caller of this function is responsible for details like page alignment.
 	 * If we should page-align something, then address should BE page aligned by now. */
 
@@ -187,7 +187,7 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 					/* This area is large enough despite the page alignment! */
 					return header;
 				}
-			} 
+			}
 			else {
 				/* No page align, so we're good! */
 				return header;
@@ -341,7 +341,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		if (rightmost_area != NULL && rightmost_area->type == AREA_FREE) {
 			/* Add the space to this area */
 			area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
-			
+
 			/* "Delete" the old footer */
 			rightmost_footer->magic = 0;
 
@@ -499,7 +499,7 @@ void heap_free(void *p, heap_t *heap) {
 	/* Should we add this hole to the index? This depends on whether we unify, and how (below). */
 	bool add_to_index = true;
 
-	/* 
+	/*
 	 * Here's how the index should work with the four possible cases:
   	 * 1) free() without any bordering free areas: add to index; thus this is the default (above)
 	 * 2) free() + unify left (and left only): don't add to index (the left area is already there)
@@ -549,13 +549,13 @@ void heap_free(void *p, heap_t *heap) {
 		area_footer_t *right_area_footer = FOOTER_FROM_HEADER(right_area_header);
 		if (right_area_footer->magic == HEAP_MAGIC && right_area_footer->header == right_area_header) {
 			/* Yep! Merge with this one. */
-			
+
 			/* Delete the rightmost hole from the index before we merge */
 			remove_ordered_array_item((void *)right_area_header, &kheap->free_index);
 
 			/* Add the newfound space to the leftmost header */
 			header->size += right_area_header->size;
-			
+
 			/* Overwrite the old header and footer, just in case something tries to use them; 
 			 * in that case, the asserts will catch the invalid magics */
 			footer->magic = 0;
@@ -589,7 +589,7 @@ void heap_free(void *p, heap_t *heap) {
 
 		area_header_t *rightmost_area = heap->rightmost_area;
 		area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
-		
+
 		/* Sanity checks */
 		assert(rightmost_area->magic == HEAP_MAGIC);
 		assert(rightmost_footer->magic == HEAP_MAGIC);
@@ -664,7 +664,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	header_to_create->size = initial_size;
 	header_to_create->magic = HEAP_MAGIC;
 	header_to_create->type = AREA_FREE;
-	
+
 	footer_to_create->magic = HEAP_MAGIC;
 	footer_to_create->header = header_to_create;
 
@@ -673,7 +673,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 
 	/* Keep track of the rightmost area - since this is the ONLY area, it's also the rightmost area! */
 	heap->rightmost_area = header_to_create;
-	
+
 	return heap;
 }
 

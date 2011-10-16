@@ -36,7 +36,7 @@ void itoa(signed long n, char *out) {
 		out[i++] = '-';
 
 	out[i++] = 0;
-	
+
 	reverse(out);
 }
 

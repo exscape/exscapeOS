@@ -114,7 +114,7 @@ static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 	if (page->frame != 0) {
 		/* This frame is already allocated! */
 		return;
-	} 
+	}
 	else {
 		/* Find a free frame */
 		uint32 index = first_free_frame();

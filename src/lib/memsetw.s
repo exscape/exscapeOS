@@ -32,7 +32,7 @@ memsetw:
 	; likewise, ax should contain the pattern we want (for stosw)
 
 	push eax ; store the value (temporarily, while we calculate the number of dwords and words)
-	
+
 	; Set ecx to the number of dwords to set
 	mov eax, ecx ; ecx = number of words to set
 	xor edx, edx ; clear edx before division

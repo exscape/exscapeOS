@@ -355,14 +355,14 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	task_switching = true;
 	//enable_interrupts(); // let the ISR do this
 
-	/* 
+	/*
 	 * Return the ESP of the new task (which is now set as current_task).
 	 * The next line of code to execute is the one in the ISR that updates the ESP register to this value.
 	 * After that, the ISR pops off all the registers etc. and continues execution at the EIP found
 	 * at this ESP value. Since all of those belong to the new task, we will have switched tasks.
 	 */
 	return current_task->esp;
-} 
+}
 
 static bool task_not_sleeping_predicate(node_t *node) {
 	assert(node != NULL);
@@ -430,9 +430,9 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		/* no point in switching, eh? */
         return(esp);
 	}
-	
+
 	/* Looks like we found a running task to switch to! Let's do so. */
-	
+
 	assert(new_task->state == TASK_RUNNING);
 
     return switch_task(new_task, esp);

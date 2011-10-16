@@ -34,7 +34,7 @@ void gdt_set_gate(sint32 num, uint32 base, uint32 limit, uint8 access, uint8 gra
 	gdt[num].access = access;
 }
 
-/* 
+/*
  * This is the "main" GDT setup function, i.e. the one kmain() should call.
  * It sets up the GDT pointer, the first three entries, and then calls 
  * gdt_flush() to load the new GDT and update the segment registers. 

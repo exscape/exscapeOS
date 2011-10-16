@@ -234,7 +234,7 @@ void scroll(void) {
 
 	/* Copy the entire screen to the buffer */
 	memcpy(vram_buffer, current_task->console->videoram, 80*25*2);
-	
+
 	/* Copy back the lower 24 lines
 	 * Note that we add 80, not 80*2, due to pointer arithmetic! (vram_buffer is a uint16 *) */
 	memcpy(current_task->console->videoram, vram_buffer + 80, 80*24*2);

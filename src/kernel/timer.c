@@ -40,7 +40,7 @@ uint32 timer_handler(uint32 esp) {
  */
 
 void timer_install(void) {
-	/* 
+	/*
      * Set the timer frequency
      * If the oscillator works at 1 193 182 Hz, dividing by 11932 gives
      * 99.9985 Hz, the closest possible to 100 (with an integer divisor, of course).

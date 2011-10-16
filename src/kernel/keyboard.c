@@ -57,7 +57,7 @@ unsigned char kbdmix[128] =
     0,	/* F11 Key */
     0,	/* F12 Key */
     0,	/* All other keys are undefined */
-};		
+};
 
 // Excerpt from the US no-modifier key-table
   //'q', 'w', 'e', 'r',	/* 19 */
@@ -108,7 +108,7 @@ unsigned char kbdse_shift[128] =
     0,	/* F11 Key */
     0,	/* F12 Key */
     0,	/* All other keys are undefined */
-};		
+};
 
 unsigned char kbdse_alt[128] =
 {
@@ -148,10 +148,10 @@ unsigned char kbdse_alt[128] =
     0,	/* F11 Key */
     0,	/* F12 Key */
     0,	/* All other keys are undefined */
-};		
+};
 
 uint32 keyboard_callback(uint32 esp) {
-	/* 
+	/*
 	 * Note: This code ignores escaped scancodes (0xe0 0x*) for now.
 	 * After looking through a table of possibilities, none of them
 	 * matter much! For instance, they are used to differ between

@@ -115,7 +115,7 @@ list_t *list_create(void) {
 
 node_t *list_append(list_t *list, void *data) {
 	assert(list != NULL);
-	
+
 	if (list->tail != NULL) {
 		node_t *new = kmalloc(sizeof(node_t));
 
@@ -189,7 +189,7 @@ node_t *list_node_insert_before(node_t *node, void *data) {
 		new->prev = node->prev;
 		new->next = node;
 		new->list = list;
-		
+
 		/* update the preceding node */
 		assert(new->prev != NULL);
 		new->prev->next = new;
@@ -231,7 +231,7 @@ node_t *list_node_insert_after(node_t *node, void *data) {
 		new->prev = node;
 		new->next = node->next;
 		new->list = list;
-		
+
 		/* update the preceding node (/node/) */
 		node->next = new;
 

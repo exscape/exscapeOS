@@ -34,7 +34,7 @@ typedef struct {
 	uint32 max_address;
 	uint8 supervisor;
 	uint8 readonly;
-	
+
 	ordered_array_t free_index; /* Stores an array of area_header_t pointers */
 	ordered_array_t used_index; /* Stores an array of area_header_t pointers */
 

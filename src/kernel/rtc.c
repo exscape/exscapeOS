@@ -16,7 +16,7 @@ void get_time(Time *t) {
 	 * It's still here just in case; rewriting it would be boring.
 	 */
 
-/*	
+/*
 	// Set status reg B for debugging purposes
 	unsigned char rb = 0;
 
@@ -106,7 +106,7 @@ void get_time(Time *t) {
 		"inb $0x71, %%al;"
 		"movb %%al, %[second];"
 
-		: 
+		:
 		[yeartmp]"=m"(yeartmp),
 		[month]"=m"(t->month),
 		[day]  "=m"(t->day),
