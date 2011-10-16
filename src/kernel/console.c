@@ -89,12 +89,11 @@ void console_switch(console_t *new) {
 
 /* Creates a new console for the specified task */
 console_t *console_create(void) {
-	//assert(owning_task != NULL);
-	//assert(owning_task != &kernel_task);
-
 	console_t *new = kmalloc(sizeof(console_t));
 	memset(new, 0, sizeof(console_t));
 
+	/* Set the new console up. This is done separately so that non-malloc'ed consoles
+	 * can also be set up. */
 	console_init(new);
 
 	return new;
@@ -181,6 +180,7 @@ void init_video(void) {
 }
 
 void clrscr(void) {
+	assert(current_console != NULL);
 	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
 
 	if (current_task->console == NULL)
@@ -224,7 +224,7 @@ void cursor_right(void) {
 
 void scroll(void) {
 	if (current_task->console == NULL)
-		return;
+		panic("scroll() in task without a console!");
 	Point *cursor = &current_task->console->cursor;
 	if (cursor->y < 25)
 		return;
