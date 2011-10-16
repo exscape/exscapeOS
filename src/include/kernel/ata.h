@@ -21,6 +21,7 @@ typedef struct ata_device {
 	char serial[21]; /* serial number as a NULL-terminated string. May be padded to 20 characters. */
 	uint8 ata_ver; /* the ATA version this disk conforms to */
 	uint8 max_udma_mode; /* 0 through 5; other values are invalid */
+	uint8 max_pio_mode; /* should be at least 3 for all ATA drives */
 } ata_device_t;
 
 void ata_init(void); /* detects drives and creates the structures used */
@@ -57,6 +58,10 @@ extern ata_device_t devices[4];
 /* ATA commands we use */
 #define ATA_CMD_IDENTIFY 0xec
 #define ATA_CMD_READ_SECTORS 0x20
+#define ATA_CMD_SET_FEATURES 0xef
+
+/* SET FEATURES subcommands */
+#define ATA_SF_SET_TRANSFER_MODE 0x03
 
 /* Drive IDs to be sent to the drive select IO port */
 #define ATA_DRIVE 0xa0 /* base command */

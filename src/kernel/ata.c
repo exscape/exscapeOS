@@ -225,6 +225,16 @@ void ata_init(void) {
 				devices[dev].capabilities |= ATA_CAPABILITY_LBA48;
 			}
 
+			/* check for PIO mode support */
+			devices[dev].max_pio_mode = 0;
+			if (words[64] & (1 << 0))
+				devices[dev].max_pio_mode = 3;
+			if (words[64] & (1 << 1))
+				devices[dev].max_pio_mode = 4;
+
+			if (devices[dev].max_pio_mode < 3)
+				panic("Device does not support PIO 3 - which is required by the ATA standard");
+
 			/* Read the drive size (try LBA28 first) */
 			uint32 lba28_size = *((uint32 *)&words[60]);
 			if (lba28_size == 0 || (words[49] & (1 << 9)) == 0 /* LBA supported bit */)
@@ -266,6 +276,26 @@ void ata_init(void) {
 
 			strlcpy(devices[dev].model, model, 41);
 			strlcpy(devices[dev].serial, serial, 21);
+
+			/* Set the PIO transfer mode to the maximum supported mode */
+			status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+			while (status & ATA_SR_BSY)
+				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+
+			assert(status & ATA_SR_DRDY);
+
+			/* Set the subcommand and argument, and send the command. */
+			assert(devices[dev].max_pio_mode >= 3);
+			ata_reg_write(ch, ATA_REG_FEATURES, ATA_SF_SET_TRANSFER_MODE);
+			ata_reg_write(ch, ATA_REG_SECTOR_COUNT, ((1 << 3)) | devices[dev].max_pio_mode);
+			ata_cmd(ch, ATA_CMD_SET_FEATURES);
+
+			status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+			while (status & ATA_SR_BSY)
+				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+
+			assert(!(status & ATA_SR_ERR));
+			printk("Set ch=%u drive=%u to PIO mode %u\n", ch, drive, devices[dev].max_pio_mode);
 		} /* end drive loop */
 	} /* end channel loop */
 	
@@ -375,10 +405,12 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* Let's do this thing */
 	uint16 *words = (uint16 *)buffer;
-	for (int i=0; i < 256; i++) {
-		words[i] = inw(channels[dev->channel].base);
-
-	}
+	//for (int i=0; i < 256; i++) {
+		//words[i] = inw(channels[dev->channel].base);
+	//}
+	uint32 count = 256;
+	uint16 port = channels[dev->channel].base;
+	asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 	printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
