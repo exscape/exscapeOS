@@ -134,9 +134,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	unsigned char *buf = kmalloc(512);
 	ata_read(&devices[0], 0, buf);
-	force_current_console = true;
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
-	force_current_console = false;
 
 	ata_read(&devices[0], 2, buf);
 	printk("Buffer contents LBA1: \"%s\"\n", (char *)buf);

@@ -30,16 +30,16 @@ uint16 inw(uint16 port)
 void panic(const char *str) {
 //	clrscr();
 	asm volatile("cli");
-	force_current_console = true;
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
 	asm("hangloop: hlt ; jmp hangloop");
 }
 
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
-	force_current_console = true;
-
-	printk("PANIC: Assertion failed: %s (%s:%d)\n", desc, file, line);
-	asm("cli; asserthang: hlt; jmp asserthang");
+	/* Call panic() instead of doing this ourselves, so that breakpoints
+	 * on panic() catches assertions as well */
+	char buf[1024];
+	sprintf(buf, "PANIC: Assertion failed: %s (%s:%d)\n", desc, file, line);
+	panic(buf);
 }
 
 void reset(void) {

@@ -83,7 +83,6 @@ void ata_init(void) {
 	memset(&channels, 0, sizeof(channels));
 	memset(&devices, 0, sizeof(devices));
 
-	force_current_console = true;
 	register_interrupt_handler(IRQ14, ata_interrupt_handler);
 	register_interrupt_handler(IRQ15, ata_interrupt_handler);
 
@@ -335,7 +334,6 @@ void ata_init(void) {
 	ata_reg_write(ATA_SECONDARY, ATA_REG_DEV_CONTROL, 0);
 
 	enable_interrupts();
-	force_current_console = false;
 }
 
 /* Reads a single sector at LBA /lba/. /buffer/ must be at least 512 bytes, or buffer overrun WILL occur. */

@@ -241,9 +241,6 @@ const char *exception_name[] = {
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
 
-	/* Make sure this output is visible! */
-	force_current_console = true;
-
 	registers_t *regs = (registers_t *)esp;
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
@@ -265,10 +262,6 @@ uint32 isr_handler(uint32 esp) {
 	else {
 		panic("Interrupt not handled (no handler registered for interrupt number)");
 	}
-
-	/* Return the console, in case we didn't actually panic */
-
-	force_current_console = false;
 
 	return esp;
 }
@@ -307,7 +300,6 @@ uint32 irq_handler(uint32 esp) {
 	else if (regs->int_no > IRQ1) {
 		/* Make an exception for the timer (IRQ0), since it may fire before we set up the handler for it */
 		/* Also ignore the keyboard (IRQ1), just in case. */
-		force_current_console = true;
 		printk("IRQ without handler: IRQ %d\n", regs->int_no - 32);
 		panic("See above");
 	}

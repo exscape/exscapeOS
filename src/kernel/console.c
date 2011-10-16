@@ -23,9 +23,6 @@ extern task_t kernel_task;
 
 volatile console_t *current_console;
 
-/* If true, all output will be on the current console, no matter who's writing */
-volatile bool force_current_console = false;
-
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
 console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
@@ -189,7 +186,7 @@ void clrscr(void) {
 	if (current_task->console == NULL)
 		return;
 
-	if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
+	if ((task_t *)current_console->tasks->tail->data == current_task) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
 	}
@@ -256,18 +253,14 @@ void scroll(void) {
 
 int putchar(int c) {
 	Point *cursor = NULL;
-	if (current_task->console == NULL && force_current_console == false) {
+
+	if (current_task->console == NULL) {
 		panic("putchar() in task with no console!");
 	}
 	else if (current_task->console != NULL)
 		cursor = &current_task->console->cursor;
 
-	if (force_current_console)
-		cursor = (Point *)&current_console->cursor;
-
-	Point tmp_ = {0, 0}; /* Extremely ugly HACK! TODO! */
-	if (cursor == NULL)
-		cursor = &tmp_;
+	assert(cursor != NULL);
 
 	if (c == '\n') {
 		// c == newline
@@ -285,29 +278,21 @@ int putchar(int c) {
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		if (current_task->console != NULL)
 			current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		if ((task_t *)current_console->tasks->tail->data == current_task || force_current_console == true) {
-			/* Also update the actual video ram if this console is currently displayed */
+		if ((task_t *)current_console->tasks->tail->data == current_task) {
+				/* Also update the actual video ram if this console is currently displayed */
 
-			if (!force_current_console && current_task->privilege == 0) {
-				/* TODO: The privilege check above is a temporary HACK to make user mode code able to use puts() easily. */
-				assert(current_task->console == current_console);
-				assert(current_console == current_task->console);
-				assert(current_task == (task_t *)current_console->tasks->tail->data);
-				assert(current_console->active == true);
+				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+
+			if (cursor->x + 1 == 80) {
+				// Wrap to the next line
+				cursor->y++;
+				cursor->x = 0;
 			}
-
-			videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-
-		if (cursor->x + 1 == 80) {
-			// Wrap to the next line
-			cursor->y++;
-			cursor->x = 0;
+			else {
+				// Don't wrap
+				cursor->x++;
+			}
 		}
-		else {
-			// Don't wrap
-			cursor->x++;
-		}
-	}
 	}
 
 	scroll(); // Scroll down, if need be
