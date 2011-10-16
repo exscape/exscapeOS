@@ -17,6 +17,7 @@ uint16 *vram_buffer = NULL;
 
 /* task.c */
 extern volatile task_t *current_task;
+extern volatile task_t *console_task;
 extern task_t kernel_task;
 
 /* TODO: mutexes! */
@@ -180,27 +181,23 @@ void init_video(void) {
 }
 
 void clrscr(void) {
-	assert(current_console != NULL);
-	memsetw( ((console_t *)current_console)->videoram, blank, 80*25);
+	assert(console_task->console != NULL);
+	memsetw(console_task->console->videoram, blank, 80*25);
 
-	if (current_task->console == NULL)
-		return;
-
-	if ((task_t *)current_console->tasks->tail->data == current_task) {
+	if ((task_t *)current_console->tasks->tail->data == console_task) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
 	}
 
-	Point *cursor = &current_task->console->cursor;
+	Point *cursor = &console_task->console->cursor;
 	cursor->x = 0;
 	cursor->y = 0;
 	update_cursor();
 }
 
 void cursor_left(void) {
-	if (current_task->console == NULL)
-		return;
-	Point *cursor = &current_task->console->cursor;
+	assert(console_task->console != NULL);
+	Point *cursor = &console_task->console->cursor;
 	if (cursor->x != 0)
 		cursor->x--;
 
@@ -208,9 +205,8 @@ void cursor_left(void) {
 }
 
 void cursor_right(void) {
-	if (current_task->console == NULL)
-		return;
-	Point *cursor = &current_task->console->cursor;
+	assert(console_task->console != NULL);
+	Point *cursor = &console_task->console->cursor;
 	if (cursor->x < 79)
 		cursor->x++;
 	else {
@@ -223,26 +219,27 @@ void cursor_right(void) {
 }
 
 void scroll(void) {
-	if (current_task->console == NULL)
+	if (console_task->console == NULL)
 		panic("scroll() in task without a console!");
-	Point *cursor = &current_task->console->cursor;
+
+	Point *cursor = &console_task->console->cursor;
 	if (cursor->y < 25)
 		return;
 
 	/* Copy the entire screen to the buffer */
-	memcpy(vram_buffer, current_task->console->videoram, 80*25*2);
+	memcpy(vram_buffer, console_task->console->videoram, 80*25*2);
 
 	/* Copy back the lower 24 lines
 	 * Note that we add 80, not 80*2, due to pointer arithmetic! (vram_buffer is a uint16 *) */
-	memcpy(current_task->console->videoram, vram_buffer + 80, 80*24*2);
+	memcpy(console_task->console->videoram, vram_buffer + 80, 80*24*2);
 
 	/* Blank the last line */
-	memsetw(current_task->console->videoram + 24*80, blank, 80);
+	memsetw(console_task->console->videoram + 24*80, blank, 80);
 
 	/* Also update the screen, if this console is currently displayed */
-	if ((task_t *)current_console->tasks->tail->data == current_task) {
+	if ((task_t *)current_console->tasks->tail->data == console_task) {
 		assert(current_console->active == true);
-		memcpy(videoram, current_task->console->videoram, 80*25*2);
+		memcpy(videoram, console_task->console->videoram, 80*25*2);
 	}
 
 	/* Move the cursor */
@@ -254,12 +251,9 @@ void scroll(void) {
 int putchar(int c) {
 	Point *cursor = NULL;
 
-	if (current_task->console == NULL) {
-		panic("putchar() in task with no console!");
-	}
-	else if (current_task->console != NULL)
-		cursor = &current_task->console->cursor;
+	assert(console_task->console != NULL);
 
+	cursor = &console_task->console->cursor;
 	assert(cursor != NULL);
 
 	if (c == '\n') {
@@ -276,11 +270,10 @@ int putchar(int c) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
-		if (current_task->console != NULL)
-			current_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		if ((task_t *)current_console->tasks->tail->data == current_task) {
+		if (console_task->console != NULL)
+			console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		if ((task_t *)current_console->tasks->tail->data == console_task) {
 				/* Also update the actual video ram if this console is currently displayed */
-
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 
 			if (cursor->x + 1 == 80) {
@@ -313,7 +306,14 @@ void update_cursor(void) {
 	}
 #endif
 
-	//Point *cursor = &current_task->console->cursor; /* TODO: use current_console instead? */
+	if (list_find_first(current_console->tasks, (void *)console_task) == NULL) {
+		/* The current task (console_task) isn't among this console's tasks.
+		 * Don't update the cursor on screen now. */
+		return; 
+	}
+
+	assert(console_task->console == current_console);
+
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	uint16 loc = cursor->y * 80 + cursor->x;
 

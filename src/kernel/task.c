@@ -52,7 +52,14 @@ task_t kernel_task = {
 };
 
 /* Our globals */
-volatile task_t *current_task = &kernel_task; // the currently running task
+
+/* Points to the currently executing task. In interrupt handlers, this points to the interrupted task. */
+volatile task_t *current_task = &kernel_task;
+
+/* The currently executing task, EXCEPT in ISRs/IRQ handlers (and all functions they call),
+ * where this is set to kernel_task. Why? Because all kernel output should go to
+ * the kernel console, and this is an easy way to do that. */
+volatile task_t *console_task = &kernel_task;
 
 extern volatile list_t ready_queue; /* "forward declare" the variable, since they link to each other */
 volatile node_t kernel_task_node = {
@@ -345,6 +352,7 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	current_task->esp = esp;
 
 	current_task = new_task;
+	console_task = new_task;
 
 	/* Update the TSS */
 	assert(current_task->stack != NULL);

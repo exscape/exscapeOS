@@ -8,6 +8,7 @@
 /* task.c */
 extern bool task_switching;
 extern volatile task_t *current_task;
+extern volatile task_t *console_task;
 extern task_t kernel_task;
 
 void disable_interrupts(void) {
@@ -240,6 +241,8 @@ const char *exception_name[] = {
 
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
+	/* Make sure all output goes to the kernel console */
+	console_task = &kernel_task;
 
 	registers_t *regs = (registers_t *)esp;
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
@@ -263,11 +266,17 @@ uint32 isr_handler(uint32 esp) {
 		panic("Interrupt not handled (no handler registered for interrupt number)");
 	}
 
+	/* Return the console to its correct value */
+	console_task = current_task;
+
 	return esp;
 }
 
 /* Called from the assembly code in kernel.s */
 uint32 irq_handler(uint32 esp) {
+	/* Send all output from IRQ handlers to the kernel console */
+	console_task = &kernel_task;
+
 	registers_t *regs = (registers_t *)esp;
 	/* If this interrupt came from the slave PIC, send an
 	   EOI (End Of Interrupt) to it */
@@ -303,6 +312,9 @@ uint32 irq_handler(uint32 esp) {
 		printk("IRQ without handler: IRQ %d\n", regs->int_no - 32);
 		panic("See above");
 	}
+
+	/* Return the console_task pointer to its correct state */
+	console_task = current_task;
 
 	return esp;
 }
