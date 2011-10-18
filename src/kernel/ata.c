@@ -446,8 +446,12 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	//printk("Status byte is 0x%02x after reading LBA %u\n", status, lba);
 
-	//printk("Done! Buffer read is: %s\n", (char *)buffer);
+	while (status & ATA_SR_BSY)
+		status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+
+	assert(!(status & ATA_SR_BSY));
+	assert(!(status & ATA_SR_ERR));
+
 	return true;
 }
