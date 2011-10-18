@@ -216,11 +216,9 @@ void ata_init(void) {
 			}
 
 			/* wait for the busy flag to clear */
-			while (true) {
-				if (! (status & ATA_SR_BSY))
-					break;
+			do {
 				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
-			}
+			} while (status & ATA_SR_BSY);
 
 			/* check for ATAPI/SATA drives */
 			uint8 lo = ata_reg_read(ch, ATA_REG_LBA_MID);
@@ -246,8 +244,6 @@ void ata_init(void) {
 				continue;
 			}
 
-			assert(!(status & ATA_SR_ERR));
-
 			/* It would appear this device exists and should be used! */
 			devices[dev].exists = true;
 			devices[dev].channel = ch;
@@ -270,8 +266,9 @@ void ata_init(void) {
 
 			/* read the 256 words that should be waiting for us */
 			uint16 words[256];
-			for (int i=0; i < 256; i++)
-				words[i] = inw(channels[ch].base);
+			uint32 count = 256;
+			uint16 port = channels[ch].base;
+			asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
 			char *model = ((char *)words) + 27*2;
 			char *serial = (char *)words + 10*2;
@@ -305,13 +302,13 @@ void ata_init(void) {
 			uint32 lba28_size = *((uint32 *)&words[60]);
 			if (lba28_size == 0 || (words[49] & (1 << 9)) == 0 /* LBA supported bit */)
 				panic("Drive does not support LBA! exscapeOS does not support CHS addressing, so this drive cannot be used.");
-			//lba28_size = ( (lba28_size & 0xffff) << 16 ) | ((lba28_size & 0xffff0000) >> 16);
 			devices[dev].size = lba28_size;
 			devices[dev].capabilities |= ATA_CAPABILITY_LBA28;
 
 			if (devices[dev].capabilities & ATA_CAPABILITY_LBA48) {
 				/* Check the LBA48 size */
 				uint64 lba48_size = *((uint64 *)&words[100]);
+				assert(lba48_size >= lba28_size);
 				devices[dev].size = lba48_size;
 			}
 
@@ -338,16 +335,21 @@ void ata_init(void) {
 			if (words[86] & (1 << 12))
 				devices[dev].capabilities |= ATA_CAPABILITY_FLUSH_CACHE;
 
-			assert((words[82] & (1 << 4)) == 0); /* "Shall be cleared to zero ... PACKET not supported */
+			/* Remove the trailing spaces (and unprintables) in the model and serial numbers */
+			char *p = model + 41; /* note: 1 past the end */
+			while (*--p <= 0x20);
+			*(p+1) = 0;
+			p = serial + 21; /* same */
+			while (*--p <= 0x20);
+			*(p+1) = 0;
 
 			strlcpy(devices[dev].model, model, 41);
 			strlcpy(devices[dev].serial, serial, 21);
 
-			/* Set the PIO transfer mode to the maximum supported mode */
-			status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
-			while (status & ATA_SR_BSY)
+			/* Prepare to set the PIO transfer mode to the maximum supported mode */
+			do {
 				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
-
+			} while (status & ATA_SR_BSY);
 			assert(status & ATA_SR_DRDY);
 
 			/* Set the subcommand and argument, and send the command. */
@@ -356,9 +358,10 @@ void ata_init(void) {
 			ata_reg_write(ch, ATA_REG_SECTOR_COUNT, ((1 << 3)) | devices[dev].max_pio_mode);
 			ata_cmd(ch, ATA_CMD_SET_FEATURES);
 
-			status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
-			while (status & ATA_SR_BSY)
+			/* Wait for the command to complete */
+			do {
 				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+			} while (status & ATA_SR_BSY);
 
 			assert(!(status & ATA_SR_ERR));
 			printk("Set ch=%u drive=%u to PIO mode %u\n", ch, drive, devices[dev].max_pio_mode);
@@ -376,8 +379,8 @@ void ata_init(void) {
 			printk("%s %s: %s (%s) (%u sectors)\n",
 				(d->channel == ATA_PRIMARY ? "Primary" : "Secondary"),
 				(d->drive == ATA_MASTER ? "master" : "slave"),
-				trim(d->model), /* NOTE: trim may change the string */
-				trim(d->serial), /* NOTE: trim may change the string */
+				d->model,
+				d->serial,
 				d->size);
 
 			printk("    %s %s %s %s, ATA version %u, UDMA mode %u supported\n",
