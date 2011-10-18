@@ -24,6 +24,8 @@ extern task_t kernel_task;
 
 volatile console_t *current_console;
 
+static void force_update_cursor(void);
+
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
 console_t *virtual_consoles[NUM_VIRTUAL_CONSOLES];
@@ -86,7 +88,7 @@ void console_switch(console_t *new) {
 	current_console->active = false;
 	new->active = true;
 	current_console = new;
-	update_cursor();
+	force_update_cursor();
 }
 
 /* Creates a new console for the specified task */
@@ -309,15 +311,6 @@ int putchar(int c) {
 void update_cursor(void) {
 	// Moves the hardware cursor to the current position specified by the cursor struct
 
-#if 0
-	if (current_console->task != current_task) {
-		/* This task's console isn't currently displayed. If we update the cursor now,
-		 * it will most likely be incorrectly placed on the console that is active.
-		 */
-		return;
-	}
-#endif
-
 	if (list_find_first(current_console->tasks, (void *)console_task) == NULL) {
 		/* The current task (console_task) isn't among this console's tasks.
 		 * Don't update the cursor on screen now. */
@@ -327,6 +320,22 @@ void update_cursor(void) {
 	assert(console_task->console == current_console);
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
+	uint16 loc = cursor->y * 80 + cursor->x;
+
+	uint8 high = (uint8)((loc >> 8) & 0xff);
+	uint8 low  = (uint8)(loc & 0xff);
+	outb(0x3d4, 0xe);
+	outb(0x3d5, high);
+	outb(0x3d4, 0xf);
+	outb(0x3d5, low);
+}
+
+/* Ugh, code duplication... */
+static void force_update_cursor(void) {
+	assert(current_console != NULL);
+	Point *cursor = & ((console_t *)current_console)->cursor;
+	assert(cursor != NULL);
+
 	uint16 loc = cursor->y * 80 + cursor->x;
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);

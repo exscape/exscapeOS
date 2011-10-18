@@ -121,7 +121,7 @@ void kshell(void) {
 
 	/* Make sure the current code spawns a new task for the kernel shell; otherwise, sleep() won't work. */
 	assert(current_task != &kernel_task);
-	assert(strcmp((char *)current_task->name, "kshell") == 0);
+	assert(strlen((char *)current_task->name) >= 6 && strncmp((char *)current_task->name, "kshell", 6) == 0);
 
 	while (true) {
 
