@@ -133,17 +133,20 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("done\n");
 
 	unsigned char *buf = kmalloc(512);
-	ata_read(&devices[0], 0, buf);
+
+	ata_device_t *ata_dev = &devices[0];
+
+	ata_read(ata_dev, 0, buf);
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 
-	ata_read(&devices[0], 2, buf);
+	ata_read(ata_dev, 2, buf);
 	printk("Buffer contents LBA1: \"%s\"\n", (char *)buf);
 #endif
 
 	uint32 start_t = gettickcount();
 	for (uint64 i = 0; i < 64000; i++) {
 		assert(buf != NULL);
-		ata_read(&devices[0], i, buf);
+		ata_read(ata_dev, i, buf);
 		//assert(buf != NULL);
 		//if (*buf == 0)
 			//continue;

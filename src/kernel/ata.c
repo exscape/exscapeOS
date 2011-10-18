@@ -10,16 +10,41 @@
  * TODO: timeouts
  */
 
+/* 
+ * This is the exscapeOS ATA driver. It's written based on the ATA/ATAPI-6
+ * standard (published in 2001). Version 6 was chosen because it is the 
+ * most recent standard that does NOT include Serial ATA... Yep.
+ * Unfortunately, not supporting SATA is easier than supporting SATA.
+ * At the time of this writing, easier = better.
+ *
+ * For the same reason, this driver is currently PIO only, and thus
+ * will use quite a lot of CPU time, and be limited to (in theory)
+ * 33 MiB/s. In practice, I've seen ~24 MiB/s in QEMU.
+ */
+
 /* Globals */
 ata_channel_t channels[2];
 ata_device_t devices[4];
 
+/* Mostly used for debugging, to ensure ATA interrupts aren't missed */
 static volatile uint32 ata_interrupts_handled = 0;
 
+/* Static functions, i.e. ones we don't want in ata.h */
 static void ata_cmd(uint8 channel, uint8 cmd);
 static uint8 ata_reg_read(uint8 channel, uint16 reg);
 static void ata_reg_write(uint8 channel, uint16 reg, uint8 data);
 
+/*
+ * The ATA interrupt handler.
+ * The driver works a bit like this:
+ * 1) Someone (within the kernel) calls ata_read/ata_write()
+ * 2) ata_*() prepares and sends the command to the drive, 
+ *    and sets the current task to the IOWAIT state, taking
+ *    it off the run queue. 
+ * 3) The drive causes an interrupt, which calls this function.
+ *    Its purpose is simply to wake up the task that called ata_*(),
+ *    and pass control back to it.
+ */
 uint32 ata_interrupt_handler(uint32 esp) {
 	/* Minus 32 to map from ISR number to IRQ number (14 or 15), then
 	 * minus 14 to map from IRQ number (14 or 15) to channel (0 or 1 aka. primary or secondary). */
@@ -37,11 +62,13 @@ uint32 ata_interrupt_handler(uint32 esp) {
 	return scheduler_wake_iowait(esp);
 }
 
+/* Looks slightly better than to use ata_reg_write() for commands */
 static void ata_cmd(uint8 channel, uint8 cmd) {
 	assert(channel == 0 || channel == 1);
 	outb(channels[channel].base + ATA_REG_COMMAND, cmd);
 }
 
+/* Read an ATA register. */
 static uint8 ata_reg_read(uint8 channel, uint16 reg) {
 	assert(channel == 0 || channel == 1);
 
@@ -58,6 +85,7 @@ static uint8 ata_reg_read(uint8 channel, uint16 reg) {
 	return 0;
 }
 
+/* Write to an ATA register. */
 static void ata_reg_write(uint8 channel, uint16 reg, uint8 data) {
 	assert(channel == 0 || channel == 1);
 
@@ -74,13 +102,16 @@ static void ata_reg_write(uint8 channel, uint16 reg, uint8 data) {
 static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 	assert(!(status & ATA_SR_BSY));
 	assert(status & ATA_SR_ERR);
-	uint8 err = ata_reg_read(channel, ATA_REG_ERROR);
+
 	if (status & ATA_SR_DF) {
 		panic("ATA error: device fault!");
 	}
 
+	uint8 err = ata_reg_read(channel, ATA_REG_ERROR);
+
 	switch (cmd) {
 		case ATA_CMD_READ_SECTORS: {
+		   printk("ATA_CMD_READ_SECTORS: ");
 			if (err & ATA_ER_NM) {
 				printk("ATA error: No Media\n");
 			}
@@ -111,6 +142,7 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 	panic("ATA error!");
 }
 
+/* Initialize the driver, and IDENTIFY DEVICEs */
 void ata_init(void) {
 	disable_interrupts();
 
@@ -190,14 +222,6 @@ void ata_init(void) {
 				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
 			}
 
-			if (status & ATA_SR_ERR) {
-				devices[dev].exists = false;
-				printk("An error occured on IDENTIFY device for channel %u, drive %u. Ignoring drive!\n", ch, drive);
-				continue;
-			}
-
-			assert(!(status & ATA_SR_ERR));
-
 			/* check for ATAPI/SATA drives */
 			uint8 lo = ata_reg_read(ch, ATA_REG_LBA_MID);
 			uint8 hi = ata_reg_read(ch, ATA_REG_LBA_HI);
@@ -215,6 +239,14 @@ void ata_init(void) {
 			else {
 				panic("Unsupported device (probably Serial ATA/Serial ATAPI)");
 			}
+
+			if (status & ATA_SR_ERR) {
+				devices[dev].exists = false;
+				printk("An error occured on IDENTIFY device for channel %u, drive %u. Ignoring drive!\n", ch, drive);
+				continue;
+			}
+
+			assert(!(status & ATA_SR_ERR));
 
 			/* It would appear this device exists and should be used! */
 			devices[dev].exists = true;
