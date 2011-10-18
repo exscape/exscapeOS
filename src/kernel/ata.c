@@ -21,6 +21,7 @@
  * will use quite a lot of CPU time, and be limited to (in theory)
  * 33 MiB/s. In practice, I've seen ~24 MiB/s in QEMU.
  */
+#define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
 /* Globals */
 ata_channel_t channels[2];
@@ -191,6 +192,7 @@ void ata_init(void) {
 	channels[ATA_SECONDARY].bmide = 0;
 	channels[ATA_SECONDARY].nIEN = 1; /* disable interrupts */
 
+	/* Check for "float", before *any* value is written to the bus */
 	uint8 fl[2] = {0};
 
 	fl[ATA_PRIMARY] = ata_reg_read(ATA_PRIMARY, ATA_REG_STATUS);
@@ -263,9 +265,13 @@ void ata_init(void) {
 				continue;
 			}
 			else {
-				panic("Unsupported device (probably Serial ATA/Serial ATAPI)");
+				printk("WARNING: device at ch=%u drive=%u is not supported! (Probably Serial ATA/Serial ATAPI)\n");
+				devices[dev].exists = false;
+				continue;
 			}
 
+			/* ATAPI devices appear to set ERR on IDENTIFY DEVICE, so we can't check this
+			 * before the test above. */
 			if (status & ATA_SR_ERR) {
 				devices[dev].exists = false;
 				printk("An error occured on IDENTIFY device for channel %u, drive %u. Ignoring drive!\n", ch, drive);
@@ -294,21 +300,23 @@ void ata_init(void) {
 
 			/* read the 256 words that should be waiting for us */
 			uint16 words[256];
-			uint32 count = 256;
-			uint16 port = channels[ch].base;
+			const uint32 count = 256;
+			const uint16 port = channels[ch].base;
 			asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
+			/* These strings are stored in words 27 and 10, respectively. Since a word is 2 bytes,
+			 * we multiply that index by 2. */
 			char *model = ((char *)words) + 27*2;
 			char *serial = (char *)words + 10*2;
 
 			/* The data is in litle endian. We need to swap it to make it readable. */
 			/* byte swap the model string data */
 			for (int i = 27; i <= 46; i++) {
-				words[i] = ((words[i] & 0xff) << 8) | ((words[i] & 0xff00) >> 8);
+				words[i] = BSWAP16(words[i]);
 			}
 			/* byte swap the serial number */
 			for (int i = 10; i <= 19; i++) {
-				words[i] = ((words[i] & 0xff) << 8) | ((words[i] & 0xff00) >> 8);
+				words[i] = BSWAP16(words[i]);
 			}
 
 			if (words[83] & (1 << 10)) {
