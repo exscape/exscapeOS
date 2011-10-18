@@ -25,7 +25,8 @@ typedef struct ata_device {
 } ata_device_t;
 
 void ata_init(void); /* detects drives and creates the structures used */
-bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer);
+bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer); /* reads a single sector */
+bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer); /* writes a single sector */
 
 extern ata_channel_t channels[2];
 extern ata_device_t devices[4];
@@ -58,6 +59,7 @@ extern ata_device_t devices[4];
 /* ATA commands we use */
 #define ATA_CMD_IDENTIFY 0xec
 #define ATA_CMD_READ_SECTORS 0x20
+#define ATA_CMD_WRITE_SECTORS 0x30
 #define ATA_CMD_SET_FEATURES 0xef
 
 /* SET FEATURES subcommands */
@@ -85,6 +87,7 @@ extern ata_device_t devices[4];
 /* The flags in the error register */
 #define ATA_ER_BBK 0x80
 #define ATA_ER_UNC 0x40
+#define ATA_ER_WP 0x40
 #define ATA_ER_MC 0x20
 #define ATA_ER_IDNF 0x10
 #define ATA_ER_MCR 0x08

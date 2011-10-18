@@ -52,19 +52,17 @@ uint32 ata_interrupt_handler(uint32 esp) {
 	assert(channel == 0 || channel == 1);
 
 	/* In this state, "the host shall read the device Status register."
-	 * However, we must wait 400 ns first. */
-	uint8 status = 0;
+	 * However, we must wait 400 ns first.
+	 * The wait should be closer to 100 ns for WRITE SECTOR(S), but... */
 	for (int i=0; i<4; i++)
-		status = ata_reg_read(channel, ATA_REG_ALT_STATUS);
+		ata_reg_read(channel, ATA_REG_ALT_STATUS);
 
 	/* Read the *regular* status register */
-	status = ata_reg_read(channel, ATA_REG_STATUS);
-
-	assert(!(status & ATA_SR_BSY));
-	assert(status & ATA_SR_DRQ);
-	assert(!(status & ATA_SR_ERR));
+	ata_reg_read(channel, ATA_REG_STATUS);
 
 	ata_interrupts_handled++;
+	printk("handled ATA interrupt #%u\n", ata_interrupts_handled);
+
 	return scheduler_wake_iowait(esp);
 }
 
@@ -139,6 +137,31 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 
 		}
 	   break;
+
+		case ATA_CMD_WRITE_SECTORS: {
+		   printk("ATA_CMD_WRITE_SECTORS: ");
+			if (err & ATA_ER_NM) {
+				printk("ATA error: No Media\n");
+			}
+			if (err & ATA_ER_ABRT) {
+				printk("ATA error: command aborted\n");
+			}
+			if (err & ATA_ER_MCR) {
+				printk("ATA error: Media Change Request\n");
+			}
+			if (err & ATA_ER_IDNF) {
+				printk("ATA error: User-accessible address not found\n");
+			}
+			if (err & ATA_ER_MC) {
+				printk("ATA error: Media Change\n");
+			}
+			if (err & ATA_ER_WP) {
+				printk("ATA error: media is write protected\n");
+			}
+
+		}
+	   break;
+
 		default:
 	   panic("ata_error(): unsupported command type");
 	   break;
@@ -463,15 +486,8 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* The interrupt handler should have increased this variable by one at this point! */
 	assert(ata_interrupts_handled == old_handled + 1);
 
-	/* TODO: once or 5 times? */
-	uint8 status;
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-	uint8 tmp = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
-	assert(status == tmp);
+	/* The 400ns wait is in the interrupt handler */
+	uint8 status = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
 
 	assert(!(status & ATA_SR_BSY));
 	assert(status & ATA_SR_DRQ);
@@ -491,6 +507,90 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 		status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 
 	assert(!(status & ATA_SR_BSY));
+	assert(!(status & ATA_SR_DF));
+
+	if (status & ATA_SR_ERR)
+		ata_error(dev->channel, status, ATA_CMD_READ_SECTORS);
+
+	return true;
+}
+
+/* Writes a single sector at LBA /lba/. The first 512 bytes of data in /buffer/ will be written. */
+bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
+	assert(dev != NULL);
+	assert(dev->exists);
+	assert(dev->size - 1 >= lba);
+	assert(buffer != NULL);
+
+	/* TODO: LBA48 */
+	/* TODO: mutexes! */
+
+	disable_interrupts();
+
+	/* Select the drive, and write the 4 high LBA bits */
+	ata_reg_write(dev->channel, ATA_REG_DRIVE_SELECT, 0xe0 | (dev->drive << 4) | ((lba >> 24) & 0x0f));
+
+	/* Wait for a while for the selection to stick... */
+	for (int i=0; i<4; i++)
+		ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+
+	/* Temporarily disable ATA interrupts for this drive (TODO: channel?!) */
+	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
+
+	/* Set the sector count and the lower 24 bits of the LBA address */
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, 1);
+	ata_reg_write(dev->channel, ATA_REG_LBA_LO, (lba & 0xff));
+	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
+	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
+
+	/* Send the WRITE SECTOR(S) command */
+	uint32 old_handled = ata_interrupts_handled;
+	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, 0); /* enable ATA interrupts */
+	ata_cmd(dev->channel, ATA_CMD_WRITE_SECTORS);
+
+	/* State HPIOO0: Check_Status State */
+	uint8 test = 0;
+	do {
+		test = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	} while (test & ATA_SR_BSY);
+
+	assert(test & ATA_SR_DRQ);
+
+	/* If the above was true, we're now in state HPIOO1: Transfer_Data */
+
+	/* Let's do this thing */
+	uint16 *words = (uint16 *)buffer;
+	uint16 port = channels[dev->channel].base;
+	for (int i=0; i < 256; i++) {
+		outw(port, words[i]);
+	}
+
+	/* We're done writing. That puts us in the HPIOO2: INTRQ_Wait state */
+
+	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
+	 * will wake it back up, hopefully just below the enable_interrupts() line. */
+	scheduler_set_iowait();
+
+	/* The process state is set. Let's go! */
+	enable_interrupts();
+	asm volatile("int $0x7e"); /* force a task switch */
+
+	/*************************************************************************
+	 * This void between these two lines is where we should return           *
+	 * once the interrupt has fired.                                         *
+	 *************************************************************************/
+
+	asm volatile("nop");
+
+	/* The interrupt handler should have increased this variable by one at this point! */
+	assert(ata_interrupts_handled == old_handled + 1);
+
+	/* The 400ns wait is in the interrupt handler */
+	uint8 status = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
+
+	while (status & ATA_SR_BSY)
+		status = ata_reg_read(dev->channel, ATA_REG_STATUS);
+
 	assert(!(status & ATA_SR_DF));
 
 	if (status & ATA_SR_ERR)

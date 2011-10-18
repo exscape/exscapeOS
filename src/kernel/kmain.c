@@ -131,18 +131,20 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("\n");
 	ata_init();
 	printk("done\n");
+#endif
 
 	unsigned char *buf = kmalloc(512);
-
 	ata_device_t *ata_dev = &devices[0];
 
+#if 1
 	ata_read(ata_dev, 0, buf);
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 
-	ata_read(ata_dev, 2, buf);
-	printk("Buffer contents LBA1: \"%s\"\n", (char *)buf);
+	((char *)buf)[0] = 'Y';
+	ata_write(ata_dev, 0, buf);
 #endif
 
+#if 0
 	uint32 start_t = gettickcount();
 	for (uint64 i = 0; i < 64000; i++) {
 		assert(buf != NULL);
@@ -157,6 +159,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	uint32 d = end_t - start_t;
 	d *= 10;
 	printk("Reading 64000 sectors took %u ms\n", d);
+#endif
 
 	printk("All initialization complete!\n\n");
 
