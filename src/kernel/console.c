@@ -26,7 +26,7 @@ volatile console_t *current_console;
 
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
-console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
+console_t *virtual_consoles[NUM_VIRTUAL_CONSOLES];
 /* These are set up properly in kmain() */
 
 #include <kernel/task.h>
@@ -49,7 +49,7 @@ console_t kernel_console = {
 	.tasks = &kernel_console_tasks,
 	.active = true,
 	.cursor = { .x = 0, .y = 0},
-	.prev_console = NULL,
+	//.prev_console = NULL,
 };
 
 /* Returns a key from the keyboard buffer, if possible. */
@@ -75,8 +75,9 @@ unsigned char getchar(void) {
 void console_switch(console_t *new) {
 	assert(new != NULL);
 
-	if (new == current_console)
+	if (new == current_console) {
 		return;
+	}
 
 	/* Copy the video memory of the new console to the actual video RAM, to display it */
 	memcpy(videoram, new->videoram, 80*25*2);
@@ -89,7 +90,13 @@ void console_switch(console_t *new) {
 }
 
 /* Creates a new console for the specified task */
+#if 1
 console_t *console_create(void) {
+
+	/* This function should only be used to set up the virtual consoles,
+	 * at the moment! If the last of them is set up, well... */
+	assert(virtual_consoles[NUM_VIRTUAL_CONSOLES - 1] == NULL);
+
 	console_t *new = kmalloc(sizeof(console_t));
 	memset(new, 0, sizeof(console_t));
 
@@ -99,6 +106,7 @@ console_t *console_create(void) {
 
 	return new;
 }
+#endif
 
 /* Initalize a console. Used during console creation; only called manually for static console_t's */
 void console_init(console_t *new) {
@@ -117,10 +125,11 @@ void console_init(console_t *new) {
 	memcpy(new->videoram, ((console_t *)current_console)->videoram, 80*25*2);
 	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
 
-	new->prev_console = (console_t *)current_console;
+	//new->prev_console = (console_t *)current_console;
 }
 
 /* Destroy a console (free its memory, etc.) and switch to the previous one */
+#if 0
 void console_destroy(console_t *con) {
 	assert(con->prev_console != NULL);
 	console_t *prev = con->prev_console;
@@ -135,6 +144,7 @@ void console_destroy(console_t *con) {
 
 	kfree(con);
 }
+#endif
 
 /* Syscall test function */
 int puts(const char *s) {
@@ -184,7 +194,8 @@ void clrscr(void) {
 	assert(console_task->console != NULL);
 	memsetw(console_task->console->videoram, blank, 80*25);
 
-	if ((task_t *)current_console->tasks->tail->data == console_task) {
+	//if ((task_t *)current_console->tasks->tail->data == console_task) {
+	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		/* If the task that's calling clrscr() has its console on display, also update the screen at once */
 		memsetw(videoram, blank, 80*25);
 	}
@@ -237,7 +248,8 @@ void scroll(void) {
 	memsetw(console_task->console->videoram + 24*80, blank, 80);
 
 	/* Also update the screen, if this console is currently displayed */
-	if ((task_t *)current_console->tasks->tail->data == console_task) {
+	//if ((task_t *)current_console->tasks->tail->data == console_task) {
+	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		assert(current_console->active == true);
 		memcpy(videoram, console_task->console->videoram, 80*25*2);
 	}
@@ -246,7 +258,6 @@ void scroll(void) {
 	cursor->y = 24;
 //	update_cursor();
 }
-
 
 int putchar(int c) {
 	Point *cursor = NULL;
@@ -272,19 +283,20 @@ int putchar(int c) {
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		if (console_task->console != NULL)
 			console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-		if ((task_t *)current_console->tasks->tail->data == console_task) {
+		//if ((task_t *)current_console->tasks->tail->data == console_task) {
+		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 				/* Also update the actual video ram if this console is currently displayed */
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+		}
 
-			if (cursor->x + 1 == 80) {
-				// Wrap to the next line
-				cursor->y++;
-				cursor->x = 0;
-			}
-			else {
-				// Don't wrap
-				cursor->x++;
-			}
+		if (cursor->x + 1 == 80) {
+			// Wrap to the next line
+			cursor->y++;
+			cursor->x = 0;
+		}
+		else {
+			// Don't wrap
+			cursor->x++;
 		}
 	}
 

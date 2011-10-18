@@ -84,19 +84,23 @@ void kill(task_t *task) {
 	assert(task != &kernel_task);
 	task_switching = false;
 
-	/* Remove this task from the console chain */
-	list_remove(task->console->tasks, list_find_first(task->console->tasks, (void *)task));
+	if (task->console != NULL) {
+		/* Remove this task from the console chain */
+		list_remove(task->console->tasks, list_find_first(task->console->tasks, (void *)task));
 
-	console_t *prev = task->console->prev_console;
-	while (prev != NULL) {
-		node_t *task_ptr = list_find_first(prev->tasks, (void *)task);
-		if (task_ptr != NULL)
-			list_remove(prev->tasks, task_ptr);
-		prev = prev->prev_console;
+		/*
+		console_t *prev = task->console->prev_console;
+		while (prev != NULL) {
+			node_t *task_ptr = list_find_first(prev->tasks, (void *)task);
+			if (task_ptr != NULL)
+				list_remove(prev->tasks, task_ptr);
+			prev = prev->prev_console;
+		}
+		*/
+
+		/* Switch from (if necessary) and destroy this task's console */
+		//console_destroy(task->console);
 	}
-
-	/* Switch from (if necessary) and destroy this task's console */
-	console_destroy(task->console);
 
 	/* TODO: destroy user page directory */
 
@@ -150,34 +154,24 @@ void init_tasking(uint32 kerntask_esp0) {
 
 static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege);
 
-task_t *create_task( void (*entry_point)(void), const char *name, bool console) {
-	console_t *con = NULL;
-	if (console) {
-		con = console_create();
-		assert(con != NULL);
-	}
+task_t *create_task( void (*entry_point)(void), const char *name, console_t *con) {
 	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */);
 	assert(task != NULL);
 
 	assert(task->console == con);
 	if (con != NULL)
-		assert( (task_t *)con->tasks->head->data == task);
+		assert( (task_t *)list_find_last(con->tasks, (void *)task)->data == task );
 
 	return task;
 }
 
-task_t *create_task_user( void (*entry_point)(void), const char *name, bool console) {
-	console_t *con = NULL;
-	if (console) {
-		con = console_create();
-		assert(con != NULL);
-	}
+task_t *create_task_user( void (*entry_point)(void), const char *name, console_t *con) {
 	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */);
 	assert(task != NULL);
 
 	assert(task->console == con);
 	if (con != NULL)
-		assert( (task_t *)con->tasks->head->data == task);
+		assert( (task_t *)list_find_last(con->tasks, (void *)task)->data == task );
 
 	return task;
 }
@@ -214,7 +208,7 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
-		/* allocate a guard page */
+		/* allocate a guard page - is this really necessary? */
 		alloc_frame(addr, task->page_directory, true, false);
 	}
 
@@ -228,11 +222,13 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 		list_append(task->console->tasks, task);
 
 		/* TODO: this is not a great solution. Adds this task to the previous console's task list */
+		/*
 		console_t *prev = task->console->prev_console;
 		while (prev != NULL) {
 			list_append(prev->tasks, task);
 			prev = prev->prev_console;
 		}
+		*/
 	}
 
 	/* Set up the kernel stack of the new process */

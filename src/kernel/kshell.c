@@ -121,6 +121,7 @@ void kshell(void) {
 
 	/* Make sure the current code spawns a new task for the kernel shell; otherwise, sleep() won't work. */
 	assert(current_task != &kernel_task);
+	assert(strcmp((char *)current_task->name, "kshell") == 0);
 
 	while (true) {
 
@@ -136,7 +137,7 @@ void kshell(void) {
 			sleep(10);
 		}
 
-		printk("kshell # ");
+		printk("kshell%u # ", current_task->id);
 		unsigned char ch;
 		uint32 i = 0;
 		while ( (ch = getchar()) != '\n') {
@@ -165,6 +166,9 @@ void kshell(void) {
 
 		putchar('\n');
 
+		/* The console to give new tasks */
+		console_t *con = current_task->console;
+
 		char *p = trim((char *)buf);
 		if (strcmp(p, "!!") == 0 && *last_cmd != 0) {
 			/* fetch the last command run */
@@ -172,7 +176,7 @@ void kshell(void) {
 		}
 
 		if (strcmp(p, "heaptest") == 0) {
-			task = create_task(&heaptest, "heaptest", true);
+			task = create_task(&heaptest, "heaptest", con);
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -190,19 +194,19 @@ void kshell(void) {
 			break;
 		}
 		else if (strcmp(p, "print_1_sec") == 0) {
-			create_task(&print_1_sec, "print_1_sec", true);
+			task = create_task(&print_1_sec, "print_1_sec", con);
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
-			task = create_task(&sleep_test, "sleeptest", true);
+			task = create_task(&sleep_test, "sleeptest", con);
 		}
 		else if (strcmp(p, "fpu_task") == 0) {
-			task = create_task(&fpu_task, "fpu_task", true);
+			task = create_task(&fpu_task, "fpu_task", con);
 		}
 		else if (strcmp(p, "permaidle") == 0) {
-			task = create_task(&permaidle, "permaidle", true);
+			task = create_task(&permaidle, "permaidle", con);
 		}
 		else if (strcmp(p, "pagefault") == 0) {
-			task = create_task(&create_pagefault, "create_pagefault", false);
+			task = create_task(&create_pagefault, "create_pagefault", con);
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
@@ -210,7 +214,7 @@ void kshell(void) {
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
 		}
 		else if (strcmp(p, "infloop_task") == 0) {
-			task = create_task(&infinite_loop, "infinite_loop", true);
+			task = create_task(&infinite_loop, "infinite_loop", con);
 		}
 		else if (strcmp(p, "ps") == 0) {
 			node_t *cur_task_node = ready_queue.head;
@@ -243,10 +247,10 @@ void kshell(void) {
 			divzero();
 		}
 		else if (strcmp(p, "guess") == 0) {
-			task = create_task(&guess_num, "guess_num", true);
+			task = create_task(&guess_num, "guess_num", con);
 		}
 		else if(strcmp(p, "divzero_task") == 0) {
-			task = create_task(&divzero, "divzero", true);
+			task = create_task(&divzero, "divzero", con);
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
@@ -265,15 +269,15 @@ void kshell(void) {
 			testbench();
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
-			task = create_task(&testbench, "testbench", true);
+			task = create_task(&testbench, "testbench", con);
 		}
 		else if (strcmp(p, "user_test") == 0) {
 			/* launch a user mode test task */
-			create_task_user(&user_test, "user_test", true);
+			task = create_task_user(&user_test, "user_test", con);
 		}
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
-			task = create_task(&kshell, "kshell (nested)", true);
+			task = create_task(&kshell, "kshell (nested)", con);
 		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */

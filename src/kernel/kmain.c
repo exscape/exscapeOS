@@ -157,16 +157,24 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("All initialization complete!\n\n");
 
+	virtual_consoles[0] = &kernel_console;
+	assert(virtual_consoles[0]->active == true);
+
+	/* Hack-setup a kernel shell on the kernel console */
+	assert(virtual_consoles[0] == &kernel_console);
+	/*task_t *kernel_shell =*/ create_task(&kshell, "kshell", virtual_consoles[0]);
+
 #if 1
 	/* Set up the virtual consoles (Alt+F1 through F4 at the time of writing) */
-	for (int i=0; i < NUM_VIRTUAL_CONSOLES; i++) {
-		console_init(&virtual_consoles[i]);
-		node_t *new_node = list_append(virtual_consoles[i].tasks, create_task(&kshell, "kshell", true));
-		((task_t *)new_node->data)->console = &virtual_consoles[i];
-		virtual_consoles[i].active = false;
+	assert(NUM_VIRTUAL_CONSOLES >= 2); /* otherwise this loop will cause incorrect array access */
+	for (int i=1 /* sic! */; i < NUM_VIRTUAL_CONSOLES; i++) {
+		virtual_consoles[i] = console_create();
+		/* node_t *new_node = */list_append(virtual_consoles[i]->tasks, create_task(&kshell, "kshell", virtual_consoles[i]));
+		//((task_t *)new_node->data)->console = &virtual_consoles[i];
+		assert(virtual_consoles[i]->active == false);
 	}
 
-	console_switch(&virtual_consoles[0]);
+	//console_switch(&virtual_consoles[0]);
 #endif
 
 	while (true) {

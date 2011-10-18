@@ -19,7 +19,7 @@ typedef struct console {
 	bool active;
 	uint16 videoram[80 * 25];
 	Point cursor;
-	struct console *prev_console;
+	/*struct console *prev_console;*/
 	volatile struct ringbuffer keybuffer;
 } console_t;
 #include <kernel/task.h> /* must be done after defining console_t */
@@ -33,7 +33,7 @@ extern volatile console_t *current_console;
 extern console_t kernel_console;
 
 #define NUM_VIRTUAL_CONSOLES 4
-extern console_t virtual_consoles[NUM_VIRTUAL_CONSOLES];
+extern console_t *virtual_consoles[NUM_VIRTUAL_CONSOLES];
 
 void console_destroy(console_t *con);
 console_t *console_create(void);

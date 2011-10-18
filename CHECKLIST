@@ -13,6 +13,8 @@
 	[ ] User mode support
 [ ] Syscalls
 	// The basics are there, but the only syscall defined is puts
+[ ] ATA driver
+[ ] File system
 [ ] Executable loading (ELF parsing, etc.)
 [ ] User-mode libc
 [ ] FPU/SSE/AVX state saving during context switches
