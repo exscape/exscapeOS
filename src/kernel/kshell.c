@@ -35,6 +35,11 @@ static void create_pagefault(void) {
 	*pf = 10;
 }
 
+static void create_pagefault_delay(void) {
+	sleep(2000);
+	create_pagefault();
+}
+
 static void print_1_sec(void) {
 	for (int i=0; i < 10; i++) {
 		printk("print_1_sec: loop %d of 10\n", i+1);
@@ -207,6 +212,9 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "pagefault") == 0) {
 			task = create_task(&create_pagefault, "create_pagefault", con);
+		}
+		else if (strcmp(p, "pagefault_delay") == 0) {
+			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con);
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
