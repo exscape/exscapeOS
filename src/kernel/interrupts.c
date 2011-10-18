@@ -15,11 +15,11 @@ void disable_interrupts(void) {
 	/* disable NMI */
 	outb(0x70, inb(0x70) & 0x7f);
 
-	asm("cli");
+	asm volatile("cli");
 }
 
 void enable_interrupts(void) {
-	asm("sti");
+	asm volatile("sti");
 
 	/*enable NMI */
 	outb(0x70, inb(0x70) | 0x80);

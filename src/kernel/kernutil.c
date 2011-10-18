@@ -37,7 +37,7 @@ void panic(const char *str) {
 	console_switch(&kernel_console);
 	asm volatile("cli");
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
-	asm("hangloop: hlt ; jmp hangloop");
+	asm volatile("0: hlt ; jmp 0b");
 }
 
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
@@ -54,7 +54,7 @@ void reset(void) {
 	 * There is, of course, no handler available to handle that interrupt, which eventually causes a triple fault. */
 	struct idt_ptr p;
 	memset(&p, 0, sizeof(struct idt_ptr));
-	asm("lgdt (%0);"
+	asm volatile("lgdt (%0);"
 		"int $3;"
 		: : "r"(&p));
 }

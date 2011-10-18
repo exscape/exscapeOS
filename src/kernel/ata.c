@@ -61,7 +61,6 @@ uint32 ata_interrupt_handler(uint32 esp) {
 	ata_reg_read(channel, ATA_REG_STATUS);
 
 	ata_interrupts_handled++;
-	printk("handled ATA interrupt #%u\n", ata_interrupts_handled);
 
 	return scheduler_wake_iowait(esp);
 }

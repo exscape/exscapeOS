@@ -20,7 +20,7 @@ void get_time(Time *t) {
 	// Set status reg B for debugging purposes
 	unsigned char rb = 0;
 
-	asm(
+	asm volatile(
 	// wait until no update is in progress
 		".lltmp:"
 		"movb $10, %%al;"
@@ -40,7 +40,7 @@ void get_time(Time *t) {
 	rb &= ~2;
 
 	// set status reg B
-	asm("cli;"
+	asm volatile("cli;"
 		"movb $0xb, %%al;"
 		"outb %%al, $0x70;"
 		"movb %[rb], %%al;"
@@ -50,7 +50,7 @@ void get_time(Time *t) {
 		: : [rb]"m"(rb) : "%al", "memory");
 
 	// Set the clock (to debug AM/PM issues)
-	asm("cli;"
+	asm volatile("cli;"
 		"movb $0x4, %%al;" // set the hour...
 		"outb %%al, $0x70;"
 		"movb $0, %%al;"  // ...to the time specified
@@ -61,7 +61,7 @@ void get_time(Time *t) {
 */
 	// END DEBUGGING CODE
 
-	asm(
+	asm volatile(
 		/* make sure the update flag isn't set */
 		".ll:"
 		"movb $10, %%al;"
@@ -117,7 +117,7 @@ void get_time(Time *t) {
 
 	/* Fetch CMOS status register B */
 	unsigned char regb;
-	asm("movb $0xb, %%al;" // 0xb = status reg B
+	asm volatile("movb $0xb, %%al;" // 0xb = status reg B
 		"outb %%al, $0x70;"
 		"inb $0x71, %%al;"
 		"movb %%al, %[regb];"
@@ -172,7 +172,7 @@ void get_time(Time *t) {
 /* Used to debug exception handling */
 #ifdef DIVZERO_10_SEC
 	if (t->second % 10 == 0) {
-		asm("mov $0xDEADBEEF, %eax;"
+		asm volatile("mov $0xDEADBEEF, %eax;"
 			"mov $0, %ebx;"
 			"div %ebx;"); 
 	}

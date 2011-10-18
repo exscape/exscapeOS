@@ -144,11 +144,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	ata_write(ata_dev, 0, buf);
 #endif
 
-#if 0
+#if 1
+	memset(buf, 0, 512);
 	uint32 start_t = gettickcount();
-	for (uint64 i = 0; i < 64000; i++) {
+	for (uint64 i = 10+0; i < 10+64000; i++) {
 		assert(buf != NULL);
-		ata_read(ata_dev, i, buf);
+		ata_write(ata_dev, i, buf);
 		//assert(buf != NULL);
 		//if (*buf == 0)
 			//continue;
@@ -158,7 +159,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	uint32 end_t = gettickcount();
 	uint32 d = end_t - start_t;
 	d *= 10;
-	printk("Reading 64000 sectors took %u ms\n", d);
+	printk("Writing 64000 sectors took %u ms\n", d);
 #endif
 
 	printk("All initialization complete!\n\n");
