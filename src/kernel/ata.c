@@ -294,8 +294,8 @@ void ata_init(void) {
 				panic("Invalid ATA version for disk");
 
 			/* Figure out the highest UDMA mode supported (not that we use it at the moment) */
-			devices[dev].max_udma_mode= 0xff;
-			for (int i = 0; i < 5; i++) {
+			devices[dev].max_udma_mode = 0xff;
+			for (int i = 0; i <= 5; i++) {
 				if (words[88] & (1 << i))
 					devices[dev].max_udma_mode = i;
 			}
@@ -450,6 +450,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 		status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 
 	assert(!(status & ATA_SR_BSY));
+	assert(!(status & ATA_SR_DF));
 
 	if (status & ATA_SR_ERR)
 		ata_error(dev->channel, status, ATA_CMD_READ_SECTORS);
