@@ -39,7 +39,7 @@ extern void panic_assert(const char *file, uint32 line, const char *desc) {
 	/* Call panic() instead of doing this ourselves, so that breakpoints
 	 * on panic() catches assertions as well */
 	char buf[1024];
-	sprintf(buf, "PANIC: Assertion failed: %s (%s:%d)\n", desc, file, line);
+	sprintf(buf, "Assertion failed: %s (%s:%d)\n", desc, file, line);
 	panic(buf);
 }
 

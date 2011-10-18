@@ -5,6 +5,11 @@
 #include <kernel/interrupts.h>
 #include <string.h>
 
+/* TODO:
+ * TODO: error handling
+ * TODO: timeouts
+ */
+
 /* Globals */
 ata_channel_t channels[2];
 ata_device_t devices[4];
@@ -47,7 +52,7 @@ static uint8 ata_reg_read(uint8 channel, uint16 reg) {
 		return inb(channels[channel].base + reg);
 	}
 	else
-		panic("Invalid ATA register used it ata_reg_read()!");
+		panic("Invalid ATA register used in ata_reg_read()!");
 
 	/* not reached */
 	return 0;
@@ -63,14 +68,44 @@ static void ata_reg_write(uint8 channel, uint16 reg, uint8 data) {
 		outb(channels[channel].base + reg, data);
 	}
 	else
-		panic("Invalid ATA register used it ata_reg_read()!");
+		panic("Invalid ATA register used in ata_reg_write()!");
 }
 
-static void ata_error(uint8 channel, uint8 status) {
-	assert(status & ATA_SR_ERR);
+static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 	assert(!(status & ATA_SR_BSY));
-	assert(!(status & ATA_SR_DRQ));
+	assert(status & ATA_SR_ERR);
 	uint8 err = ata_reg_read(channel, ATA_REG_ERROR);
+	if (status & ATA_SR_DF) {
+		panic("ATA error: device fault!");
+	}
+
+	switch (cmd) {
+		case ATA_CMD_READ_SECTORS: {
+			if (status & ATA_ER_NM) {
+				printk("ATA error: No Media\n");
+			}
+			if (status & ATA_ER_ABRT) {
+				printk("ATA error: command aborted\n");
+			}
+			if (status & ATA_ER_MCR) {
+				printk("ATA error: Media Change Request\n");
+			}
+			if (status & ATA_ER_IDNF) {
+				printk("ATA error: User-accessible address not found\n");
+			}
+			if (status & ATA_ER_MC) {
+				printk("ATA error: Media Change\n");
+			}
+			if (status & ATA_ER_UNC) {
+				printk("ATA error: UNCorrectable data\n");
+			}
+
+		}
+	   break;
+		default:
+	   panic("ata_error(): unsupported command type");
+	   break;
+	}
 
 	printk("ATA error code: %02x\n", err);
 	panic("ATA error!");
@@ -193,7 +228,7 @@ void ata_init(void) {
 			/* make sure there was no error */
 			if ((status & ATA_SR_ERR)) {
 				printk("Error on IDENTIFY: ch=%d, drive=%d\n", ch, drive);
-				ata_error(ch, status);
+				ata_error(ch, status, ATA_CMD_IDENTIFY);
 				panic("Error on IDENTIFY");
 			}
 

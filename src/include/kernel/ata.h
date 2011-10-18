@@ -90,6 +90,7 @@ extern ata_device_t devices[4];
 #define ATA_ER_MCR 0x08
 #define ATA_ER_ABRT 0x04
 #define ATA_ER_TK0NF 0x02
+#define ATA_ER_NM (1 << 1)
 #define ATA_ER_AMNF 0x01
 
 /* Flags used in the ata_device_t capabilities field - not defined in any standard */
