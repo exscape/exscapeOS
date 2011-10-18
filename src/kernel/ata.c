@@ -593,7 +593,7 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	assert(!(status & ATA_SR_DF));
 
 	if (status & ATA_SR_ERR)
-		ata_error(dev->channel, status, ATA_CMD_READ_SECTORS);
+		ata_error(dev->channel, status, ATA_CMD_WRITE_SECTORS);
 
 	return true;
 }
