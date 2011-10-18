@@ -52,8 +52,14 @@ uint32 ata_interrupt_handler(uint32 esp) {
 	assert(channel == 0 || channel == 1);
 
 	/* In this state, "the host shall read the device Status register."
-	 * Let's do so. */
-	uint8 status = inb(channels[channel].base + ATA_REG_STATUS);
+	 * However, we must wait 400 ns first. */
+	uint8 status = 0;
+	for (int i=0; i<4; i++)
+		status = ata_reg_read(channel, ATA_REG_ALT_STATUS);
+
+	/* Read the *regular* status register */
+	status = ata_reg_read(channel, ATA_REG_STATUS);
+
 	assert(!(status & ATA_SR_BSY));
 	assert(status & ATA_SR_DRQ);
 	assert(!(status & ATA_SR_ERR));
@@ -454,7 +460,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	asm volatile("nop");
 
-	/* The interrupt handlec should have increased this variable by one at this point! */
+	/* The interrupt handler should have increased this variable by one at this point! */
 	assert(ata_interrupts_handled == old_handled + 1);
 
 	/* TODO: once or 5 times? */
