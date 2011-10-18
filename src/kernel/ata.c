@@ -81,22 +81,22 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 
 	switch (cmd) {
 		case ATA_CMD_READ_SECTORS: {
-			if (status & ATA_ER_NM) {
+			if (err & ATA_ER_NM) {
 				printk("ATA error: No Media\n");
 			}
-			if (status & ATA_ER_ABRT) {
+			if (err & ATA_ER_ABRT) {
 				printk("ATA error: command aborted\n");
 			}
-			if (status & ATA_ER_MCR) {
+			if (err & ATA_ER_MCR) {
 				printk("ATA error: Media Change Request\n");
 			}
-			if (status & ATA_ER_IDNF) {
+			if (err & ATA_ER_IDNF) {
 				printk("ATA error: User-accessible address not found\n");
 			}
-			if (status & ATA_ER_MC) {
+			if (err & ATA_ER_MC) {
 				printk("ATA error: Media Change\n");
 			}
-			if (status & ATA_ER_UNC) {
+			if (err & ATA_ER_UNC) {
 				printk("ATA error: UNCorrectable data\n");
 			}
 
@@ -438,12 +438,11 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* Let's do this thing */
 	uint16 *words = (uint16 *)buffer;
-	//for (int i=0; i < 256; i++) {
-		//words[i] = inw(channels[dev->channel].base);
-	//}
 	uint32 count = 256;
 	uint16 port = channels[dev->channel].base;
 	asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
+
+	/* Make sure no error occured */
 
 	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 
@@ -451,7 +450,9 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 		status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
 
 	assert(!(status & ATA_SR_BSY));
-	assert(!(status & ATA_SR_ERR));
+
+	if (status & ATA_SR_ERR)
+		ata_error(dev->channel, status, ATA_CMD_READ_SECTORS);
 
 	return true;
 }
