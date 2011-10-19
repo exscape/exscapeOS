@@ -17,6 +17,7 @@
 #include <kernel/syscall.h>
 #include <kernel/kshell.h>
 #include <kernel/ata.h>
+#include <kernel/part.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -133,10 +134,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("done\n");
 #endif
 
-	unsigned char *buf = kmalloc(512);
-	ata_device_t *ata_dev = &devices[0];
+	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */
+	for (int i=0; i<3; i++)
+		parse_mbr(&devices[i]);
 
-#if 1
+#if 0
+	ata_device_t *ata_dev = &devices[0];
 	ata_read(ata_dev, 0, buf);
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 
@@ -144,7 +147,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	ata_write(ata_dev, 0, buf);
 #endif
 
-#if 1
+#if 0
 	memset(buf, 0, 512);
 	uint32 start_t = gettickcount();
 	for (uint64 i = 10+0; i < 10+64000; i++) {

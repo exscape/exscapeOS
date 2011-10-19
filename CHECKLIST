@@ -15,7 +15,7 @@
 	// The basics are there, but the only syscall defined is puts
 [ ] ATA driver
 	[x] Basic reading (PIO)
-	[ ] Basic writing (PIO)
+	[x] Basic writing (PIO)
 	[ ] Decent error handling
 [ ] File system
 [ ] Executable loading (ELF parsing, etc.)

@@ -34,6 +34,7 @@ all: $(OBJFILES)
 	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
+	@/opt/local/bin/ctags -R *
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
@@ -51,7 +52,7 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
-	@qemu -cdrom bootable.iso -hda hdd.img -monitor stdio -s
+	@qemu -cdrom bootable.iso -hda hdd.img -hdb 2part.img -monitor stdio -s
 
 debug: all
-	@qemu -cdrom bootable.iso -hda hdd.img -s -S -monitor stdio
+	@qemu -cdrom bootable.iso -hda hdd.img -hdb 2part.img -s -S -monitor stdio

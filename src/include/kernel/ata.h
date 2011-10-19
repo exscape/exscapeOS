@@ -3,6 +3,14 @@
 
 #include <types.h>
 
+typedef struct partition {
+	bool exists;
+	bool bootable;
+	uint8 type; /* system id byte */
+	uint32 start_lba;
+	uint32 total_sectors;
+} partition_t;
+
 typedef struct ata_channel {
 	uint16 base; /* IO base address */
 	uint16 ctrl; /* Control reg base */
@@ -22,6 +30,7 @@ typedef struct ata_device {
 	uint8 ata_ver; /* the ATA version this disk conforms to */
 	uint8 max_udma_mode; /* 0 through 5; other values are invalid */
 	uint8 max_pio_mode; /* should be at least 3 for all ATA drives */
+	partition_t partition[4]; /* the 4 primary MBR partitions on this disk */
 } ata_device_t;
 
 void ata_init(void); /* detects drives and creates the structures used */
