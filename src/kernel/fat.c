@@ -3,7 +3,21 @@
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
 #include <kernel/kheap.h>
+#include <kernel/list.h>
 #include <string.h>
+
+typedef struct fat32_partition {
+	ata_device_t *dev; /* the device that holds this partition */
+	uint32 start_lba; /* the LBA where this partition begins (past the reserved sectors) */
+	uint32 cluster_start_lba;
+	uint32 sectors_per_cluster;
+	uint32 root_dir_first_cluster;
+
+	/* The entire BPB and EBPB data structures for this partition */
+	fat32_bpb_t *bpb;
+} fat32_partition_t;
+
+list_t *fat32_partitions = NULL;
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -21,59 +35,35 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	assert( *( (uint16 *)(buf + 510) ) == 0xAA55);
 
-#if 0
-	/* Describes the FAT BPB (BIOS Parameter Block) */
-	struct fat32_bpb {
-		uint32 jmp : 24; /* x86 assembly to jump past the following data */
-		char oem_ident[8];
-		uint16 bytes_per_sector;
-		uint8 sect_per_cluster;
-		uint16 reserved_sectors;
-		uint8 num_fats;
-		uint16 num_direntries;
-		uint16 small_total_sectors; /* 0 if >65535 sectors, i.e. for all FAT32 partitions? see below */
-		uint8 media_descr_type; /* 0xf8 == hard disk */
-		uint16 ignore; /* FAT12/FAT16 only */
-		uint16 sect_per_track;
-		uint16 heads;
-		uint32 hidden_sectors; /* relative LBA */
-		uint32 total_sectors; /* used if >65535 sectors, i.e. all FAT32 partitions? */
-	} __attribute__((packed));
-	typedef struct fat32_bpb fat32_bpb_t;
-
-	/* Describes the FAT32 EBPB, located just after the BPB (above).
-	 * Note that if this struct is mapped onto a partition that is actually
-	 * FAT12/FAT16, the values will be wildly incorrect!
-	 */
-	struct fat32_ebpb {
-		uint32 sectors_per_fat; /* FAT size, in sectors */
-		uint16 flags;
-		uint8 fat_major_version;
-		uint8 fat_minor_version; /* these two MAY be swapped */
-		uint32 root_cluster_num;
-		uint16 fsinfo_cluster_num;
-		uint16 backup_bs_cluster_num;
-		uint8 reserved[12]; /* should be all 0 */
-		uint8 drive_number;
-		uint8 reserved2; /* "Flags in Windows NT. Reserved otherwise. */
-		uint8 signature; /* 0x28 or 0x29 */
-		uint32 volumeid_serial;
-		char volume_label[11]; /* space padded */
-		//char sys_id_string[8]; /* always "FAT32   ". Don't use. */
-	} __attribute__((packed));
-	typedef struct fat32_ebpb fat32_ebpb_t;
-#endif
-
+	/* Located at the very start of the first sector on the partition */
 	fat32_bpb_t *bpb = (fat32_bpb_t *)buf;
 
-	/* Located just after the struct above on disk */
-	fat32_ebpb_t *ebpb = (fat32_ebpb_t *) ( buf + sizeof(fat32_bpb_t) );
+	assert(bpb->signature == 0x28 || bpb->signature == 0x29);
 
-	assert(ebpb->signature == 0x28 || ebpb->signature == 0x29);
+	/* Create the list of partitions if it doesn't already exist) */
+	if (fat32_partitions == NULL)
+		fat32_partitions = list_create();
 
-	bpb=bpb; /* silence warning */
+	/* Set up an entry */
+	fat32_partition_t *part_info = kmalloc(sizeof(fat32_partition_t));
+	memset(part_info, 0, sizeof(fat32_partition_t));
+
+	/* Copy over the BPB and EBPB structs to the new entry */
+	part_info->bpb = kmalloc(sizeof(fat32_bpb_t));
+	memcpy(part_info->bpb, bpb, sizeof(fat32_bpb_t));
+
+	/* Set up the other struct variables */
+	part_info->dev = dev; /* the device that holds this partition */
+	part_info->start_lba = dev->partition[part].start_lba + bpb->reserved_sectors;
+	part_info->cluster_start_lba = part_info->start_lba + (bpb->num_fats * bpb->sectors_per_fat);
+	part_info->sectors_per_cluster = bpb->sectors_per_cluster;
+	part_info->root_dir_first_cluster = bpb->root_cluster_num;
+
+	/* We now have no real use of the old stuff any longer */
+	kfree(buf);
+
+	/* Add the new partition entry to the list */
+	list_append(fat32_partitions, part_info);
 
 	return true;
 }
-
-//fat_detect(&devices[disk], part);

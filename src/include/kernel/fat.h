@@ -11,7 +11,7 @@ struct fat32_bpb {
 	uint8 jmp[3]; /* x86 code to jump past the following data */
 	char oem_ident[8];
 	uint16 bytes_per_sector;
-	uint8 sect_per_cluster;
+	uint8 sectors_per_cluster;
 	uint16 reserved_sectors;
 	uint8 num_fats;
 	uint16 num_direntries;
@@ -22,14 +22,14 @@ struct fat32_bpb {
 	uint16 heads;
 	uint32 hidden_sectors; /* relative LBA */
 	uint32 total_sectors; /* used if >65535 sectors, i.e. all FAT32 partitions? */
-} __attribute__((packed));
-typedef struct fat32_bpb fat32_bpb_t;
+	/*} __attribute__((packed));*/
+	/*typedef struct fat32_bpb fat32_bpb_t;*/
 
 /* Describes the FAT32 EBPB, located just after the BPB (above).
  * Note that if this struct is mapped onto a partition that is actually
  * FAT12/FAT16, the values will be wildly incorrect!
  */
-struct fat32_ebpb {
+	/*struct fat32_ebpb {*/
 	uint32 sectors_per_fat; /* FAT size, in sectors */
 	uint16 flags;
 	uint8 fat_major_version;
@@ -45,6 +45,7 @@ struct fat32_ebpb {
 	char volume_label[11]; /* space padded */
 	//char sys_id_string[8]; /* always "FAT32   ". Don't use. */
 } __attribute__((packed));
-typedef struct fat32_ebpb fat32_ebpb_t;
+typedef struct fat32_bpb fat32_bpb_t;
+/*typedef struct fat32_ebpb fat32_ebpb_t;*/
 
 #endif
