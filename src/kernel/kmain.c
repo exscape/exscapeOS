@@ -18,6 +18,7 @@
 #include <kernel/kshell.h>
 #include <kernel/ata.h>
 #include <kernel/part.h>
+#include <kernel/fat.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -137,6 +138,22 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */
 	for (int i=0; i<3; i++)
 		parse_mbr(&devices[i]);
+
+	/* Detect FAT filesystems on all partitions */
+	for (int disk = 0; disk < 4; disk++) {
+
+		if (!devices[disk].exists || devices[disk].is_atapi)
+			continue;
+
+		for (int part = 0; part < 4; part++) {
+			if (devices[disk].partition[part].exists && 
+					(devices[disk].partition[part].type == PART_FAT32 ||
+					 devices[disk].partition[part].type == PART_FAT32_LBA))
+			{
+				fat_detect(&devices[disk], part);
+			}
+		}
+	}
 
 #if 0
 	ata_device_t *ata_dev = &devices[0];

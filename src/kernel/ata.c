@@ -186,11 +186,9 @@ void ata_init(void) {
 	channels[ATA_PRIMARY].base = ATA_REG_BASE_PRI;
 	channels[ATA_PRIMARY].ctrl = ATA_REG_DEV_CONTROL_PRI;
 	channels[ATA_PRIMARY].bmide = 0;
-	channels[ATA_PRIMARY].nIEN = 1; /* disable interrupts */
 	channels[ATA_SECONDARY].base = ATA_REG_BASE_SEC;
 	channels[ATA_SECONDARY].ctrl = ATA_REG_DEV_CONTROL_SEC;
 	channels[ATA_SECONDARY].bmide = 0;
-	channels[ATA_SECONDARY].nIEN = 1; /* disable interrupts */
 
 	/* Check for "float", before *any* value is written to the bus */
 	uint8 fl[2] = {0};

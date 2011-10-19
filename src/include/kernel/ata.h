@@ -2,13 +2,14 @@
 #define _ATA_H
 
 #include <types.h>
+
+typedef struct ata_device ata_device_t;
 #include <kernel/part.h> /* partition_t */
 
 typedef struct ata_channel {
 	uint16 base; /* IO base address */
 	uint16 ctrl; /* Control reg base */
 	uint16 bmide; /* Bus master IDE */
-	uint8 nIEN; /* the ATA nIEN flag (disables interrupts) */
 } ata_channel_t;
 
 typedef struct ata_device {

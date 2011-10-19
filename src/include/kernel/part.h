@@ -2,7 +2,6 @@
 #define _PART_H
 
 #include <types.h>
-#include <kernel/ata.h>
 
 typedef struct partition {
 	bool exists;
@@ -21,6 +20,8 @@ typedef struct partition {
 	 * The filesystem member should be one of the FS_* values.
 	 */
 } partition_t;
+
+#include <kernel/ata.h>
 
 void parse_mbr(ata_device_t *dev);
 
