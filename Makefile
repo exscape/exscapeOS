@@ -52,7 +52,7 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
-	@qemu -cdrom bootable.iso -hda hdd.img -hdb 2part.img -monitor stdio -s
+	@qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s
 
 debug: all
-	@qemu -cdrom bootable.iso -hda hdd.img -hdb 2part.img -s -S -monitor stdio
+	@qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -s -S -monitor stdio

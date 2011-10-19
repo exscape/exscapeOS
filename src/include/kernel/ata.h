@@ -2,14 +2,7 @@
 #define _ATA_H
 
 #include <types.h>
-
-typedef struct partition {
-	bool exists;
-	bool bootable;
-	uint8 type; /* system id byte */
-	uint32 start_lba;
-	uint32 total_sectors;
-} partition_t;
+#include <kernel/part.h> /* partition_t */
 
 typedef struct ata_channel {
 	uint16 base; /* IO base address */
