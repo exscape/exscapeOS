@@ -5,14 +5,18 @@
 #include <kernel/kheap.h>
 #include <kernel/list.h>
 #include <string.h>
+#include <kernel/part.h>
 
 typedef struct fat32_partition {
 	ata_device_t *dev; /* the device that holds this partition */
-	uint32 start_lba; /* the LBA where this partition begins (past the reserved sectors) */
+	uint32 fat_start_lba; /* the LBA where the FAT begins */
 	uint32 end_lba; /* last valid LBA for this partition */
 	uint32 cluster_start_lba;
 	uint32 sectors_per_cluster;
 	uint32 root_dir_first_cluster;
+
+	/* TODO: better naming. This is a pointer back to the dev->partition[x] structure. */
+	partition_t *part_info;
 
 	/* The entire BPB and EBPB data structures for this partition */
 	fat32_bpb_t *bpb;
@@ -57,11 +61,12 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	/* Set up the other struct variables */
 	part_info->dev = dev; /* the device that holds this partition */
-	part_info->start_lba = dev->partition[part].start_lba + bpb->reserved_sectors;
+	part_info->fat_start_lba = dev->partition[part].start_lba + bpb->reserved_sectors;
 	part_info->end_lba   = dev->partition[part].start_lba + bpb->total_sectors;
-	part_info->cluster_start_lba = part_info->start_lba + (bpb->num_fats * bpb->sectors_per_fat);
+	part_info->cluster_start_lba = part_info->fat_start_lba + (bpb->num_fats * bpb->sectors_per_fat);
 	part_info->sectors_per_cluster = bpb->sectors_per_cluster;
 	part_info->root_dir_first_cluster = bpb->root_cluster_num;
+	part_info->part_info = &dev->partition[part];
 
 	/* We now have no real use of the old stuff any longer */
 	kfree(buf);
@@ -73,8 +78,6 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	return true;
 }
-
-#define LBA_FROM_CLUSTER(p, c) ((p->cluster_start_lba + ((c - 2) * p->sectors_per_cluster)))
 
 typedef struct fat32_time {
 	uint16 second : 5;
@@ -119,32 +122,88 @@ typedef struct fat32_lfn {
 	char name_3[4]; /* the last 2 2-byte chars of the name */
 } __attribute__((packed)) fat32_lfn_t;
 
+/* Finds the next cluster in the chain, if there is one. */
+static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
+	assert(part != NULL);
+	const uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
+	uint32 *fat = kmalloc(cluster_size);
+
+	/* Formulas taken from the FAT spec */
+	uint32 fat_offset = cur_cluster * 4; // sizeof(uint32)
+	uint32 fat_sector = part->fat_start_lba + (fat_offset / 512);
+	uint32 entry_offset = fat_offset % 512;
+
+	/* Make sure the FAT LBA is within the FAT on disk */
+	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + (part->bpb->sectors_per_fat * 512)));
+
+	/* Read it */
+	assert(disk_read(part->dev, fat_sector, cluster_size, (uint8 *)fat));
+
+	assert(entry_offset < (part->bpb->sectors_per_fat * 512)/4);
+
+	/* Read the FAT */
+	uint32 val = fat[entry_offset] & 0x0fffffff;
+
+	kfree(fat);
+
+	return val;
+}
+
 static void fat_test(fat32_partition_t *part) {
-	uint32 root_lba = LBA_FROM_CLUSTER(part, part->root_dir_first_cluster);
-	assert(root_lba >= part->start_lba && root_lba <= part->end_lba);
 
-	uint8 *root_data = kmalloc(128 * 512);
-	assert(disk_read(part->dev, root_lba, 128, root_data));
+#define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + (part->sectors_per_cluster*512) )
 
+#define LBA_FROM_CLUSTER(p, c) ((p->cluster_start_lba + ((c - 2) * p->sectors_per_cluster)))
+
+	const uint32 cluster_size = part->sectors_per_cluster * 512;
 	assert(sizeof(fat32_direntry_t) == 32);
 
-	fat32_direntry_t *dir = (fat32_direntry_t *)root_data;
+	uint32 cur_cluster = part->root_dir_first_cluster;
 
-	while (dir->name[0] != 0 && (uint8)dir->name[0] != 0xe5) {
-		if (dir->attrib == ATTRIB_LFN) {
-			/* TODO */
+	uint8 *disk_data = kmalloc(cluster_size);
+
+	while (true) {
+
+		assert(disk_read(part->dev, LBA_FROM_CLUSTER(part, cur_cluster), cluster_size, disk_data));
+
+		fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
+
+		while (dir->name[0] != 0) {
+			if ((uint8)dir->name[0] == 0xe5) {
+				goto next;
+			}
+			if (dir->attrib == ATTRIB_LFN) {
+				printk("LFN entry!\n");
+				/* TODO */
+			}
+			else {
+				printk("Found %s: %11s (%u bytes); attributes: %s%s%s%s\n",
+						((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
+						dir->name,
+						dir->file_size,
+						((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
+						((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
+						((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
+						((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
+			}
+
+		next:
+			dir++;
+			if (!IN_MEM(dir))
+				panic("next entry not in RAM!");
+
+		} /* end inner loop; time to go to the next cluster */
+
+		/* Look for the next cluster in the chain */
+		uint32 next_cluster = fat_next_cluster(part, cur_cluster);
+		printk("cur_cluster = %u, next = %u\n", cur_cluster, next_cluster);
+		if (next_cluster == 0x0ffffff7) { panic("bad cluster!"); }
+		if (next_cluster >= 0x0FFFFFF8) {
+			panic("END! No more clusters in this chain!");
 		}
-		else {
-			printk("Found %s: %11s (%u bytes); attributes: %s%s%s%s\n",
-					((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
-					dir->name,
-					dir->file_size,
-					((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
-					((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
-					((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
-					((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
-		}
-					
-		dir++;
-	}
+		cur_cluster = next_cluster;
+	} /* end outer loop */
+
+	kfree(disk_data);
+	panic("end");
 }
