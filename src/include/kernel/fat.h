@@ -6,6 +6,16 @@
 
 bool fat_detect(ata_device_t *dev, uint8 part);
 
+#define ATTRIB_READONLY 0x1
+#define ATTRIB_HIDDEN 0x2
+#define ATTRIB_SYSTEM 0x4
+#define ATTRIB_VOLUME_ID 0x8
+#define ATTRIB_DIR 0x10
+#define ATTRIB_ARCHIVE 0x20
+
+/* Used for Long File Name entries */
+#define ATTRIB_LFN (ATTRIB_READONLY | ATTRIB_HIDDEN | ATTRIB_SYSTEM | ATTRIB_VOLUME_ID)
+
 /* Describes the FAT BPB (BIOS Parameter Block); shared between FAT12/FAT16/FAT32 */
 struct fat32_bpb {
 	uint8 jmp[3]; /* x86 code to jump past the following data */

@@ -603,3 +603,23 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	return true;
 }
+
+/* Reads a buffer of "any" size (make sure that the buffer passed is large enough -
+ * for bytes=640, the buffer must be at least 1024 bytes large. For bytes=1900,
+ * the buffer must be at least 2048 bytes, etc. Always in multiples of 512. */
+bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer) {
+	uint32 sectors = bytes/512;
+	if (sectors == 0)
+		sectors = 1;
+
+	assert(dev != NULL);
+	assert(dev->exists && !dev->is_atapi);
+	assert(start_lba + sectors <= dev->size - 1); /* TODO: OBOE? */
+
+	for (uint32 i = 0; i < sectors; i++) {
+		if (!ata_read(dev, start_lba + i, buffer + 512*i))
+			return false;
+	}
+
+	return true;
+}

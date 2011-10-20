@@ -26,6 +26,9 @@ extern uint32 placement_address;
 /* console.c */
 extern const uint16 blank;
 
+/* fat.c */
+extern list_t *fat32_partitions;
+
 void test_task(void) {
 	for (;;) {
 		printk("In test_task()\n");
@@ -155,6 +158,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		}
 	}
 
+	assert(fat32_partitions !=  NULL);
+	assert(fat32_partitions->count == 1);
+
+
 #if 0
 	ata_device_t *ata_dev = &devices[0];
 	ata_read(ata_dev, 0, buf);
@@ -165,6 +172,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 #endif
 
 #if 0
+	/*
+	 * DON'T ENABLE THIS without really taking care of having the correct disk image used!
 	memset(buf, 0, 512);
 	uint32 start_t = gettickcount();
 	for (uint64 i = 10+0; i < 10+64000; i++) {
@@ -180,6 +189,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	uint32 d = end_t - start_t;
 	d *= 10;
 	printk("Writing 64000 sectors took %u ms\n", d);
+	*/
 #endif
 
 	printk("All initialization complete!\n\n");
@@ -209,38 +219,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		asm volatile("int $0x7e");
 	}
 
-	//switch_to_user_mode();
-	//asm volatile("hlt");
-
-	//return;
-
-	/*
-	unsigned char ch;
-	while (true) {
-		ch = getchar();
-		putchar(ch);
-
-		if (ch == 0x08) {
-			putchar(' '); cursor.x--;
-		}
-
-		update_cursor();
-	}
-	*/
-
 	printk("\n\n");
 	printk("kmain() done; running infinite loop\n");
 	for(;;);
-
-	/*
-	Time t;
-	memset(&t, 0, sizeof(t));
-	get_time(&t);
-
-	for (;;) {
-		get_time(&t);
-		print_time(&t);
-		asm volatile("int $0x7e");
-	}
-	*/
 }
