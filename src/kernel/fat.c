@@ -111,15 +111,20 @@ typedef struct fat32_direntry {
 	uint32 file_size;
 } __attribute__((packed)) fat32_direntry_t;
 
+typedef uint16 UTF16_char;
+
 typedef struct fat32_lfn {
 	uint8 entry;
-	char name_1[10]; /* 5 2-byte chars of the name */
+	//char name_1[10]; /* 5 2-byte chars of the name */
+	UTF16_char name_1[5];
 	uint8 attrib; /* Always 0xF for LFN entries */
-	uint8 long_entry_type;
+	uint8 long_entry_type; /* should be 0 for all LFN entries */
 	uint8 checksum;
-	char name_2[12]; /* the next 6 2-byte chars of the name */
+	//char name_2[12]; /* the next 6 2-byte chars of the name */
+	UTF16_char name_2[6];
 	char zero[2]; /* always zero */
-	char name_3[4]; /* the last 2 2-byte chars of the name */
+	//char name_3[4]; /* the last 2 2-byte chars of the name */
+	UTF16_char name_3[2];
 } __attribute__((packed)) fat32_lfn_t;
 
 /* Finds the next cluster in the chain, if there is one. */
@@ -168,15 +173,79 @@ static void fat_test(fat32_partition_t *part) {
 
 		fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
 
+		UTF16_char *lfn_buf = NULL; /* allocated when needed */
+		uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
+
 		while (dir->name[0] != 0) {
 			if ((uint8)dir->name[0] == 0xe5) {
 				goto next;
 			}
 			if (dir->attrib == ATTRIB_LFN) {
-				printk("LFN entry!\n");
-				/* TODO */
+				fat32_lfn_t *lfn = (fat32_lfn_t *)dir;
+				printk("LFN entry! Entry = %02x\n", lfn->entry);
+
+				if (lfn->entry & 0x40) {
+					/* This is the "last" LFN entry. They are stored in reverse, though,
+					 * so it's the first one we encounter. */
+
+					/* This might need some explaining...
+					 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
+					 * (lfn->entry & 0x3f) is how many entries there are.
+					 * We need to AND away the 0x40 bit first, since it is not
+					 * part of the "how many LFN entries are there" info.
+					 */
+					num_lfn_entries = lfn->entry & 0x3f;
+					lfn_buf = kmalloc(sizeof(UTF16_char) * 13 * num_lfn_entries);
+				}
+
+				UTF16_char tmp[13]; /* let's store it in one chunk, first */
+
+				memcpy(tmp, lfn->name_1, 5 * sizeof(UTF16_char));
+				memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
+				memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
+
+				for (int i=0; i < 13; i++)
+					if (tmp[i] != 0 && tmp[i] != 0xffff) {
+						/* If this is always true, converting to 7-bit ASCII is super easy. */
+						assert((tmp[i] & 0xff80) == 0);
+					}
+
+				/* Copy it over to the actual buffer */
+				uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
+				memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
 			}
 			else {
+				if (lfn_buf != NULL) {
+					/* Process LFN data! */
+					uint32 len = num_lfn_entries * 13; /* maximum length this might be */
+					printk("Found dir entry with LFN data in buffer! (Up to) %u chars.\n", len);
+
+					char *ascii_buf = kmalloc(len + 1);
+
+					uint32 i = 0;
+					for (i = 0; i < len; i++) {
+						if (lfn_buf[i] == 0 || lfn_buf[i] == 0xffff) {
+							ascii_buf[i] = 0;
+							break;
+						}
+						else {
+							if ( (lfn_buf[i] & 0xff80) == 0) {
+								ascii_buf[i] = lfn_buf[i] & 0x00ff;
+							}
+							else
+								panic("Unsupported character in LFN!");
+						}
+					}
+					ascii_buf[i] = 0;
+
+					printk("LFN filename is: %s\n", ascii_buf);
+
+
+					kfree(lfn_buf);
+					lfn_buf = NULL;
+					num_lfn_entries = 0;
+				}
+
 				printk("Found %s: %11s (%u bytes); attributes: %s%s%s%s\n",
 						((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
 						dir->name,
