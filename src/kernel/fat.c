@@ -46,6 +46,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	fat32_bpb_t *bpb = (fat32_bpb_t *)buf;
 
 	assert(bpb->signature == 0x28 || bpb->signature == 0x29);
+	assert(bpb->bytes_per_sector == 512);
 
 	/* Create the list of partitions if it doesn't already exist) */
 	if (fat32_partitions == NULL)
@@ -55,7 +56,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	fat32_partition_t *part_info = kmalloc(sizeof(fat32_partition_t));
 	memset(part_info, 0, sizeof(fat32_partition_t));
 
-	/* Copy over the BPB and EBPB structs to the new entry */
+	/* Copy over the BPB and EBPB data to the new entry */
 	part_info->bpb = kmalloc(sizeof(fat32_bpb_t));
 	memcpy(part_info->bpb, bpb, sizeof(fat32_bpb_t));
 
@@ -74,62 +75,16 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
+	/* Temporary function for adding the basic features. */
 	fat_test(part_info);
 
 	return true;
 }
 
-typedef struct fat32_time {
-	uint16 second : 5;
-	uint16 minute : 6;
-	uint16 hour : 5;
-} __attribute__((packed)) fat32_time_t;
-
-typedef struct fat32_date {
-	uint16 day : 5;
-	uint16 month : 4;
-	uint16 year : 7;
-} __attribute__((packed)) fat32_date_t;
-
-typedef struct fat32_direntry {
-	char name[11]; /* 8.3 file name; the 8 part is space padded if shorter */
-	uint8 attrib;
-	uint8 reserved;
-	uint8 created_10ths;
-
-	fat32_time_t create_time;
-	fat32_date_t create_date;
-
-	fat32_date_t access_date;
-
-	uint16 high_cluster_num;
-
-	fat32_time_t mod_time;
-	fat32_date_t mod_date;
-
-	uint16 low_cluster_num;
-	uint32 file_size;
-} __attribute__((packed)) fat32_direntry_t;
-
-typedef uint16 UTF16_char;
-
-typedef struct fat32_lfn {
-	uint8 entry;
-	//char name_1[10]; /* 5 2-byte chars of the name */
-	UTF16_char name_1[5];
-	uint8 attrib; /* Always 0xF for LFN entries */
-	uint8 long_entry_type; /* should be 0 for all LFN entries */
-	uint8 checksum;
-	//char name_2[12]; /* the next 6 2-byte chars of the name */
-	UTF16_char name_2[6];
-	char zero[2]; /* always zero */
-	//char name_3[4]; /* the last 2 2-byte chars of the name */
-	UTF16_char name_3[2];
-} __attribute__((packed)) fat32_lfn_t;
-
 /* Finds the next cluster in the chain, if there is one. */
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	assert(part != NULL);
+	assert(cur_cluster >= 2);
 	const uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
 	uint32 *fat = kmalloc(cluster_size);
 
@@ -154,6 +109,49 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	return val;
 }
 
+/* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
+typedef uint16 UTF16_char;
+typedef struct fat32_lfn {
+	uint8 entry;
+	UTF16_char name_1[5];
+	uint8 attrib; /* Always 0xF for LFN entries */
+	uint8 long_entry_type; /* should be 0 for all LFN entries */
+	uint8 checksum;
+	UTF16_char name_2[6];
+	char zero[2]; /* always zero */
+	UTF16_char name_3[2];
+} __attribute__((packed)) fat32_lfn_t;
+
+/* Converts from the UTF-16 LFN buffer to a ASCII. Convert at most /len/ characters. */
+static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
+	uint32 i = 0;
+	for (i = 0; i < len; i++) {
+		if (lfn_buf[i] == 0 || lfn_buf[i] == 0xffff) {
+			/* Values are NULL-terminated (except where len % 13 == 0), and 0xffff-padded.
+			 * If we run in to either, we've reached or passed the end. */
+			ascii_buf[i] = 0;
+			break;
+		}
+		else {
+			/* This appears to be a valid UTF-16 character */
+			if ( (lfn_buf[i] & 0xff80) == 0) {
+				/* This character is losslessly representable as 7-bit ASCII;
+				 * only the lower 7 bits are used. */
+				ascii_buf[i] = lfn_buf[i] & 0x00ff;
+			}
+			else {
+				/* This character CANNOT be represented in 7-bit ASCII.
+				 * Since we have no proper Unicode support, we'll have to do this... */
+				ascii_buf[i] = '_';
+				//printk("Warning: unsupported character \\u%04x\n", lfn_buf[i]);
+			}
+		}
+	}
+
+	/* If len % 13 == 0, the loop will exit without NULL terminating the ASCII string. */
+	ascii_buf[i] = 0;
+}
+
 static void fat_test(fat32_partition_t *part) {
 
 #define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + (part->sectors_per_cluster*512) )
@@ -162,13 +160,14 @@ static void fat_test(fat32_partition_t *part) {
 
 	const uint32 cluster_size = part->sectors_per_cluster * 512;
 	assert(sizeof(fat32_direntry_t) == 32);
+	assert(sizeof(fat32_lfn_t) == 32);
 
+	/* Start the loop at the first cluster of the root directory */
 	uint32 cur_cluster = part->root_dir_first_cluster;
-
 	uint8 *disk_data = kmalloc(cluster_size);
 
 	while (true) {
-
+		/* Read this cluster from disk */
 		assert(disk_read(part->dev, LBA_FROM_CLUSTER(part, cur_cluster), cluster_size, disk_data));
 
 		fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
@@ -178,11 +177,15 @@ static void fat_test(fat32_partition_t *part) {
 
 		while (dir->name[0] != 0) {
 			if ((uint8)dir->name[0] == 0xe5) {
+				/* 0xe5 means unused directory entry. Try the next one. */
 				goto next;
 			}
+
 			if (dir->attrib == ATTRIB_LFN) {
+				/* This is a LFN entry. They are stored before the "short" (8.3) entry
+				 * on disk. */
+
 				fat32_lfn_t *lfn = (fat32_lfn_t *)dir;
-				printk("LFN entry! Entry = %02x\n", lfn->entry);
 
 				if (lfn->entry & 0x40) {
 					/* This is the "last" LFN entry. They are stored in reverse, though,
@@ -192,7 +195,7 @@ static void fat_test(fat32_partition_t *part) {
 					 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
 					 * (lfn->entry & 0x3f) is how many entries there are.
 					 * We need to AND away the 0x40 bit first, since it is not
-					 * part of the "how many LFN entries are there" info.
+					 * part of the entry count.
 					 */
 					num_lfn_entries = lfn->entry & 0x3f;
 					lfn_buf = kmalloc(sizeof(UTF16_char) * 13 * num_lfn_entries);
@@ -204,42 +207,23 @@ static void fat_test(fat32_partition_t *part) {
 				memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
 				memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
 
-				for (int i=0; i < 13; i++)
-					if (tmp[i] != 0 && tmp[i] != 0xffff) {
-						/* If this is always true, converting to 7-bit ASCII is super easy. */
-						assert((tmp[i] & 0xff80) == 0);
-					}
-
 				/* Copy it over to the actual buffer */
 				uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
 				memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
 			}
 			else {
+				/* This is a regular directory entry. */
+
+				/* Only used if lfn_buf != NULL */
+				char *long_name_ascii = NULL;
+
 				if (lfn_buf != NULL) {
 					/* Process LFN data! */
 					uint32 len = num_lfn_entries * 13; /* maximum length this might be */
-					printk("Found dir entry with LFN data in buffer! (Up to) %u chars.\n", len);
+					long_name_ascii = kmalloc(len + 1);
 
-					char *ascii_buf = kmalloc(len + 1);
-
-					uint32 i = 0;
-					for (i = 0; i < len; i++) {
-						if (lfn_buf[i] == 0 || lfn_buf[i] == 0xffff) {
-							ascii_buf[i] = 0;
-							break;
-						}
-						else {
-							if ( (lfn_buf[i] & 0xff80) == 0) {
-								ascii_buf[i] = lfn_buf[i] & 0x00ff;
-							}
-							else
-								panic("Unsupported character in LFN!");
-						}
-					}
-					ascii_buf[i] = 0;
-
-					printk("LFN filename is: %s\n", ascii_buf);
-
+					/* Convert UTF-16 -> ASCII and store in long_name_ascii */
+					parse_lfn(lfn_buf, long_name_ascii, len);
 
 					kfree(lfn_buf);
 					lfn_buf = NULL;
@@ -254,6 +238,12 @@ static void fat_test(fat32_partition_t *part) {
 						((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
 						((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
 						((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
+
+				if (long_name_ascii != NULL) {
+					printk("  LFN: %s\n", long_name_ascii);
+					kfree(long_name_ascii);
+					long_name_ascii = NULL;
+				}
 			}
 
 		next:
@@ -261,7 +251,7 @@ static void fat_test(fat32_partition_t *part) {
 			if (!IN_MEM(dir))
 				panic("next entry not in RAM!");
 
-		} /* end inner loop; time to go to the next cluster */
+		} /* end inner loop */
 
 		/* Look for the next cluster in the chain */
 		uint32 next_cluster = fat_next_cluster(part, cur_cluster);

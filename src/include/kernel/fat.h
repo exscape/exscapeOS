@@ -32,14 +32,11 @@ struct fat32_bpb {
 	uint16 heads;
 	uint32 hidden_sectors; /* relative LBA */
 	uint32 total_sectors; /* used if >65535 sectors, i.e. all FAT32 partitions? */
-	/*} __attribute__((packed));*/
-	/*typedef struct fat32_bpb fat32_bpb_t;*/
 
 /* Describes the FAT32 EBPB, located just after the BPB (above).
  * Note that if this struct is mapped onto a partition that is actually
  * FAT12/FAT16, the values will be wildly incorrect!
  */
-	/*struct fat32_ebpb {*/
 	uint32 sectors_per_fat; /* FAT size, in sectors */
 	uint16 flags;
 	uint8 fat_major_version;
@@ -53,9 +50,40 @@ struct fat32_bpb {
 	uint8 signature; /* 0x28 or 0x29 */
 	uint32 volumeid_serial;
 	char volume_label[11]; /* space padded */
-	//char sys_id_string[8]; /* always "FAT32   ". Don't use. */
 } __attribute__((packed));
 typedef struct fat32_bpb fat32_bpb_t;
-/*typedef struct fat32_ebpb fat32_ebpb_t;*/
 
+/* Time format used in fat32_direntry_t */
+typedef struct fat32_time {
+	uint16 second : 5;
+	uint16 minute : 6;
+	uint16 hour : 5;
+} __attribute__((packed)) fat32_time_t;
+
+/* Date format used in fat32_direntry_t. Relative to 1980-01-01 */
+typedef struct fat32_date {
+	uint16 day : 5;
+	uint16 month : 4;
+	uint16 year : 7;
+} __attribute__((packed)) fat32_date_t;
+
+typedef struct fat32_direntry {
+	char name[11]; /* 8.3 file name; the 8 part is space padded if shorter */
+	uint8 attrib;
+	uint8 reserved;
+	uint8 created_10ths;
+
+	fat32_time_t create_time;
+	fat32_date_t create_date;
+
+	fat32_date_t access_date;
+
+	uint16 high_cluster_num;
+
+	fat32_time_t mod_time;
+	fat32_date_t mod_date;
+
+	uint16 low_cluster_num;
+	uint32 file_size;
+} __attribute__((packed)) fat32_direntry_t;
 #endif
