@@ -75,8 +75,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-	//fat_parse_dir(part_info, part_info->root_dir_first_cluster);
-	fat_parse_dir(part_info, 8);
+	fat_parse_dir(part_info, part_info->root_dir_first_cluster);
 
 	return true;
 }
@@ -85,26 +84,22 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	assert(part != NULL);
 	assert(cur_cluster >= 2);
-	const uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
-	uint32 *fat = kmalloc(cluster_size);
 
 	/* Formulas taken from the FAT spec */
-	uint32 fat_offset = cur_cluster * 4; // sizeof(uint32)
+	uint32 fat_offset = cur_cluster; /* Spec has * 4, but the array is of uint32's here! */
 	uint32 fat_sector = part->fat_start_lba + (fat_offset / 512);
 	uint32 entry_offset = fat_offset % 512;
+	assert(entry_offset <= 512/4 - 1);
 
 	/* Make sure the FAT LBA is within the FAT on disk */
 	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + part->bpb->sectors_per_fat));
 
-	/* Read it */
-	assert(disk_read(part->dev, fat_sector, cluster_size, (uint8 *)fat));
-
-	assert(entry_offset < (part->bpb->sectors_per_fat * 512)/4);
+	/* Read the FAT sector to RAM */
+	uint32 fat[512/sizeof(uint32)];
+	assert(disk_read(part->dev, fat_sector, 512, (uint8 *)fat));
 
 	/* Read the FAT */
 	uint32 val = fat[entry_offset] & 0x0fffffff;
-
-	kfree(fat);
 
 	return val;
 }
@@ -143,7 +138,6 @@ static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
 				/* This character CANNOT be represented in 7-bit ASCII.
 				 * Since we have no proper Unicode support, we'll have to do this... */
 				ascii_buf[i] = '_';
-				//printk("Warning: unsupported character \\u%04x\n", lfn_buf[i]);
 			}
 		}
 	}
@@ -158,127 +152,133 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *p, uint32 c) {
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 
-#define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + (part->sectors_per_cluster*512) )
-
 	const uint32 cluster_size = part->sectors_per_cluster * 512;
+
+#define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + cluster_size )
+
 	assert(sizeof(fat32_direntry_t) == 32);
 	assert(sizeof(fat32_lfn_t) == 32);
 
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(cluster_size);
+	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
+	dir->name[0] = 0x1; /* What do you mean, "hack"? ... Anyway, this is used to first enter the loop... */
 
-	while (true) {
-		/* Read this cluster from disk */
-		assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
+	UTF16_char *lfn_buf = NULL; /* allocated when needed */
+	uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
-		fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
+	/* Read the first cluster from disk */
+	assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
 
-		UTF16_char *lfn_buf = NULL; /* allocated when needed */
-		uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
+	while (dir->name[0] != 0) {
 
-		while (dir->name[0] != 0) {
-			if ((uint8)dir->name[0] == 0xe5) {
-				/* 0xe5 means unused directory entry. Try the next one. */
-				goto next;
+		if ((uint8)dir->name[0] == 0xe5) {
+			/* 0xe5 means unused directory entry. Try the next one. */
+			goto next;
+		}
+
+		if (dir->attrib == ATTRIB_LFN) {
+			/* This is a LFN entry. They are stored before the "short" (8.3) entry
+			 * on disk. */
+
+			fat32_lfn_t *lfn = (fat32_lfn_t *)dir;
+
+			if (lfn->entry & 0x40) {
+				/* This is the "last" LFN entry. They are stored in reverse, though,
+				 * so it's the first one we encounter. */
+
+				/* This might need some explaining...
+				 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
+				 * (lfn->entry & 0x3f) is how many entries there are.
+				 * We need to AND away the 0x40 bit first, since it is not
+				 * part of the entry count.
+				 */
+				num_lfn_entries = lfn->entry & 0x3f;
+				lfn_buf = kmalloc(sizeof(UTF16_char) * 13 * num_lfn_entries);
 			}
 
-			if (dir->attrib == ATTRIB_LFN) {
-				/* This is a LFN entry. They are stored before the "short" (8.3) entry
-				 * on disk. */
+			UTF16_char tmp[13]; /* let's store it in one chunk, first */
 
-				fat32_lfn_t *lfn = (fat32_lfn_t *)dir;
+			memcpy(tmp, lfn->name_1, 5 * sizeof(UTF16_char));
+			memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
+			memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
 
-				if (lfn->entry & 0x40) {
-					/* This is the "last" LFN entry. They are stored in reverse, though,
-					 * so it's the first one we encounter. */
+			/* Copy it over to the actual buffer */
+			uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
+			assert(lfn_buf != NULL);
+			memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
+		}
+		else {
+			/* This is a regular directory entry. */
 
-					/* This might need some explaining...
-					 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
-					 * (lfn->entry & 0x3f) is how many entries there are.
-					 * We need to AND away the 0x40 bit first, since it is not
-					 * part of the entry count.
-					 */
-					num_lfn_entries = lfn->entry & 0x3f;
-					lfn_buf = kmalloc(sizeof(UTF16_char) * 13 * num_lfn_entries);
-				}
+			/* Only used if lfn_buf != NULL */
+			char *long_name_ascii = NULL;
 
-				UTF16_char tmp[13]; /* let's store it in one chunk, first */
+			if (lfn_buf != NULL) {
+				/* Process LFN data! */
+				uint32 len = num_lfn_entries * 13; /* maximum length this might be */
+				long_name_ascii = kmalloc(len + 1);
 
-				memcpy(tmp, lfn->name_1, 5 * sizeof(UTF16_char));
-				memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
-				memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
+				/* Convert UTF-16 -> ASCII and store in long_name_ascii */
+				parse_lfn(lfn_buf, long_name_ascii, len);
 
-				/* Copy it over to the actual buffer */
-				uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
-				memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
+				kfree(lfn_buf);
+				lfn_buf = NULL;
+				num_lfn_entries = 0;
 			}
-			else {
-				/* This is a regular directory entry. */
 
-				/* Only used if lfn_buf != NULL */
-				char *long_name_ascii = NULL;
+			uint32 data_cluster = 
+								  (dir->high_cluster_num << 16) |
+								  (dir->low_cluster_num);
 
-				if (lfn_buf != NULL) {
-					/* Process LFN data! */
-					uint32 len = num_lfn_entries * 13; /* maximum length this might be */
-					long_name_ascii = kmalloc(len + 1);
+			char buf[12] = {0};
+			memcpy(buf, dir->name, 11);
+			buf[11] = 0;
 
-					/* Convert UTF-16 -> ASCII and store in long_name_ascii */
-					parse_lfn(lfn_buf, long_name_ascii, len);
-
-					kfree(lfn_buf);
-					lfn_buf = NULL;
-					num_lfn_entries = 0;
-				}
-
-				uint32 data_cluster = 
-					                  (dir->high_cluster_num << 16) |
-									  (dir->low_cluster_num);
-
-				char buf[12] = {0};
-				memcpy(buf, dir->name, 11);
-				buf[11] = 0;
-
-				printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
-						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
-						data_cluster);
+			printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
+					((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
+					data_cluster);
 
 #if 0
-				printk("Found %s: %11s (%u bytes); data at cluster %u; attributes: %s%s%s%s\n",
-						((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
-						dir->name,
-						dir->file_size,
-						data_cluster,
-						((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
-						((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
-						((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
-						((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
+			printk("Found %s: %11s (%u bytes); data at cluster %u; attributes: %s%s%s%s\n",
+					((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
+					dir->name,
+					dir->file_size,
+					data_cluster,
+					((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
+					((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
+					((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
+					((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
 
-				if (long_name_ascii != NULL) {
-					printk("  LFN: %s\n", long_name_ascii);
-					kfree(long_name_ascii);
-					long_name_ascii = NULL;
-				}
+			if (long_name_ascii != NULL) {
+				printk("  LFN: %s\n", long_name_ascii);
+				kfree(long_name_ascii);
+				long_name_ascii = NULL;
+			}
 #endif
+		}
+
+	next:
+		dir++;
+		if (!IN_MEM(dir)) {
+			/* Look for the next cluster in the chain */
+			uint32 next_cluster = fat_next_cluster(part, cur_cluster);
+			printk("cur_cluster = %u, next = %u\n", cur_cluster, next_cluster);
+			if (next_cluster == 0x0ffffff7) { panic("bad cluster!"); }
+			if (next_cluster >= 0x0FFFFFF8) {
+				panic("No more clusters in this chain, but dir entry was never closed (0x00)!");
 			}
 
-		next:
-			dir++;
-			if (!IN_MEM(dir))
-				panic("next entry not in RAM!");
+			assert(next_cluster >= 2 && next_cluster < 0xfffffff7);
+			cur_cluster = next_cluster;
 
-		} /* end inner loop */
+			/* Read this cluster from disk */
+			assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
 
-		/* Look for the next cluster in the chain */
-		uint32 next_cluster = fat_next_cluster(part, cur_cluster);
-		printk("cur_cluster = %u, next = %u\n", cur_cluster, next_cluster);
-		if (next_cluster == 0x0ffffff7) { panic("bad cluster!"); }
-		if (next_cluster >= 0x0FFFFFF8) {
-			panic("END! No more clusters in this chain!");
+			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
+			dir = (fat32_direntry_t *)disk_data;
 		}
-		cur_cluster = next_cluster;
-	} /* end outer loop */
+	}
 
 	kfree(disk_data);
-	panic("end");
 }
