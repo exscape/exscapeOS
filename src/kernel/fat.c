@@ -22,6 +22,19 @@ typedef struct fat32_partition {
 	fat32_bpb_t *bpb;
 } fat32_partition_t;
 
+/* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
+typedef uint16 UTF16_char;
+typedef struct fat32_lfn {
+	uint8 entry;
+	UTF16_char name_1[5];
+	uint8 attrib; /* Always 0xF for LFN entries */
+	uint8 long_entry_type; /* should be 0 for all LFN entries */
+	uint8 checksum;
+	UTF16_char name_2[6];
+	char zero[2]; /* always zero */
+	UTF16_char name_3[2];
+} __attribute__((packed)) fat32_lfn_t;
+
 list_t *fat32_partitions = NULL;
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster);
@@ -35,6 +48,10 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	assert(dev->partition[part].exists);
 	assert(dev->partition[part].type == PART_FAT32 || 
 	       dev->partition[part].type == PART_FAT32_LBA);
+	assert(sizeof(fat32_direntry_t) == 32);
+	assert(sizeof(fat32_lfn_t) == 32);
+	assert(sizeof(fat32_time_t) == 2);
+	assert(sizeof(fat32_date_t) == 2);
 
 	uint8 *buf = kmalloc(512);
 	/* Read the Volume ID sector */
@@ -104,19 +121,6 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	return val;
 }
 
-/* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
-typedef uint16 UTF16_char;
-typedef struct fat32_lfn {
-	uint8 entry;
-	UTF16_char name_1[5];
-	uint8 attrib; /* Always 0xF for LFN entries */
-	uint8 long_entry_type; /* should be 0 for all LFN entries */
-	uint8 checksum;
-	UTF16_char name_2[6];
-	char zero[2]; /* always zero */
-	UTF16_char name_3[2];
-} __attribute__((packed)) fat32_lfn_t;
-
 /* Converts from the UTF-16 LFN buffer to a ASCII. Convert at most /len/ characters. */
 static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
 	uint32 i = 0;
@@ -146,18 +150,20 @@ static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
 	ascii_buf[i] = 0;
 }
 
-inline static uint32 fat_lba_from_cluster(fat32_partition_t *p, uint32 c) {
-	return ((p->cluster_start_lba + ((c - 2) * p->sectors_per_cluster)));
+/* Calculates the absolute LBA where a cluster starts on disk, given a partition and a cluster number. */
+inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluster_num) {
+	return ((part->cluster_start_lba + ((cluster_num - 2) * part->sectors_per_cluster)));
+}
+
+static bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer) {
+	uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
+	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), cluster_size, buffer);
 }
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
-
 	const uint32 cluster_size = part->sectors_per_cluster * 512;
 
 #define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + cluster_size )
-
-	assert(sizeof(fat32_direntry_t) == 32);
-	assert(sizeof(fat32_lfn_t) == 32);
 
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(cluster_size);
@@ -168,9 +174,11 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 	uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
 	/* Read the first cluster from disk */
-	assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
+	assert(fat_read_cluster(part, cur_cluster, disk_data));
 
 	while (dir->name[0] != 0) {
+		/* Run until we hit a 0x00 starting byte, signifying the end of
+		 * the directory entry. */
 
 		if ((uint8)dir->name[0] == 0xe5) {
 			/* 0xe5 means unused directory entry. Try the next one. */
@@ -227,17 +235,20 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 				num_lfn_entries = 0;
 			}
 
-			uint32 data_cluster = 
-								  (dir->high_cluster_num << 16) |
-								  (dir->low_cluster_num);
+			uint32 data_cluster = (dir->high_cluster_num << 16) | (dir->low_cluster_num);
 
 			char buf[12] = {0};
 			memcpy(buf, dir->name, 11);
 			buf[11] = 0;
 
-			printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
-					((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
-					data_cluster);
+			if (dir->name[0] != '.') {
+				printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
+						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
+						data_cluster);
+			}
+
+			if (dir->attrib & ATTRIB_DIR && dir->name[0] != '.')
+				fat_parse_dir(part, data_cluster);
 
 #if 0
 			printk("Found %s: %11s (%u bytes); data at cluster %u; attributes: %s%s%s%s\n",
@@ -273,7 +284,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			cur_cluster = next_cluster;
 
 			/* Read this cluster from disk */
-			assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
+			assert(fat_read_cluster(part, cur_cluster, disk_data));
 
 			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
 			dir = (fat32_direntry_t *)disk_data;
