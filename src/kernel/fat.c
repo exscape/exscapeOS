@@ -24,7 +24,7 @@ typedef struct fat32_partition {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_test(fat32_partition_t *part);
+static void fat_parse_dir(fat32_partition_t *part, uint32 cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -75,8 +75,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-	/* Temporary function for adding the basic features. */
-	fat_test(part_info);
+	//fat_parse_dir(part_info, part_info->root_dir_first_cluster);
+	fat_parse_dir(part_info, 8);
 
 	return true;
 }
@@ -94,7 +94,7 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	uint32 entry_offset = fat_offset % 512;
 
 	/* Make sure the FAT LBA is within the FAT on disk */
-	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + (part->bpb->sectors_per_fat * 512)));
+	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + part->bpb->sectors_per_fat));
 
 	/* Read it */
 	assert(disk_read(part->dev, fat_sector, cluster_size, (uint8 *)fat));
@@ -152,23 +152,24 @@ static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
 	ascii_buf[i] = 0;
 }
 
-static void fat_test(fat32_partition_t *part) {
+inline static uint32 fat_lba_from_cluster(fat32_partition_t *p, uint32 c) {
+	return ((p->cluster_start_lba + ((c - 2) * p->sectors_per_cluster)));
+}
+
+static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 
 #define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + (part->sectors_per_cluster*512) )
-
-#define LBA_FROM_CLUSTER(p, c) ((p->cluster_start_lba + ((c - 2) * p->sectors_per_cluster)))
 
 	const uint32 cluster_size = part->sectors_per_cluster * 512;
 	assert(sizeof(fat32_direntry_t) == 32);
 	assert(sizeof(fat32_lfn_t) == 32);
 
-	/* Start the loop at the first cluster of the root directory */
-	uint32 cur_cluster = part->root_dir_first_cluster;
+	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(cluster_size);
 
 	while (true) {
 		/* Read this cluster from disk */
-		assert(disk_read(part->dev, LBA_FROM_CLUSTER(part, cur_cluster), cluster_size, disk_data));
+		assert(disk_read(part->dev, fat_lba_from_cluster(part, cur_cluster), cluster_size, disk_data));
 
 		fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
 
@@ -230,10 +231,24 @@ static void fat_test(fat32_partition_t *part) {
 					num_lfn_entries = 0;
 				}
 
-				printk("Found %s: %11s (%u bytes); attributes: %s%s%s%s\n",
+				uint32 data_cluster = 
+					                  (dir->high_cluster_num << 16) |
+									  (dir->low_cluster_num);
+
+				char buf[12] = {0};
+				memcpy(buf, dir->name, 11);
+				buf[11] = 0;
+
+				printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
+						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
+						data_cluster);
+
+#if 0
+				printk("Found %s: %11s (%u bytes); data at cluster %u; attributes: %s%s%s%s\n",
 						((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
 						dir->name,
 						dir->file_size,
+						data_cluster,
 						((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
 						((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
 						((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
@@ -244,6 +259,7 @@ static void fat_test(fat32_partition_t *part) {
 					kfree(long_name_ascii);
 					long_name_ascii = NULL;
 				}
+#endif
 			}
 
 		next:
