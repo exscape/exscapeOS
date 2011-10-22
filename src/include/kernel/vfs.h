@@ -37,7 +37,6 @@ typedef struct fs_node {
 	struct fs_node *ptr;
 } fs_node_t;
 
-
 /* The root of the filesystem heirarchy */
 extern fs_node_t *fs_root;
 
@@ -51,7 +50,7 @@ struct dirent {
 /* All except FS_MOUNTPOINT are mutually exclusive */
 #define FS_FILE   0x01
 #define FS_DIRECTORY 0x02
-#define FS_CHARDEV 0x02
+#define FS_CHARDEV 0x03
 #define FS_BLOCKDEV 0x04
 #define FS_PIPE 0x05
 #define FS_SYMLINK 0x06

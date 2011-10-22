@@ -155,6 +155,54 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluste
 	return ((part->cluster_start_lba + ((cluster_num - 2) * part->sectors_per_cluster)));
 }
 
+static void fat_parse_short_name(char *buf) {
+	/*
+	 * I'm not proud about this function... I did try to re-think, but
+	 * I didn't end up with anything much better than this.
+	 */
+
+	if (*buf == 0)
+		return;
+
+	assert(*buf > 0x20 || *buf == 0x05);
+
+	/* Temporary arrays */
+	char name[9] = {0}, ext[4] = {0};
+
+	/* Copy the parts over */
+	memcpy(name, buf, 8);
+	memcpy(ext , buf + 8, 3);
+
+	/* Trim the filename (space padded), if needed */
+	char *p = (char *)&name + 7;
+	while (*p == ' ' && p > (char *)&name) p--;
+	*(++p) = 0;
+	strcpy(buf, name);
+
+	/* Is there an extension? */
+	if (ext[0] != ' ') {
+		/* Yes. */
+		/* Reuse "p" */
+		p = buf + strlen(buf);
+
+		/* Add the dot, then copy the extension */
+		*p++ = '.';
+		for (int i=0; i < 3; i++) {
+			if (ext[i] > ' ')
+				*p++ = ext[i];
+		}
+
+		/* NULL terminate wherever p is pointing now */
+		*p = 0;
+
+		return;
+	}
+	else {
+		/* No extension! That means we're done here. */
+		   return;
+	}
+}
+
 static bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer) {
 	uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
 	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), cluster_size, buffer);
@@ -237,12 +285,16 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 
 			uint32 data_cluster = (dir->high_cluster_num << 16) | (dir->low_cluster_num);
 
-			char buf[12] = {0};
+			char buf[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
 			memcpy(buf, dir->name, 11);
 			buf[11] = 0;
+			if (!(dir->attrib & ATTRIB_VOLUME_ID)) {
+				printk("before parse: %s\n", buf);
+				fat_parse_short_name(buf);
+			}
 
 			if (dir->name[0] != '.') {
-				printk("%32s %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf),
+				printk("%32s (short: %s) %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf), buf,
 						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
 						data_cluster);
 			}
