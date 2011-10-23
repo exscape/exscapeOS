@@ -370,10 +370,10 @@ void ata_init(void) {
 				devices[dev].capabilities |= ATA_CAPABILITY_FLUSH_CACHE;
 
 			/* Remove the trailing spaces (and unprintables) in the model and serial numbers */
-			char *p = model + 41; /* note: 1 past the end */
+			char *p = model + 40; /* note: 1 past the end */
 			while (*--p <= 0x20);
 			*(p+1) = 0;
-			p = serial + 21; /* same */
+			p = serial + 20; /* same */
 			while (*--p <= 0x20);
 			*(p+1) = 0;
 
