@@ -31,6 +31,31 @@ int strcmp(const char *s1, const char *s2) {
 	return *( (unsigned char *)s1) < *( (unsigned char *)s2) ? -1 : 1;
 }
 
+char *strchr(const char *s, int c_) {
+	char c = (char)c_;
+	while (*s != 0 && *s != c)
+		s++;
+	if (*s == c)
+		return (char *)s;
+	else
+		return NULL;
+}
+
+char *strrchr(const char *s, int c_) {
+	char c = (char)c_;
+	const char *p = s + strlen(s) - 1;
+	if (p < s)
+		return NULL;
+
+	while (p > s && *p != c)
+		p--;
+
+	if (*p == c)
+		return (char *)p;
+	else
+		return NULL;
+}
+
 int strncmp(const char *s1, const char *s2, size_t n) {
 	unsigned char uc1, uc2;
 	if (n == 0 || s1 == NULL || s2 == NULL)

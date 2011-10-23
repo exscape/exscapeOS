@@ -12,6 +12,9 @@ char *strcpy(char *restrict s1, const char *restrict s2);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, size_t n);
 
+char *strchr(const char *s, int c);
+char *strrchr(const char *s, int c);
+
 size_t strlcpy(char *dst, const char *src, size_t size);
 
 /* This doesn't really belong in string.h. */
