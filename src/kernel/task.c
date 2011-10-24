@@ -189,6 +189,10 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	task->esp = 0;
 	task->eip = 0;
 	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
+
+	/* Zero the stack, so user applications can't peer in to what may have been on the kernel heap */
+	memset((void *)( (uint32)task->stack - KERNEL_STACK_SIZE ), 0, KERNEL_STACK_SIZE);
+
 	if (privilege == 0)
 		task->page_directory = current_directory;
 	else {
