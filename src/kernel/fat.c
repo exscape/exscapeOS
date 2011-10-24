@@ -303,40 +303,24 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 
 			uint32 data_cluster = (dir->high_cluster_num << 16) | (dir->low_cluster_num);
 
-			char buf[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
-			memcpy(buf, dir->name, 11);
-			buf[11] = 0;
+			char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
+			memcpy(short_name, dir->name, 11);
+			short_name[11] = 0;
 
 			if (!(dir->attrib & ATTRIB_VOLUME_ID)) {
-				fat_parse_short_name(buf);
+				fat_parse_short_name(short_name);
 			}
 
 			if (dir->name[0] != '.') {
-				printk("%32s (short: %s) %11s %u\n", (long_name_ascii != NULL ? long_name_ascii : buf), buf,
+				printk("%16s (short: %s) %s (%u bytes) @ %u (attribs: %s%s%s%s)\n", (long_name_ascii != NULL ? long_name_ascii : short_name), short_name,
 						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
-						data_cluster);
+						dir->file_size,
+						data_cluster,
+						((dir->attrib & ATTRIB_ARCHIVE) ? "A" : ""),
+						((dir->attrib & ATTRIB_HIDDEN) ? "H" : ""),
+						((dir->attrib & ATTRIB_SYSTEM) ? "S" : ""),
+						((dir->attrib & ATTRIB_READONLY) ? "R" : ""));
 			}
-
-			if (dir->attrib & ATTRIB_DIR && dir->name[0] != '.')
-				fat_parse_dir(part, data_cluster);
-
-#if 0
-			printk("Found %s: %11s (%u bytes); data at cluster %u; attributes: %s%s%s%s\n",
-					((dir->attrib & ATTRIB_DIR) ? "directory" : "file"),
-					dir->name,
-					dir->file_size,
-					data_cluster,
-					((dir->attrib & ATTRIB_ARCHIVE) ? "archive " : ""),
-					((dir->attrib & ATTRIB_HIDDEN) ? "hidden " : ""),
-					((dir->attrib & ATTRIB_SYSTEM) ? "system " : ""),
-					((dir->attrib & ATTRIB_READONLY) ? "readonly " : ""));
-
-			if (long_name_ascii != NULL) {
-				printk("  LFN: %s\n", long_name_ascii);
-				kfree(long_name_ascii);
-				long_name_ascii = NULL;
-			}
-#endif
 		}
 
 	next:
