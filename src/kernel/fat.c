@@ -6,21 +6,7 @@
 #include <kernel/list.h>
 #include <string.h>
 #include <kernel/part.h>
-
-typedef struct fat32_partition {
-	ata_device_t *dev; /* the device that holds this partition */
-	uint32 fat_start_lba; /* the LBA where the FAT begins */
-	uint32 end_lba; /* last valid LBA for this partition */
-	uint32 cluster_start_lba;
-	uint32 sectors_per_cluster;
-	uint32 root_dir_first_cluster;
-
-	/* TODO: better naming. This is a pointer back to the dev->partition[x] structure. */
-	partition_t *part_info;
-
-	/* The entire BPB and EBPB data structures for this partition */
-	fat32_bpb_t *bpb;
-} fat32_partition_t;
+#include <kernel/vfs.h>
 
 /* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
 typedef uint16 UTF16_char;
@@ -68,6 +54,9 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Create the list of partitions if it doesn't already exist) */
 	if (fat32_partitions == NULL)
 		fat32_partitions = list_create();
+	/* Same for the mountpoints list */
+	if (mountpoints == NULL)
+		mountpoints = list_create();
 
 	/* Set up an entry */
 	fat32_partition_t *part_info = kmalloc(sizeof(fat32_partition_t));
@@ -85,6 +74,19 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	part_info->sectors_per_cluster = bpb->sectors_per_cluster;
 	part_info->root_dir_first_cluster = bpb->root_cluster_num;
 	part_info->part_info = &dev->partition[part];
+
+	/* This will need fixing later. The partition that is detected first turns in to the FS root. */
+	if (mountpoints->count == 0) {
+		mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
+		strlcpy(mp->path, "/", sizeof(mp->path));
+		mp->partition = part_info;
+
+		list_append(mountpoints, mp);
+	}
+	else {
+		panic("FAT partition is not root - other mountpoints are not yet supported!");
+	}
+
 
 	/* We now have no real use of the old stuff any longer */
 	kfree(buf);
@@ -208,10 +210,28 @@ static bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buf
 	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), cluster_size, buffer);
 }
 
+static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32 *cur_cluster) {
+	assert(part != NULL);
+	assert(buffer != NULL);
+	assert(cur_cluster != NULL);
+
+	uint32 next_cluster = fat_next_cluster(part, *cur_cluster);
+	if (next_cluster == 0x0ffffff7) { panic("bad cluster!"); }
+	if (next_cluster >= 0x0FFFFFF8) {
+		return false;
+	}
+
+	assert(next_cluster >= 2 && next_cluster < 0xfffffff7);
+	*cur_cluster = next_cluster;
+
+	/* Read this cluster from disk */
+	assert(fat_read_cluster(part, *cur_cluster, buffer));
+
+	return true;
+}
+
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 	const uint32 cluster_size = part->sectors_per_cluster * 512;
-
-#define IN_MEM(addr) ( (uint32)addr >= (uint32)disk_data && (uint32)addr < (uint32)disk_data + cluster_size )
 
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(cluster_size);
@@ -288,8 +308,8 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			char buf[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
 			memcpy(buf, dir->name, 11);
 			buf[11] = 0;
+
 			if (!(dir->attrib & ATTRIB_VOLUME_ID)) {
-				printk("before parse: %s\n", buf);
 				fat_parse_short_name(buf);
 			}
 
@@ -323,20 +343,14 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 
 	next:
 		dir++;
-		if (!IN_MEM(dir)) {
-			/* Look for the next cluster in the chain */
-			uint32 next_cluster = fat_next_cluster(part, cur_cluster);
-			printk("cur_cluster = %u, next = %u\n", cur_cluster, next_cluster);
-			if (next_cluster == 0x0ffffff7) { panic("bad cluster!"); }
-			if (next_cluster >= 0x0FFFFFF8) {
-				panic("No more clusters in this chain, but dir entry was never closed (0x00)!");
+
+		/* Read a new cluster if we've read past this one */
+		if ((uint32)dir >= (uint32)disk_data + cluster_size) {
+			/* Read the next cluster in this directory, if there is one */
+			if (!fat_read_next_cluster(part, disk_data, &cur_cluster)) {
+				/* No more clusters in this chain */
+				break;
 			}
-
-			assert(next_cluster >= 2 && next_cluster < 0xfffffff7);
-			cur_cluster = next_cluster;
-
-			/* Read this cluster from disk */
-			assert(fat_read_cluster(part, cur_cluster, disk_data));
 
 			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
 			dir = (fat32_direntry_t *)disk_data;

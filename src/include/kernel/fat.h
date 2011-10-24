@@ -53,6 +53,21 @@ struct fat32_bpb {
 } __attribute__((packed));
 typedef struct fat32_bpb fat32_bpb_t;
 
+typedef struct fat32_partition {
+	ata_device_t *dev; /* the device that holds this partition */
+	uint32 fat_start_lba; /* the LBA where the FAT begins */
+	uint32 end_lba; /* last valid LBA for this partition */
+	uint32 cluster_start_lba;
+	uint32 sectors_per_cluster;
+	uint32 root_dir_first_cluster;
+
+	/* TODO: better naming. This is a pointer back to the dev->partition[x] structure. */
+	partition_t *part_info;
+
+	/* The entire BPB and EBPB data structures for this partition */
+	fat32_bpb_t *bpb;
+} fat32_partition_t;
+
 /* Time format used in fat32_direntry_t */
 typedef struct fat32_time {
 	uint16 second : 5;

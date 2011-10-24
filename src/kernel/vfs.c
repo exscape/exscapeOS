@@ -2,9 +2,20 @@
 #include <types.h>
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
+#include <kernel/list.h>
 
 /* The root of the filesystem hierarchy */
 fs_node_t *fs_root = NULL;
+
+list_t *mountpoints = NULL;
+
+mountpoint_t *find_mountpoint_for_path(const char *path) {
+	if (mountpoints == NULL || mountpoints->count == 0 || path == NULL)
+		return NULL;
+
+	/* We only support the root mountpoint for now... */
+	return (mountpoint_t *)mountpoints->head->data;
+}
 
 /* Calls the correct read function */
 uint32 read_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {

@@ -2,6 +2,8 @@
 #define _VFS_H
 
 #include <types.h>
+#include <kernel/list.h>
+#include <kernel/fat.h>
 
 /* Forward declaration, since there's a catch 22 that the function prototypes and the struct need each other */
 struct fs_node; 
@@ -13,6 +15,18 @@ typedef void (*open_type_t)(struct fs_node *);
 typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
+
+typedef struct mountpoint {
+	char path[512];
+
+	/* Will be changed to a FS-neutral type when needed */
+	fat32_partition_t *partition;
+} mountpoint_t;
+
+/* A list of the mountpoints currently used */
+extern list_t *mountpoints;
+
+mountpoint_t *find_mountpoint_for_path(const char *path);
 
 /* A struct describing a node (file, directory, ...) */
 typedef struct fs_node {
