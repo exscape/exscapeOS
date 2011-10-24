@@ -74,6 +74,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	part_info->sectors_per_cluster = bpb->sectors_per_cluster;
 	part_info->root_dir_first_cluster = bpb->root_cluster_num;
 	part_info->part_info = &dev->partition[part];
+	part_info->cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
 
 	/* This will need fixing later. The partition that is detected first turns in to the FS root. */
 	if (mountpoints->count == 0) {
@@ -205,9 +206,8 @@ static void fat_parse_short_name(char *buf) {
 	}
 }
 
-static bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer) {
-	uint32 cluster_size = part->bpb->sectors_per_cluster * 512;
-	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), cluster_size, buffer);
+static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer) {
+	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), part->cluster_size, buffer);
 }
 
 static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32 *cur_cluster) {
@@ -231,10 +231,8 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 }
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
-	const uint32 cluster_size = part->sectors_per_cluster * 512;
-
 	uint32 cur_cluster = cluster;
-	uint8 *disk_data = kmalloc(cluster_size);
+	uint8 *disk_data = kmalloc(part->cluster_size);
 	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
 	dir->name[0] = 0x1; /* What do you mean, "hack"? ... Anyway, this is used to first enter the loop... */
 
@@ -345,7 +343,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 		dir++;
 
 		/* Read a new cluster if we've read past this one */
-		if ((uint32)dir >= (uint32)disk_data + cluster_size) {
+		if ((uint32)dir >= (uint32)disk_data + part->cluster_size) {
 			/* Read the next cluster in this directory, if there is one */
 			if (!fat_read_next_cluster(part, disk_data, &cur_cluster)) {
 				/* No more clusters in this chain */

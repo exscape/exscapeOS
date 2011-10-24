@@ -60,6 +60,7 @@ typedef struct fat32_partition {
 	uint32 cluster_start_lba;
 	uint32 sectors_per_cluster;
 	uint32 root_dir_first_cluster;
+	uint32 cluster_size; /* part->cluster_size is easier than part->bpb->sectors_per_cluster * 512 */
 
 	/* TODO: better naming. This is a pointer back to the dev->partition[x] structure. */
 	partition_t *part_info;
