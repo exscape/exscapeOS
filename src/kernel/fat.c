@@ -103,6 +103,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		printk("Found a file/directory: %s\n", dir->d_name);
 	}
 
+	fat_closedir(root);
+
 	return true;
 }
 
@@ -305,6 +307,27 @@ DIR *fat_opendir(const char *path) {
 	dir->entries = NULL; /* created in fat_readdir */
 
 	return dir;
+}
+
+void fat_closedir(DIR *dir) {
+	if (dir == NULL)
+		return;
+
+	if (dir->entries != NULL) {
+		/* Loop through the list and free the direntry_t's.
+		 * Also free the nodes, since list_destroy() would loop through the list again... */
+		node_t *it = dir->entries->head;
+		while (it != NULL) {
+			node_t *next = it->next;
+			if (it->data)
+				kfree(it->data);
+			kfree(it);
+			it = next;
+		}
+
+	}
+
+	kfree(dir);
 }
 
 /* Used to describe a FAT directory entry (not on disk!) */
