@@ -40,8 +40,8 @@ static uint32 initrd_read(fs_node_t *node, uint32 offset, uint32 size, uint8 *bu
 static struct dirent *initrd_readdir(fs_node_t *node, uint32 index) {
 	if (node == initrd_root && index == 0) {
 		/* Force the first node of / to be /dev */
-		strlcpy(dirent.name, "dev", sizeof(dirent.name));
-		dirent.ino = 0;
+		strlcpy(dirent.d_name, "dev", sizeof(dirent.d_name));
+		dirent.d_ino = 0;
 		return &dirent;
 	}
 
@@ -52,8 +52,8 @@ static struct dirent *initrd_readdir(fs_node_t *node, uint32 index) {
 	if (index > 0 && index - 1 >= (uint32)nroot_nodes)
 		return 0;
 
-	strlcpy(dirent.name, root_nodes[index-1].name, sizeof(dirent.name));
-	dirent.ino = root_nodes[index-1].inode;
+	strlcpy(dirent.d_name, root_nodes[index-1].name, sizeof(dirent.d_name));
+	dirent.d_ino = root_nodes[index-1].inode;
 	return &dirent;
 }
 

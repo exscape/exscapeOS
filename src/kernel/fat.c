@@ -23,7 +23,7 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_parse_dir(fat32_partition_t *part, uint32 cluster);
+static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries);
 static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
@@ -96,9 +96,12 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-	fat_parse_dir(part_info, part_info->root_dir_first_cluster);
-
-	printk("%u entries in root dir\n", fat_dir_num_entries(part_info, part_info->root_dir_first_cluster));
+	DIR *root = fat_opendir("/");
+	printk("%u entries in root dir\n", root->len);
+	struct dirent *dir;
+	while ((dir = fat_readdir(root)) != NULL) {
+		printk("Found a file/directory: %s\n", dir->d_name);
+	}
 
 	return true;
 }
@@ -284,7 +287,74 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 	return num_entries;
 }
 
-static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
+DIR *fat_opendir(const char *path) {
+	/* Path is supposed to be relative to the partition */
+	if (strcmp(path, "/") != 0)
+		panic("Only opendir(/) is supported so far");
+
+	assert(fat32_partitions != NULL && fat32_partitions->count > 0);
+	fat32_partition_t *part = (fat32_partition_t *)fat32_partitions->head->data;
+
+
+	DIR *dir = kmalloc(sizeof(DIR));
+	memset(dir, 0, sizeof(DIR));
+
+	dir->partition = part;
+	dir->dir_cluster = part->root_dir_first_cluster;
+	dir->len = fat_dir_num_entries(part, part->root_dir_first_cluster);
+	dir->entries = NULL; /* created in fat_readdir */
+
+	return dir;
+}
+
+/* Used to describe a FAT directory entry (not on disk!) */
+typedef struct direntry {
+	char name[256];
+	char short_name[13];
+	uint8 attrib;
+	uint32 data_cluster;
+	uint32 size;
+} direntry_t;
+
+struct dirent *fat_readdir(DIR *dir) {
+	if (dir == NULL || dir->len == 0)
+		return NULL;
+
+	if (dir->entries != NULL && dir->ptr == NULL) {
+		/* There is a list, but we've read it all. */
+		return NULL;
+	}
+
+	if (dir->entries == NULL) {
+		/* Create the list of directory entries */
+		dir->entries = list_create();
+		fat_parse_dir(dir->partition, dir->dir_cluster, dir->entries);
+
+		dir->len = dir->entries->count;
+		dir->ptr = dir->entries->head;
+	}
+
+	if (dir->ptr == NULL)
+		return NULL;
+
+	direntry_t *dent = (direntry_t *)dir->ptr->data;
+	assert(dent != NULL);
+
+	struct dirent *dirent = kmalloc(sizeof(struct dirent));
+	strcpy(dirent->d_name, dent->name);
+	dirent->d_ino = -1; /* FIXME */
+
+	/* Advance the pointer. Don't check for NULL; we'll check on the next call to readdir */
+	dir->ptr = dir->ptr->next;
+
+	return dirent;
+}
+
+static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries) {
+	assert(part != NULL);
+	assert(cluster >= 2);
+	assert(entries != NULL);
+
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(part->cluster_size);
 
@@ -306,7 +376,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 		}
 
 		/* This attribute is only valid for the volume ID (aka label) "file". */
-		if (dir->attrib & ATTRIB_VOLUME_ID)
+		if (dir->attrib & ATTRIB_VOLUME_ID && dir->attrib != ATTRIB_LFN)
 			goto next;
 
 		if (dir->attrib == ATTRIB_LFN) {
@@ -343,6 +413,9 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 		else {
 			/* This is a regular directory entry. */
 
+			/* We want to store info about this entry! */
+			direntry_t *entry = kmalloc(sizeof(direntry_t));
+
 			/* Only used if lfn_buf != NULL */
 			char *long_name_ascii = NULL;
 
@@ -369,6 +442,20 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
 			fat_parse_short_name(short_name);
 
+			/* Store the info! */
+			if (long_name_ascii != NULL)
+				strlcpy(entry->name, long_name_ascii, 256);
+			else
+				strlcpy(entry->name, short_name, 256);
+	
+			strlcpy(entry->short_name, short_name, 13);
+			entry->attrib = dir->attrib;
+			entry->data_cluster = data_cluster;
+			entry->size = dir->file_size;
+
+			list_append(entries, entry);
+
+#if 0
 			if (dir->name[0] != '.') {
 				printk("%16s (short: %s) %s (%u bytes) @ %u (attribs: %s%s%s%s)\n", (long_name_ascii != NULL ? long_name_ascii : short_name), short_name,
 						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
@@ -379,6 +466,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 						((dir->attrib & ATTRIB_SYSTEM) ? "S" : ""),
 						((dir->attrib & ATTRIB_READONLY) ? "R" : ""));
 			}
+#endif
 		}
 
 	next:

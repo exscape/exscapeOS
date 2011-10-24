@@ -16,12 +16,25 @@ typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 
+/* forward declaration */
+typedef struct fat32_partition fat32_partition_t;
+
 typedef struct mountpoint {
 	char path[512];
 
 	/* Will be changed to a FS-neutral type when needed */
 	fat32_partition_t *partition;
 } mountpoint_t;
+
+typedef struct dir {
+	/* TODO: proper per-process file descriptors */
+	fat32_partition_t *partition;
+	uint32 dir_cluster;
+
+	list_t *entries; /* used by readdir() */
+	node_t *ptr;
+	uint32 len; /* how many entries there are */
+} DIR;
 
 /* A list of the mountpoints currently used */
 extern list_t *mountpoints;
@@ -56,8 +69,8 @@ extern fs_node_t *fs_root;
 
 /* POSIX struct dirent */
 struct dirent {
-	char name[128];
-	uint32 ino;
+	char d_name[256];
+	uint32 d_ino;
 };
 
 /* Flags used in struct fs_node */

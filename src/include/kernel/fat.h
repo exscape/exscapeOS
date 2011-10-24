@@ -3,6 +3,7 @@
 
 #include <types.h>
 #include <kernel/ata.h>
+#include <kernel/vfs.h>
 
 bool fat_detect(ata_device_t *dev, uint8 part);
 
@@ -102,4 +103,9 @@ typedef struct fat32_direntry {
 	uint16 low_cluster_num;
 	uint32 file_size;
 } __attribute__((packed)) fat32_direntry_t;
+
+struct dir;
+struct dir /* aka DIR */ *fat_opendir(const char *path);
+struct dirent *fat_readdir(struct dir *dir);
+
 #endif
