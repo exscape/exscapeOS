@@ -233,14 +233,14 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(part->cluster_size);
-	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
-	dir->name[0] = 0x1; /* What do you mean, "hack"? ... Anyway, this is used to first enter the loop... */
 
 	UTF16_char *lfn_buf = NULL; /* allocated when needed */
 	uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
 	/* Read the first cluster from disk */
 	assert(fat_read_cluster(part, cur_cluster, disk_data));
+
+	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
 
 	while (dir->name[0] != 0) {
 		/* Run until we hit a 0x00 starting byte, signifying the end of
@@ -250,6 +250,10 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			/* 0xe5 means unused directory entry. Try the next one. */
 			goto next;
 		}
+
+		/* This attribute is only valid for the volume ID (aka label) "file". */
+		if (dir->attrib & ATTRIB_VOLUME_ID)
+			goto next;
 
 		if (dir->attrib == ATTRIB_LFN) {
 			/* This is a LFN entry. They are stored before the "short" (8.3) entry
@@ -307,9 +311,8 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			memcpy(short_name, dir->name, 11);
 			short_name[11] = 0;
 
-			if (!(dir->attrib & ATTRIB_VOLUME_ID)) {
-				fat_parse_short_name(short_name);
-			}
+			/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
+			fat_parse_short_name(short_name);
 
 			if (dir->name[0] != '.') {
 				printk("%16s (short: %s) %s (%u bytes) @ %u (attribs: %s%s%s%s)\n", (long_name_ascii != NULL ? long_name_ascii : short_name), short_name,
