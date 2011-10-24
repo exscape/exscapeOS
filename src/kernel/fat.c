@@ -24,6 +24,7 @@ typedef struct fat32_lfn {
 list_t *fat32_partitions = NULL;
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster);
+static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -96,6 +97,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	list_append(fat32_partitions, part_info);
 
 	fat_parse_dir(part_info, part_info->root_dir_first_cluster);
+
+	printk("%u entries in root dir\n", fat_dir_num_entries(part_info, part_info->root_dir_first_cluster));
 
 	return true;
 }
@@ -230,6 +233,57 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 	return true;
 }
 
+static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
+	uint32 cur_cluster = cluster;
+	uint8 *disk_data = kmalloc(part->cluster_size);
+
+	uint32 num_entries = 0;
+
+	/* Read the first cluster from disk */
+	if (!fat_read_cluster(part, cur_cluster, disk_data)) {
+		kfree(disk_data);
+		return 0;
+	}
+
+	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
+
+	while (dir->name[0] != 0) {
+		/* Run until we hit a 0x00 starting byte, signifying the end of
+		 * the directory entry. */
+
+		if ((uint8)dir->name[0] == 0xe5) {
+			/* 0xe5 means unused directory entry. Try the next one. */
+			goto next;
+		}
+
+		if (!(dir->attrib & ATTRIB_LFN) && !(dir->attrib & ATTRIB_VOLUME_ID)) {
+			/* Don't count long file name entries or the volume ID entry;
+			 * we want to know the number of files (and subdirectories),
+			 * not the exact amount of entries. */
+			num_entries++;
+		}
+
+	next:
+		dir++;
+
+		/* Read a new cluster if we've read past this one */
+		if ((uint32)dir >= (uint32)disk_data + part->cluster_size) {
+			/* Read the next cluster in this directory, if there is one */
+			if (!fat_read_next_cluster(part, disk_data, &cur_cluster)) {
+				/* No more clusters in this chain */
+				break;
+			}
+
+			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
+			dir = (fat32_direntry_t *)disk_data;
+		}
+	}
+
+	kfree(disk_data);
+
+	return num_entries;
+}
+
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(part->cluster_size);
@@ -293,7 +347,8 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster) {
 			char *long_name_ascii = NULL;
 
 			if (lfn_buf != NULL) {
-				/* Process LFN data! */
+				/* Process LFN data! Since this is an ordinary entry, the buffer (lfn_buf)
+				 * should now contain the complete long file name. */
 				uint32 len = num_lfn_entries * 13; /* maximum length this might be */
 				long_name_ascii = kmalloc(len + 1);
 
