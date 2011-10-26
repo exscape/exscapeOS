@@ -106,6 +106,45 @@ size_t strlcpy(char *dst, const char *src, size_t size) {
 	return len;
 }
 
+size_t strcspn(const char *s1, const char *s2)
+{
+	const char *sc1;
+	for (sc1 = s1; *sc1 != '\0'; sc1++)
+		if (strchr(s2, *sc1) != NULL)
+			return (sc1 - s1);
+	return sc1 - s1;            /* terminating nulls match */
+}
+
+size_t strspn(const char *s1, const char *s2)
+{
+	const char *sc1;
+	for (sc1 = s1; *sc1 != '\0'; sc1++)
+		if (strchr(s2, *sc1) == NULL)
+		return (sc1 - s1);
+	return sc1 - s1;            /* terminating nulls don't match */
+}
+
+char *strtok_r(char *s, const char *delimiters, char **lasts)
+{
+	char *sbegin, *send;
+	sbegin = s ? s : *lasts;
+	sbegin += strspn(sbegin, delimiters);
+
+	if (*sbegin == '\0') {
+		*lasts = (char *)"";
+		return NULL;
+	}
+
+	send = sbegin + strcspn(sbegin, delimiters);
+
+	if (*send != '\0')
+		*send++ = '\0';
+
+	*lasts = send;
+
+	return sbegin;
+}
+
 /* Remove leading and trailing whitespace. Modifies the original string. The returned pointer
  * may be different from the one passed in - if there was leading whitespace. */
 char *trim(char *str) {
