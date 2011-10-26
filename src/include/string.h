@@ -17,6 +17,8 @@ char *strrchr(const char *s, int c);
 
 size_t strlcpy(char *dst, const char *src, size_t size);
 
+int stricmp(const char *s1, const char *s2);
+
 /* These three are public domain implementations, i.e. not written by me */
 size_t strcspn(const char *s1, const char *s2);
 size_t strspn(const char *s1, const char *s2);

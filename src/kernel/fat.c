@@ -8,6 +8,9 @@
 #include <kernel/part.h>
 #include <kernel/vfs.h>
 
+/* TODO: Add more comments! */
+/* TODO: FAT is case-insensitive!!! */
+
 /* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
 typedef uint16 UTF16_char;
 typedef struct fat32_lfn {
@@ -25,6 +28,7 @@ list_t *fat32_partitions = NULL;
 
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries);
 static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
+static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -96,14 +100,29 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
+#if 0
 	DIR *root = fat_opendir("/");
 	printk("%u entries in root dir\n", root->len);
 	struct dirent *dir;
 	while ((dir = fat_readdir(root)) != NULL) {
-		printk("Found a file/directory: %s\n", dir->d_name);
+		printk("Found a %s: %s\n", 
+				(dir->is_dir ? "directory" : "file"),
+				dir->d_name);
 	}
 
 	fat_closedir(root);
+#endif
+
+	DIR *second = fat_opendir("/nested/2nd");
+	printk("%u entries in /nested/2nd\n", second->len);
+	struct dirent *dir;
+	while ((dir = fat_readdir(second)) != NULL) {
+		printk("Found a %s: %s\n", 
+				(dir->is_dir ? "directory" : "file"),
+				dir->d_name);
+	}
+
+	fat_closedir(second);
 
 	return true;
 }
@@ -289,24 +308,88 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 	return num_entries;
 }
 
-DIR *fat_opendir(const char *path) {
-	/* Path is supposed to be relative to the partition */
-	if (strcmp(path, "/") != 0)
-		panic("Only opendir(/) is supported so far");
+/* Locates the (first) cluster number associated with a path. */
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type) {
+	assert(part != NULL);
+	assert(in_path != NULL && strlen(in_path) >= 1);
+	assert(type == FS_DIRECTORY || type == FS_FILE);
 
-	assert(fat32_partitions != NULL && fat32_partitions->count > 0);
-	fat32_partition_t *part = (fat32_partition_t *)fat32_partitions->head->data;
+	/* Take care of the simple case first... */
+	if (strcmp(in_path, "/") == 0 /* && part is the root partition */)
+		return part->root_dir_first_cluster;
 
+	/* Still here? Well, life ain't always easy. */
+	char path[256] = {0};
+	strlcpy(path, in_path, 256);
+	
+	uint32 cur_cluster = part->root_dir_first_cluster;
 
+	char *tmp;
+
+	char *token = NULL;
+	struct dirent *dirent = NULL;
+	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
+		/*
+		 * The first token we find will be the immediate subdirectory to the root directory, i.e.
+		 * "home" for "/home/x/...", so we want to look in the root directory for an entry named "home".
+		 * The second will be "x", so we want to look in home for an entry named "x"... etc.
+		 */
+
+		printk("Token: %s\n", token);
+		/* Take care of this token */
+		DIR *dir = fat_opendir_cluster(part, cur_cluster);
+		dirent = fat_readdir(dir);
+		while (dirent != NULL) {
+			if (stricmp(dirent->d_name, token) == 0) {
+				cur_cluster = dirent->d_ino;
+				goto nextloop;
+			}
+
+			dirent = fat_readdir(dir);
+		}
+		panic("Loop exited; directory/file not found, I think? FIXME");
+nextloop:
+		token=token; /* having this label here is an error without a statement */
+	}
+
+	printk("Done! Found the directory with these contents...\t");
+	DIR *dir = fat_opendir_cluster(part, cur_cluster);
+	do {
+		dirent = fat_readdir(dir);
+		if (dirent == NULL)
+			break;
+		printk("Found this thing: %s\n", dirent->d_name);
+	} while (dirent != NULL);
+
+	return cur_cluster;
+}
+
+static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
+	assert(part != NULL);
+	assert(cluster >= 2);
 	DIR *dir = kmalloc(sizeof(DIR));
 	memset(dir, 0, sizeof(DIR));
 
 	dir->partition = part;
-	dir->dir_cluster = part->root_dir_first_cluster;
+	dir->dir_cluster = cluster;
 	dir->len = fat_dir_num_entries(part, part->root_dir_first_cluster);
 	dir->entries = NULL; /* created in fat_readdir */
 
 	return dir;
+}
+
+
+DIR *fat_opendir(const char *path) {
+	/* Path is supposed to be relative to the partition...
+	 * ... eventually. Not right now... */
+
+	/* TODO: find the correct partition to use! */
+	assert(fat32_partitions != NULL && fat32_partitions->count > 0);
+	fat32_partition_t *part = (fat32_partition_t *)fat32_partitions->head->data;
+
+	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
+
+	return fat_opendir_cluster(part, cluster);
 }
 
 void fat_closedir(DIR *dir) {
@@ -365,7 +448,8 @@ struct dirent *fat_readdir(DIR *dir) {
 
 	struct dirent *dirent = kmalloc(sizeof(struct dirent));
 	strcpy(dirent->d_name, dent->name);
-	dirent->d_ino = -1; /* FIXME */
+	dirent->d_ino = dent->data_cluster; /* FIXME: multiple partitions won't work here! */
+	dirent->is_dir = ((dent->attrib & ATTRIB_DIR) ? true : false);
 
 	/* Advance the pointer. Don't check for NULL; we'll check on the next call to readdir */
 	dir->ptr = dir->ptr->next;

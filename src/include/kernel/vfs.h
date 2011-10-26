@@ -64,13 +64,14 @@ typedef struct fs_node {
 	struct fs_node *ptr;
 } fs_node_t;
 
-/* The root of the filesystem heirarchy */
+/* The root of the filesystem hierarchy */
 extern fs_node_t *fs_root;
 
 /* POSIX struct dirent */
 struct dirent {
 	char d_name[256];
 	uint32 d_ino;
+	bool is_dir;
 };
 
 /* Flags used in struct fs_node */
