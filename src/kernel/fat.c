@@ -570,7 +570,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 				num_lfn_entries = 0;
 			}
 
-			uint32 data_cluster = (dir->high_cluster_num << 16) | (dir->low_cluster_num);
+			uint32 data_cluster = ((uint32)dir->high_cluster_num << 16) | (dir->low_cluster_num);
 
 			char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
 			memcpy(short_name, dir->name, 11);
