@@ -101,7 +101,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	list_append(fat32_partitions, part_info);
 
 #if 1
-	DIR *dir = fat_opendir("/OS X/Dock Themes/Previews/../../..");
+	//DIR *dir = fat_opendir("/OS X/Dock Themes/Previews/../../../../../././..");
+	DIR *dir = fat_opendir("/../../../././.././.././OS X");
 	printk("%u entries in dir\n", dir->len);
 	struct dirent *dirent;
 	while ((dirent = fat_readdir(dir)) != NULL) {
@@ -262,6 +263,9 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 	uint8 *disk_data = kmalloc(part->cluster_size);
 
 	uint32 num_entries = 0;
+
+	if (cluster == part->root_dir_first_cluster)
+		num_entries += 2; /* . and .. are added manually */
 
 	/* Read the first cluster from disk */
 	if (!fat_read_cluster(part, cur_cluster, disk_data)) {
@@ -479,6 +483,26 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 
 	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
 
+	/* Special case: pretend there's a . and .. entry for the root directory.
+	 * They both link back to the root, so /./../../. == / */
+	if (cluster == part->root_dir_first_cluster) {
+		direntry_t *entry = kmalloc(sizeof(direntry_t));
+		strlcpy(entry->short_name, ".", 13);
+		strlcpy(entry->name, ".", 256);
+		entry->attrib = ATTRIB_DIR;
+		entry->data_cluster = cluster;
+		entry->size = 0;
+		list_append(entries, entry);
+
+		entry = kmalloc(sizeof(direntry_t));
+		strlcpy(entry->short_name, "..", 13);
+		strlcpy(entry->name, "..", 256);
+		entry->attrib = ATTRIB_DIR;
+		entry->data_cluster = cluster;
+		entry->size = 0;
+		list_append(entries, entry);
+	}
+
 	while (dir->name[0] != 0) {
 		/* Run until we hit a 0x00 starting byte, signifying the end of
 		 * the directory entry. */
@@ -567,7 +591,7 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 			entry->size = dir->file_size;
 
 			/* .. to the root directory appears to be a special case. Ugh. */
-			if (strcmp(short_name, "..") == 0 && data_cluster == 0)
+			if (data_cluster == 0 && strcmp(short_name, "..") == 0)
 				entry->data_cluster = part->root_dir_first_cluster;
 
 			list_append(entries, entry);
