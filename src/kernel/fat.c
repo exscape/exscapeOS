@@ -100,20 +100,23 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-#if 0
-	DIR *root = fat_opendir("/");
-	printk("%u entries in root dir\n", root->len);
-	struct dirent *dir;
-	while ((dir = fat_readdir(root)) != NULL) {
+#if 1
+	DIR *dir = fat_opendir("/OS X/Dock Themes/Previews/../../..");
+	printk("%u entries in dir\n", dir->len);
+	struct dirent *dirent;
+	while ((dirent = fat_readdir(dir)) != NULL) {
 		printk("Found a %s: %s\n", 
-				(dir->is_dir ? "directory" : "file"),
-				dir->d_name);
+				(dirent->is_dir ? "directory" : "file"),
+				dirent->d_name);
 	}
 
-	fat_closedir(root);
+	fat_closedir(dir);
 #endif
 
+#if 0
 	DIR *second = fat_opendir("/nested/2nd");
+	if (second == NULL)
+		panic("opendir failed: no such file/directory?");
 	printk("%u entries in /nested/2nd\n", second->len);
 	struct dirent *dir;
 	while ((dir = fat_readdir(second)) != NULL) {
@@ -123,6 +126,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	}
 
 	fat_closedir(second);
+#endif
 
 	return true;
 }
@@ -347,9 +351,15 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 
 			dirent = fat_readdir(dir);
 		}
-		panic("Loop exited; directory/file not found, I think? FIXME");
+		panic("File/directory not found! FIXME: error reporting!");
+		return 0; /* File/directory not found. FIXME: errno or somesuch? */
 nextloop:
 		token=token; /* having this label here is an error without a statement */
+	}
+
+	if (dirent->is_dir != (type == FS_DIRECTORY)) {
+		/* If the user requested a file, but this is a directory, or the other way around... */
+		panic("Found a file where a directory was requested, or the other way around");
 	}
 
 	printk("Done! Found the directory with these contents...\t");
@@ -559,6 +569,10 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 			entry->attrib = dir->attrib;
 			entry->data_cluster = data_cluster;
 			entry->size = dir->file_size;
+
+			/* .. to the root directory appears to be a special case. Ugh. */
+			if (strcmp(short_name, "..") == 0 && data_cluster == 0)
+				entry->data_cluster = part->root_dir_first_cluster;
 
 			list_append(entries, entry);
 
