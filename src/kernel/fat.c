@@ -113,21 +113,6 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	fat_closedir(dir);
 #endif
 
-#if 0
-	DIR *second = fat_opendir("/nested/2nd");
-	if (second == NULL)
-		panic("opendir failed: no such file/directory?");
-	printk("%u entries in /nested/2nd\n", second->len);
-	struct dirent *dir;
-	while ((dir = fat_readdir(second)) != NULL) {
-		printk("Found a %s: %s\n", 
-				(dir->is_dir ? "directory" : "file"),
-				dir->d_name);
-	}
-
-	fat_closedir(second);
-#endif
-
 	return true;
 }
 
@@ -189,6 +174,8 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluste
 	return ((part->cluster_start_lba + ((cluster_num - 2) * part->sectors_per_cluster)));
 }
 
+/* Converts a short name from the directory entry (e.g. "FOO     BAR") to
+ * human-readable form (e.g. "FOO.BAR") */
 static void fat_parse_short_name(char *buf) {
 	/*
 	 * I'm not proud about this function... I did try to re-think, but
@@ -198,6 +185,7 @@ static void fat_parse_short_name(char *buf) {
 	if (*buf == 0)
 		return;
 
+	/* Make sure this is a valid directory entry */
 	assert(*buf > 0x20 || *buf == 0x05);
 
 	/* Temporary arrays */
@@ -206,6 +194,10 @@ static void fat_parse_short_name(char *buf) {
 	/* Copy the parts over */
 	memcpy(name, buf, 8);
 	memcpy(ext , buf + 8, 3);
+
+	/* 0x05 really means 0xE5 for the first character; make sure we don't destroy that meaning */
+	if (name[0] == 0x05)
+		name[0] = 0xe5;
 
 	/* Trim the filename (space padded), if needed */
 	char *p = (char *)&name + 7;
@@ -241,6 +233,8 @@ static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uin
 	return disk_read(part->dev, fat_lba_from_cluster(part, cluster), part->cluster_size, buffer);
 }
 
+/* Follows the cluster chain for *cur_cluster to find the next cluster
+ * for this file/directory. Updates cur_cluster to the current value if successful. */
 static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32 *cur_cluster) {
 	assert(part != NULL);
 	assert(buffer != NULL);
@@ -261,6 +255,8 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 	return true;
 }
 
+/* Reads a cluster (or a whole chain) from disk and figures out
+ * how many files (and/or directories) it contains. */
 static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(part->cluster_size);
@@ -328,23 +324,23 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 	
 	uint32 cur_cluster = part->root_dir_first_cluster;
 
+	/*
+	 * This loop walks through the path one directory at a time.
+	 * For a path like /home/user/x, it will first have token equal "home",
+	 * at which point cur_cluster points to the root directory.
+	 * In the next loop (given that "/home" existed), token equals "user",
+	 * and cur_cluster points to /home, etc. 
+	 */
 	char *tmp;
-
 	char *token = NULL;
 	struct dirent *dirent = NULL;
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
-		/*
-		 * The first token we find will be the immediate subdirectory to the root directory, i.e.
-		 * "home" for "/home/x/...", so we want to look in the root directory for an entry named "home".
-		 * The second will be "x", so we want to look in home for an entry named "x"... etc.
-		 */
-
-		printk("Token: %s\n", token);
 		/* Take care of this token */
 		DIR *dir = fat_opendir_cluster(part, cur_cluster);
 		dirent = fat_readdir(dir);
 		while (dirent != NULL) {
 			if (stricmp(dirent->d_name, token) == 0) {
+				/* We found the entry we were looking for! */
 				cur_cluster = dirent->d_ino;
 				goto nextloop;
 			}
@@ -354,7 +350,7 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 		panic("File/directory not found! FIXME: error reporting!");
 		return 0; /* File/directory not found. FIXME: errno or somesuch? */
 nextloop:
-		token=token; /* having this label here is an error without a statement */
+		token = token; /* having this label here is an error without a statement */
 	}
 
 	if (dirent->is_dir != (type == FS_DIRECTORY)) {
@@ -362,18 +358,11 @@ nextloop:
 		panic("Found a file where a directory was requested, or the other way around");
 	}
 
-	printk("Done! Found the directory with these contents...\t");
-	DIR *dir = fat_opendir_cluster(part, cur_cluster);
-	do {
-		dirent = fat_readdir(dir);
-		if (dirent == NULL)
-			break;
-		printk("Found this thing: %s\n", dirent->d_name);
-	} while (dirent != NULL);
-
 	return cur_cluster;
 }
 
+/* fat_opendir helper function.
+ * Returns a DIR* pointing the directory located at /cluster/. */
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 	assert(part != NULL);
 	assert(cluster >= 2);
@@ -388,7 +377,8 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 	return dir;
 }
 
-
+/* Used to get a list of files/subdirectories at /path/...
+ * Together with readdir() and closedir(), of course. */
 DIR *fat_opendir(const char *path) {
 	/* Path is supposed to be relative to the partition...
 	 * ... eventually. Not right now... */
@@ -402,6 +392,7 @@ DIR *fat_opendir(const char *path) {
 	return fat_opendir_cluster(part, cluster);
 }
 
+/* Frees the memory associated with a directory entry. */
 void fat_closedir(DIR *dir) {
 	if (dir == NULL)
 		return;
@@ -417,7 +408,6 @@ void fat_closedir(DIR *dir) {
 			kfree(it);
 			it = next;
 		}
-
 	}
 
 	kfree(dir);
@@ -432,6 +422,9 @@ typedef struct direntry {
 	uint32 size;
 } direntry_t;
 
+/* Parses a directory structure, as returned by fat_opendir().
+ * Returns one entry at a time (tracking is done inside the DIR struct).
+ * Returns NULL when the entire directory has been read. */
 struct dirent *fat_readdir(DIR *dir) {
 	if (dir == NULL || dir->len == 0)
 		return NULL;
@@ -442,7 +435,7 @@ struct dirent *fat_readdir(DIR *dir) {
 	}
 
 	if (dir->entries == NULL) {
-		/* Create the list of directory entries */
+		/* Create the list of directory entries (this is the first call to readdir()) */
 		dir->entries = list_create();
 		fat_parse_dir(dir->partition, dir->dir_cluster, dir->entries);
 
@@ -467,6 +460,9 @@ struct dirent *fat_readdir(DIR *dir) {
 	return dirent;
 }
 
+/* Internal function, used by fat_readdir().
+ * This reads the ENTIRE directory (no matter how many entries) into the list at /entries/.
+ * This one's quite slow. */
 static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries) {
 	assert(part != NULL);
 	assert(cluster >= 2);
