@@ -19,6 +19,7 @@
 #include <kernel/ata.h>
 #include <kernel/part.h>
 #include <kernel/fat.h>
+#include <kernel/pci.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -114,6 +115,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
 	init_paging(mbd->mem_upper);
+	printk("done\n");
+
+	printk("Detecting and initializing PCI devices... ");
+	init_pci();
 	printk("done\n");
 
 	/* Set up the syscall interface */

@@ -3,10 +3,14 @@
 
 #include <types.h>
 
-void   outb(uint16 port, uint8 value);
 uint8  inb(uint16 port);
 uint16 inw(uint16 port);
-void outw (uint16 port, uint16 value);
+uint32 inl(uint16 port);
+
+void outb(uint16 port, uint8 value);
+void outw(uint16 port, uint16 value);
+void outl(uint16 port, uint32 value);
+
 void panic(const char *str);
 void reset(void);
 void reboot(void);
