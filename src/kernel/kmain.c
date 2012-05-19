@@ -118,7 +118,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("done\n");
 
 	printk("Detecting and initializing PCI devices... ");
-	init_pci();
+//	init_pci();
 	printk("done\n");
 
 	/* Set up the syscall interface */

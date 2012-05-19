@@ -66,7 +66,7 @@ void reset(void) {
 	 * There is, of course, no handler available to handle that interrupt, which eventually causes a triple fault. */
 	struct idt_ptr p;
 	memset(&p, 0, sizeof(struct idt_ptr));
-	asm volatile("lgdt (%0);"
+	asm volatile("lidt (%0);"
 		"int $3;"
 		: : "r"(&p));
 }

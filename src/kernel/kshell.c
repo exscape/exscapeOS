@@ -224,6 +224,9 @@ void kshell(void) {
 		else if (strcmp(p, "infloop_task") == 0) {
 			task = create_task(&infinite_loop, "infinite_loop", con);
 		}
+		else if (strcmp(p, "reset") == 0) {
+			reset();
+		}
 		else if (strcmp(p, "ps") == 0) {
 			node_t *cur_task_node = ready_queue.head;
 			int n = 0;
