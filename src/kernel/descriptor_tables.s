@@ -1,14 +1,14 @@
 global gdt_flush
 global idt_load
 global tss_flush
-extern gp              ; the GDT pointer, defined in kernel/gdt.c
+extern gdt             ; pointer to the GDT null descriptor, where the GDT pointer is
 extern idtp            ; the IDT pointer, defined in kernel/idt.c
 
 section .text
 align 4
 
 gdt_flush:
-	lgdt [gp]    ; load the GDT
+	lgdt [gdt]  ; load the GDT
 	mov ax, 0x10  ; 0x10 is the offset to the data segment in the GDT, i.e gdt[2] in C
 	mov ds, ax
 	mov es, ax

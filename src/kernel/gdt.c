@@ -6,7 +6,7 @@
 /* Create three kernel-global instances of GDT entries, and a pointer */
 #define NUM_GDT_ENTRIES 6
 struct gdt_entry gdt[NUM_GDT_ENTRIES];
-struct gdt_ptr gp;
+struct gdt_ptr *gp = (struct gdt_ptr *)&gdt[0]; /* store the GDT pointer in the null descriptor */
 
 /* assembly helper function */
 extern void tss_flush(void);
@@ -40,12 +40,14 @@ void gdt_set_gate(sint32 num, uint32 base, uint32 limit, uint8 access, uint8 gra
  * gdt_flush() to load the new GDT and update the segment registers. 
  */
 void gdt_install(void) {
-	/* Set up the GDT pointer */
-	gp.limit = (sizeof(struct gdt_entry)  * 6) - 1;
-	gp.base = (uint32)&gdt;
 
-	/* Create the NULL descriptor */
+	/* Create the NULL descriptor.
+	   Most of this will be overwritten by the GDT pointer, though. */
 	gdt_set_gate(0, 0, 0, 0, 0);
+
+	/* Set up the GDT pointer - which is now stored in the NULL descriptor */
+	gp->limit = (sizeof(struct gdt_entry)  * 6) - 1;
+	gp->base = (uint32)&gdt;
 
 	/*
 	 * Create the code segment descriptor.
