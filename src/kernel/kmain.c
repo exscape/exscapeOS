@@ -148,6 +148,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		parse_mbr(&devices[i]);
 
 	/* Detect FAT filesystems on all partitions */
+	/*
 	for (int disk = 0; disk < 4; disk++) {
 
 		if (!devices[disk].exists || devices[disk].is_atapi)
@@ -165,6 +166,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	assert(fat32_partitions !=  NULL);
 	assert(fat32_partitions->count == 1);
+	*/
 
 
 #if 0

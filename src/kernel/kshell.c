@@ -85,6 +85,7 @@ static void user_test(void) {
 	syscall_puts("Hellooooooo, USER MODE WORLD!");
 }
 
+
 static void divzero(void) {
 	printk("in divzero; dividing now\n");
 	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
@@ -230,12 +231,15 @@ void kshell(void) {
 		else if (strcmp(p, "ps") == 0) {
 			node_t *cur_task_node = ready_queue.head;
 			int n = 0;
+			printk("%5s %10s %10s %6s %s\n", "PID", "STACK_BTM", "PAGEDIR", "STATE", "NAME");
 			while (cur_task_node != NULL) {
 				task_t *cur_task = (task_t *)cur_task_node->data;
 				n++;
-				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
+				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, (cur_task->state == TASK_RUNNING ? "RUN" : (cur_task->state == TASK_SLEEPING ? "SLEEP" : (cur_task->state == TASK_IOWAIT ? "IOWAIT" : "UNKN."))), cur_task->name);
+/*				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
 						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
 
+						*/
 #if 0
 				/* Doesn't work in VMware/Parallels! The alignment is off somehow, so all the values are wrong... */
 				if (current_task != cur_task) {
@@ -248,7 +252,7 @@ void kshell(void) {
 				}
 #endif
 
-				printk("--------------\n");
+//				printk("--------------\n");
 
 				cur_task_node = cur_task_node->next;
 			}
