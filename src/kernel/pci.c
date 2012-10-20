@@ -8,9 +8,10 @@
 /* For debugging */
 #include <kernel/console.h>
 
-uint32 read_pci_config(uint8 bus, uint8 slot, uint8 func, uint8 offset) {
-	outl(PCI_CONFIG_ADDRESS, 0x80000000 | (bus << 16) | (slot << 11) | (func << 8) | (offset & 0xfc));
+uint32 read_pci_config(uint8 bus, uint8 slot, uint8 func, uint8 reg) {
+	outl(PCI_CONFIG_ADDRESS, PCI_ENABLE | (bus << 16) | (slot << 11) | (func << 8) | (reg & ~0x3));
 	return inl(PCI_CONFIG_DATA);
+//	return (unsigned short)((inl (0xCFC) >> ((offset & 2) * 8)) & 0xffff);
 }
 
 void init_pci(void) {
@@ -36,7 +37,7 @@ void init_pci(void) {
 					bar4 = read_pci_config(bus, slot, func, 0x20);
 					bar5 = read_pci_config(bus, slot, func, 0x24);
 
-					printk(" bar0 %08x bar1 %08x bar2 %08x bar3 %08x bar4 %08x bar5 %08x\n", bar0, bar1, bar2, bar3, bar4, bar5);
+					printk(" bar0 0x%08x bar1 0x%08x bar2 0x%08x bar3 0x%08x bar4 0x%08x bar5 0x%08x\n", bar0, bar1, bar2, bar3, bar4, bar5);
 				}
 			}
 		}
