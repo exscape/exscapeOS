@@ -20,14 +20,16 @@ void init_pci(void) {
 	for (bus = 0; bus < 256; bus++) {
 		for (slot = 0; slot < 32; slot++) {
 			for (func = 0; func < 8; func++) {
-				uint32 class;
-				//uint8 type;
-				class = read_pci_config(bus, slot, func, 0x08);
+				uint32 vendor_id, device_id;
 				uint32 bar0, bar1, bar2, bar3, bar4, bar5;
-				if (class == 0xffffffff)
+
+				vendor_id = (read_pci_config(bus, slot, func, PCI_CONF_VENDOR) & 0xffff);
+				if (vendor_id == 0xffff)
 					continue;
 
-				printk("device found at bus %u, slot %u, func %u: class 0x%08x\n", bus, slot, func, class);
+				device_id = (read_pci_config(bus, slot, func, PCI_CONF_DEVICE) & 0xffff0000) >> 16;
+
+				printk("device found at bus %u, slot %u, func %u: vendor 0x%04x, device 0x%04x\n", bus, slot, func, vendor_id, device_id);
 
 				if (/* header type == 00 */ true) {
 					bar0 = read_pci_config(bus, slot, func, 0x10);

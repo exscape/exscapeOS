@@ -35,6 +35,7 @@ all: $(OBJFILES)
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 	@/opt/local/bin/ctags -R *
+	@bash net-scripts/prepare.sh
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
@@ -52,7 +53,7 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
-	@qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s
+	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh
 
 debug: all
-	@qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -s -S -monitor stdio
+	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -s -S -monitor stdio -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh
