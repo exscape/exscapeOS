@@ -40,7 +40,7 @@ static void list_validate(list_t *list) {
 			assert(it->next->prev == it);
 	}
 
-	assert(actual_count == list->count);
+	assert(list->count == actual_count);
 }
 
 node_t *list_prepend(list_t *list, void *data) {

@@ -20,6 +20,7 @@
 #include <kernel/part.h>
 #include <kernel/fat.h>
 #include <kernel/pci.h>
+#include <kernel/rtl8139.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -120,6 +121,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("Detecting and initializing PCI devices... ");
 	init_pci();
 	printk("done\n");
+
+	printk("Initializing RTL8139 network adapter... ");
+	if (init_rtl8139())
+		printk("done\n");
+	else
+		printk("failed!\n");
 
 	/* Set up the syscall interface */
 	printk("Initializing syscalls... ");
