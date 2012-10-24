@@ -27,7 +27,7 @@ pci_device_t *find_pci_device(uint32 vendor_id, uint32 device_id) {
 
 // Reads the PCI configuration space, one dword at a time.
 // To read 8 or 16 bits, you currently need to AND the rest out yourself.
-uint32 read_pci_config(uint8 bus, uint8 slot, uint8 func, uint8 reg) {
+uint32 pci_read_config(uint8 bus, uint8 slot, uint8 func, uint8 reg) {
 	outl(PCI_CONFIG_ADDRESS, PCI_ENABLE | (bus << 16) | (slot << 11) | (func << 8) | (reg & ~0x3));
 	return inl(PCI_CONFIG_DATA);
 }
@@ -42,14 +42,14 @@ void init_pci(void) {
 			for (func = 0; func < 8; func++) {
 				uint32 vendor_id, device_id;
 
-				vendor_id = (read_pci_config(bus, slot, func, PCI_CONF_VENDOR) & 0xffff);
+				vendor_id = (pci_read_config(bus, slot, func, PCI_CONF_VENDOR) & 0xffff);
 				if (vendor_id == 0xffff)
 					continue;
 
-				device_id = (read_pci_config(bus, slot, func, PCI_CONF_DEVICE) & 0xffff0000) >> 16;
+				device_id = (pci_read_config(bus, slot, func, PCI_CONF_DEVICE) & 0xffff0000) >> 16;
 
 				printk("device found at bus %u, slot %u, func %u: vendor 0x%04x, device 0x%04x\n", bus, slot, func, vendor_id, device_id);
-				uint8 type = (read_pci_config(bus, slot, func, PCI_CONF_HEADER_TYPE) & 0x00ff0000) >> 24;
+				uint8 type = (pci_read_config(bus, slot, func, PCI_CONF_HEADER_TYPE) & 0x00ff0000) >> 24;
 				if (type == 0)
 					printk("Type: regular PCI device\n");
 				else if (type == 1)
@@ -57,7 +57,7 @@ void init_pci(void) {
 				else if (type == 2)
 					printk("Type: CardBus bridge\n");
 
-				uint8 interrupt = read_pci_config(bus, slot, func, PCI_CONF_IRQ) & 0xff; // lower 8 bits is the interrupt
+				uint8 interrupt = pci_read_config(bus, slot, func, PCI_CONF_IRQ) & 0xff; // lower 8 bits is the interrupt
 				printk("IRQ: %u\n", interrupt);
 
 				// Store this device in the PCI device database
@@ -73,7 +73,7 @@ void init_pci(void) {
 				uint32 bar[6] = {0};
 				if (type == 0) {
 					for (int i=0; i<6; i++) {
-						bar[i] = read_pci_config(bus, slot, func, 0x10 + i*4);
+						bar[i] = pci_read_config(bus, slot, func, 0x10 + i*4);
 						if ((bar[i] & 1) == BAR_IO) {
 							// This is an I/O space address; the 2 LSBs aren't part of the address
 							dev->bar[i].type = BAR_IO;
@@ -88,6 +88,8 @@ void init_pci(void) {
 								printk("BAR%d is a memory address\n", i);
 						}
 					}
+
+					printk("PCI revision: 0x%02x\n", pci_read_config(bus, slot, func, PCI_CONF_REVISION) & 0xff);
 
 					printk(" bar0 0x%08x bar1 0x%08x bar2 0x%08x bar3 0x%08x bar4 0x%08x bar5 0x%08x\n", dev->bar[0].address, dev->bar[1].address, dev->bar[2].address, dev->bar[3].address, dev->bar[4].address, dev->bar[5].address);
 					printk("\n");
