@@ -26,8 +26,8 @@ typedef struct console {
 } console_t;
 
 #define NUM_SCROLLBACK 3 // how many screens worth of scrollback should each console have?
-#define cur_visible(console) ( (uint16 *)(console->bufferptr + 80*25*(NUM_SCROLLBACK - 1) - 80*(console->current_position)) )
-#define CONSOLE_BUFFER_SIZE 80*25*(NUM_SCROLLBACK+1)*2 // bytes to kmalloc, etc.
+#define CONSOLE_BUFFER_SIZE (80*25*(NUM_SCROLLBACK+1)) // number of CHARACTERS (one character uses 16 bits)
+#define CONSOLE_BUFFER_SIZE_BYTES (CONSOLE_BUFFER_SIZE * 2) // number of BYTES, for kmalloc etc.
 
 #include <kernel/task.h> /* must be done after defining console_t */
 

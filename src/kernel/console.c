@@ -70,11 +70,14 @@ unsigned char getchar(void) {
 	assert(keybuffer->read_ptr != NULL);
 	unsigned char ret = *(keybuffer->read_ptr++);
 	keybuffer->counter--;
-	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE)
+	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE) // TODO: OBOE?
 		keybuffer->read_ptr = keybuffer->data;
 
 	return ret;
 }
+
+#define cur_visible(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK - 1) - 80*(_con->current_position)) )
+// BROKEN!!!
 
 void console_switch(console_t *new) {
 	assert(new != NULL);
@@ -83,10 +86,17 @@ void console_switch(console_t *new) {
 		return;
 	}
 
+	panic("test console_switch()!");
+
 	/* Copy the video memory of the new console to the actual video RAM, to display it */
 	uint16 *cur_vis = cur_visible(new);
+	if (cur_vis >= new->buffer + CONSOLE_BUFFER_SIZE) {
+		cur_vis = new->buffer + (cur_vis - (new->buffer + CONSOLE_BUFFER_SIZE));
+	}
+
 	if (cur_vis + 80*25 >= new->buffer + CONSOLE_BUFFER_SIZE) {
 		// Copy part one: from somewhere in the "middle" to the end of the buffer
+		panic("FIXME");
 		uint32 copied = (new->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
 		memcpy(videoram, cur_vis, copied);
 		// Part two: one screen worth, minus the amount we already copied
@@ -134,7 +144,7 @@ void console_init(console_t *new) {
 	assert(new->tasks == NULL);
 	new->tasks = list_create();
 
-	new->buffer = kmalloc(CONSOLE_BUFFER_SIZE);
+	new->buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 	if (new->buffer == 0)
 		panic("temp");
 	//new->bufferptr = new->buffer;
@@ -142,7 +152,8 @@ void console_init(console_t *new) {
 
 	/* Copy the screen content and cursor position from the currently displayed console */
 	/* TODO: ... why? This doesn't seem to make sense one year later... */
-	memcpy(new->buffer, ((console_t *)current_console)->buffer, CONSOLE_BUFFER_SIZE);
+	assert(current_console->buffer != NULL);
+	memcpy(new->buffer, ((console_t *)current_console)->buffer, CONSOLE_BUFFER_SIZE_BYTES);
 	new->bufferptr = current_console->bufferptr;
 	new->current_position = current_console->current_position;
 
@@ -278,31 +289,52 @@ void scroll(void) {
 	}
 
 	// Blank the last line...
-	memsetw(cur_visible(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
+	//assert(cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE);
+	if ((cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE)) { 
+		memsetw(cur_visible(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
+	}
+	else {
+		uint32 offset = (cur_visible(current_console) + 80*24) - (current_console->buffer + CONSOLE_BUFFER_SIZE);
+		memsetw(current_console->buffer + offset, blank, 80);
+		// "panic"n
+		//memsetw(videoram, 0xdada, 80*25);
+		//while(true) { } 
+	}
+//	return;
 
 	// and draw it to the buffer, keeping in mind that we might need to wrap around
 	uint16 *cur_vis = cur_visible(current_console);
+	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
+	}
+
 	if (cur_vis + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		// Copy part one
+		//panic("FIXME");
 		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
 		memcpy(vram_buffer, cur_vis, copied);
 		// Part two
 		memcpy(((uint8 *)vram_buffer) + copied, current_console->buffer, (80*25*2) - copied);
 	}
-	else
+	else {
 		memcpy(vram_buffer , cur_vis, 80*25*2);
+	}
 
 	// Also update the screen, if this console is currently displayed
 	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		assert(current_console->active == true);
 		cur_vis = cur_visible(console_task->console);
+		if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+			cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+		}
 		if (cur_vis + 80*25 >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
 			uint32 copied = (console_task->console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
 			memcpy(videoram, cur_vis, copied);
 			memcpy(((uint8 *)videoram) + copied, console_task->console->buffer, (80*25*2) - copied);
 		}
-		else
-			memcpy(videoram, cur_visible(console_task->console), 80*25*2);
+		else {
+			memcpy(videoram, cur_vis, 80*25*2);
+		}
 	}
 
 /*
@@ -351,7 +383,19 @@ int putchar(int c) {
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		if (console_task->console != NULL) {
-			*(cur_visible(console_task->console) + offset) = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+			uint16 *cur_vis = cur_visible(console_task->console);
+			if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+				cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			}
+			uint16 *addr = NULL;
+
+			if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+				addr = console_task->console->buffer + ((cur_vis + offset) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			}
+			else
+				addr = cur_vis + offset;
+
+			*addr = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			//console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 		}
 
@@ -419,14 +463,14 @@ static void force_update_cursor(void) {
 static char buf[1024];
 
 size_t printk(const char *fmt, ...) {
-	static int line = 0; // TODO
+	static int line = 1; // TODO
 	sprintf(buf, "%u\n", line++);
 	for (size_t j = 0; j < strlen(buf); j++)
 		putchar(buf[j]);
 	fmt += 1;
 	update_cursor();
-	if (interrupts_enabled)
-		delay(100);
+	//if (interrupts_enabled)
+	//delay(500);
 	return strlen(buf);
 
 	/*

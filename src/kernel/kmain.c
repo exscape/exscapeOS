@@ -64,7 +64,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	kernel_console.keybuffer.read_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.write_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.counter = 0;
-	kernel_console.buffer = kmalloc(CONSOLE_BUFFER_SIZE);
+	kernel_console.buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 	kernel_console.bufferptr = kernel_console.buffer;
 	kernel_console.current_position = 0;
 

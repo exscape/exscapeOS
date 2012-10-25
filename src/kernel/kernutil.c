@@ -49,6 +49,7 @@ void panic(const char *str) {
 	console_switch(&kernel_console);
 	asm volatile("cli");
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
+	memsetw((void *)0xb8000, 0xabcd, 80); // TODO: FIXME
 	asm volatile("0: hlt ; jmp 0b");
 }
 

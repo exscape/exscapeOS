@@ -23,8 +23,8 @@ uint32 timer_handler(uint32 esp) {
 	timer_ticks++;
 
 	/* make sure the tick is visible somehow */
-	uint16 *vram = (uint16 *)0xb8000;
-	*vram = (*vram) + 1;
+	//uint16 *vram = (uint16 *)0xb8000;
+	//*vram = (*vram) + 1;
 
 	return esp;
 }
