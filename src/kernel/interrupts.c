@@ -10,16 +10,19 @@ extern bool task_switching;
 extern volatile task_t *current_task;
 extern volatile task_t *console_task;
 extern task_t kernel_task;
+volatile bool interrupts_enabled = false;
 
 void disable_interrupts(void) {
 	/* disable NMI */
 	outb(0x70, inb(0x70) & 0x7f);
 
 	asm volatile("cli");
+	interrupts_enabled = false;
 }
 
 void enable_interrupts(void) {
 	asm volatile("sti");
+	interrupts_enabled = true;
 
 	/*enable NMI */
 	outb(0x70, inb(0x70) | 0x80);

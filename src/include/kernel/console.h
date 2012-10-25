@@ -17,11 +17,18 @@ typedef struct task task_t;
 typedef struct console {
 	list_t *tasks;
 	bool active;
-	uint16 videoram[80 * 25];
 	Point cursor;
 	/*struct console *prev_console;*/
 	volatile struct ringbuffer keybuffer;
+	uint16 *buffer; // ring buffer for scrollback + onscreen data
+	uint16 *bufferptr; // pointer to the current "start" of the ring buffer
+	uint16 current_position; // how many lines have we scrolled back?
 } console_t;
+
+#define NUM_SCROLLBACK 3 // how many screens worth of scrollback should each console have?
+#define cur_visible(console) ( (uint16 *)(console->bufferptr + 80*25*(NUM_SCROLLBACK - 1) - 80*(console->current_position)) )
+#define CONSOLE_BUFFER_SIZE 80*25*(NUM_SCROLLBACK+1)*2 // bytes to kmalloc, etc.
+
 #include <kernel/task.h> /* must be done after defining console_t */
 
 /* If true, all output will be on the current console, no matter who's writing */

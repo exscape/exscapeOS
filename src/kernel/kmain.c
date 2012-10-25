@@ -52,6 +52,11 @@ void force_switch_task(void) {
 }
 
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
+	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
+	uint32 initrd_location = *((uint32 *)mbd->mods_addr);
+	uint32 initrd_end = *((uint32 *)(mbd->mods_addr + 4));
+	if (initrd_end > placement_address)
+		placement_address = initrd_end;
 
 	/* Set up the kernel console keybuffer, to prevent panics on keyboard input.
 	 * The kernel console isn't dynamically allocated, so this can be done
@@ -59,6 +64,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	kernel_console.keybuffer.read_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.write_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.counter = 0;
+	kernel_console.buffer = kmalloc(CONSOLE_BUFFER_SIZE);
+	kernel_console.bufferptr = kernel_console.buffer;
+	kernel_console.current_position = 0;
 
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
@@ -67,12 +75,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	if (mbd->mods_count == 0) {
 		panic("initrd.img not loaded! Make sure the GRUB config contains a \"module\" line.\nSystem halted.");
 	}
-
-	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
-	uint32 initrd_location = *((uint32 *)mbd->mods_addr);
-	uint32 initrd_end = *((uint32 *)(mbd->mods_addr + 4));
-	if (initrd_end > placement_address)
-		placement_address = initrd_end;
 
 	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise. */
 	init_video();

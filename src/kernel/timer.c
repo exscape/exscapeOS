@@ -24,10 +24,19 @@ uint32 timer_handler(uint32 esp) {
 
 	/* make sure the tick is visible somehow */
 	uint16 *vram = (uint16 *)0xb8000;
-	esp=esp;
 	*vram = (*vram) + 1;
 
 	return esp;
+}
+
+// Like sleep, but works on any process/thread. Wastes CPU cycles, of course, but it can still be handy at times.
+void delay(uint32 ms) {
+	if (timer_ticks == 0) return; // ugly safeguard: return if the timer isn't installed yet
+	uint32 ticks = ms / 10;
+	if (ticks == 0)
+		ticks = 1;
+	uint32 start = gettickcount();
+	while (gettickcount() < start + ticks) { }
 }
 
 /*
