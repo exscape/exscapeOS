@@ -124,6 +124,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_pci();
 	printk("done\n");
 
+	//while (true) {
+	//printk("test\n");
+	//}
+
 	printk("Initializing RTL8139 network adapter... ");
 	if (init_rtl8139())
 		printk("done\n");

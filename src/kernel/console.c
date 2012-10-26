@@ -9,12 +9,12 @@
 #include <kernel/timer.h>
 
 /* A character representing empty space on the screen */
-const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
+static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 
 static uint16 *videoram = (uint16 *) 0xb8000;
 
 /* Used for double buffering when scrolling (due to a lack of memmove()) */
-uint16 *vram_buffer = NULL;
+static uint16 *vram_buffer = NULL;
 
 /* task.c */
 extern volatile task_t *current_task;
@@ -98,9 +98,9 @@ void console_switch(console_t *new) {
 		// Copy part one: from somewhere in the "middle" to the end of the buffer
 		panic("FIXME");
 		uint32 copied = (new->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(videoram, cur_vis, copied);
+		memcpy(videoram, cur_vis, copied * 2 /* to bytes */);
 		// Part two: one screen worth, minus the amount we already copied
-		memcpy(((uint8 *)videoram) + copied, new->buffer, (80*25*2) - copied);
+		memcpy(((uint8 *)videoram) + copied, new->buffer, (80*25*2) - (copied*2));
 	}
 	else
 		memcpy(videoram, cur_vis, 80*25*2);
@@ -285,12 +285,18 @@ void scroll(void) {
 	// Also, handle wrapping (this is a ring buffer)
 	current_console->bufferptr += 80;
 	if (current_console->bufferptr >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-		current_console->bufferptr = current_console->buffer + ((uint32)current_console->bufferptr % 80);
+		//current_console->bufferptr = current_console->buffer + ((uint32)current_console->bufferptr % 80);
+		if (!(current_console->bufferptr - (current_console->buffer + CONSOLE_BUFFER_SIZE) == 0)) {
+			// Ugly, temporary assert! TODO
+			memsetw(videoram, 0xfabc, 80*2);
+			while(true) { }
+		}
+		current_console->bufferptr = current_console->buffer;
 	}
 
 	// Blank the last line...
 	//assert(cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE);
-	if ((cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE)) { 
+	if ((cur_visible(current_console) + 80*24 + 80 <= current_console->buffer + CONSOLE_BUFFER_SIZE)) { 
 		memsetw(cur_visible(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
 	}
 	else {
@@ -312,9 +318,9 @@ void scroll(void) {
 		// Copy part one
 		//panic("FIXME");
 		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(vram_buffer, cur_vis, copied);
+		memcpy(vram_buffer, cur_vis, copied * 2);
 		// Part two
-		memcpy(((uint8 *)vram_buffer) + copied, current_console->buffer, (80*25*2) - copied);
+		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25*2) - (copied*2));
 	}
 	else {
 		memcpy(vram_buffer , cur_vis, 80*25*2);
@@ -329,8 +335,8 @@ void scroll(void) {
 		}
 		if (cur_vis + 80*25 >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
 			uint32 copied = (console_task->console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-			memcpy(videoram, cur_vis, copied);
-			memcpy(((uint8 *)videoram) + copied, console_task->console->buffer, (80*25*2) - copied);
+			memcpy(videoram, cur_vis, copied*2);
+			memcpy(((uint8 *)videoram) + (copied*2), console_task->console->buffer, (80*25*2) - (copied*2));
 		}
 		else {
 			memcpy(videoram, cur_vis, 80*25*2);
@@ -463,8 +469,11 @@ static void force_update_cursor(void) {
 static char buf[1024];
 
 size_t printk(const char *fmt, ...) {
+/*	
 	static int line = 1; // TODO
 	sprintf(buf, "%u\n", line++);
+	if (line >= 122)
+		delay(10);
 	for (size_t j = 0; j < strlen(buf); j++)
 		putchar(buf[j]);
 	fmt += 1;
@@ -472,8 +481,7 @@ size_t printk(const char *fmt, ...) {
 	//if (interrupts_enabled)
 	//delay(500);
 	return strlen(buf);
-
-	/*
+*/	
 	va_list args;
 	int i;
 
@@ -490,7 +498,6 @@ size_t printk(const char *fmt, ...) {
 	update_cursor();
 
 	return i;
-	*/
 }
 
 int sprintf(char *sprintf_buf, const char *fmt, ...)

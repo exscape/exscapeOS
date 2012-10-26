@@ -18,7 +18,6 @@ typedef struct console {
 	list_t *tasks;
 	bool active;
 	Point cursor;
-	/*struct console *prev_console;*/
 	volatile struct ringbuffer keybuffer;
 	uint16 *buffer; // ring buffer for scrollback + onscreen data
 	uint16 *bufferptr; // pointer to the current "start" of the ring buffer
