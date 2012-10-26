@@ -188,7 +188,13 @@ uint32 keyboard_callback(uint32 esp) {
 		return esp;
 	}
 
-	//printk("in: %02x\n", scancode);
+#if 0
+	if (scancode & 0x80)
+		printk("keyup  : 0x%02x\n", scancode & ~0x80);
+	else
+		printk("keydown: 0x%02x\n", scancode);
+#endif
+
 
 	/*
 	 * Check for modifier keycodes. If present, toggle their state (if necessary).
@@ -225,6 +231,15 @@ uint32 keyboard_callback(uint32 esp) {
 
 		default:
 			break;
+	}
+
+	if (mod_keys == MOD_SHIFT && scancode == 0x48) {
+		// Shift + arrow up
+		scrollback_up();
+	}
+	else if (mod_keys == MOD_SHIFT && scancode == 0x50) {
+		// Shift + arrow down
+		scrollback_down();
 	}
 
 	/* We're still here, so the scancode wasn't a modifier key changing state */

@@ -35,6 +35,9 @@ extern volatile bool force_current_console;
 
 unsigned char getchar(void);
 
+void scrollback_up(void);
+void scrollback_down(void);
+
 extern volatile console_t *current_console;
 extern console_t kernel_console;
 
@@ -54,6 +57,7 @@ void scroll(void);
 void print_time(const Time *t);
 size_t printk(const char *fmt, ...);
 int puts(const char *s);
+int puts_xy(const char *s, int x, int y);
 
 void cursor_left(void);
 void cursor_right(void);

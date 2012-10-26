@@ -26,6 +26,7 @@ extern task_t kernel_task;
 volatile console_t *current_console;
 
 static void force_update_cursor(void);
+static void redraw_screen(void);
 
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
@@ -86,9 +87,16 @@ void console_switch(console_t *new) {
 		return;
 	}
 
-	panic("test console_switch()!");
+	current_console->active = false;
+	new->active = true;
+	current_console = new;
+	redraw_screen();
+	force_update_cursor();
 
-	/* Copy the video memory of the new console to the actual video RAM, to display it */
+	//panic("test console_switch() Can this use redraw_screen()?!");
+
+	/*
+	// Copy the video memory of the new console to the actual video RAM, to display it
 	uint16 *cur_vis = cur_visible(new);
 	if (cur_vis >= new->buffer + CONSOLE_BUFFER_SIZE) {
 		cur_vis = new->buffer + (cur_vis - (new->buffer + CONSOLE_BUFFER_SIZE));
@@ -98,18 +106,19 @@ void console_switch(console_t *new) {
 		// Copy part one: from somewhere in the "middle" to the end of the buffer
 		panic("FIXME");
 		uint32 copied = (new->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(videoram, cur_vis, copied * 2 /* to bytes */);
+		memcpy(videoram, cur_vis, copied * 2); // *2 to convert to bytes
 		// Part two: one screen worth, minus the amount we already copied
 		memcpy(((uint8 *)videoram) + copied, new->buffer, (80*25*2) - (copied*2));
 	}
 	else
 		memcpy(videoram, cur_vis, 80*25*2);
 
-	/* Switch the consoles */
+	// Switch the consoles
 	current_console->active = false;
 	new->active = true;
 	current_console = new;
 	force_update_cursor();
+	*/
 }
 
 /* Creates a new console for the specified task */
@@ -151,12 +160,10 @@ void console_init(console_t *new) {
 	//new->current_position = 0;
 
 	/* Copy the screen content and cursor position from the currently displayed console */
-	/* TODO: ... why? This doesn't seem to make sense one year later... */
 	assert(current_console->buffer != NULL);
 	memcpy(new->buffer, ((console_t *)current_console)->buffer, CONSOLE_BUFFER_SIZE_BYTES);
-	new->bufferptr = current_console->bufferptr;
+	new->bufferptr = new->buffer + (current_console->bufferptr - current_console->buffer);
 	new->current_position = current_console->current_position;
-
 	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
 }
 
@@ -265,12 +272,98 @@ void cursor_right(void) {
 	update_cursor();
 }
 
+void scrollback_up(void) {
+	if (current_console == NULL)
+		panic("scrollback_up without a console - fix this panic!");
+
+	if (current_console->current_position >= 25 * NUM_SCROLLBACK) {
+		// TODO: beep / visual bell?
+		return;
+	}
+		//panic("can't scroll back further? double-check this");
+
+	current_console->current_position++;
+	redraw_screen();
+
+	char buf[16] = {0};
+	sprintf(buf, "%u", current_console->current_position);
+	puts_xy(buf, 76, 0);
+	puts_xy("   ", 76, 1);
+}
+
+void scrollback_down(void) {
+	if (current_console == NULL)
+		panic("scrollback_down without a console - fix this panic!");
+
+	if (current_console->current_position == 0) {
+		// TODO: beep / visual bell?
+		return;
+	}
+
+	current_console->current_position--;
+	redraw_screen();
+
+	char buf[16] = {0};
+	sprintf(buf, "%u", current_console->current_position);
+	puts_xy(buf, 76, 0);
+	puts_xy("   ", 76, 1);
+}
+
+// Copies the part of the screen that should be visible from the scrollback
+// buffer to both the VRAM buffer and the actual video RAM, if applicable
+static void redraw_screen(void) {
+
+	uint16 *cur_vis = cur_visible(current_console);
+	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
+	}
+
+	if (cur_vis + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+		// Copy part one
+		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
+		memcpy(vram_buffer, cur_vis, copied * 2);
+		// Part two
+		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25*2) - (copied*2));
+	}
+	else {
+		memcpy(vram_buffer , cur_vis, 80*25*2);
+	}
+
+	// Also update the screen, if this console is currently displayed
+	// This should never cause any problem if we run it either way...? So why not?
+	{//	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
+		assert(current_console->active == true);
+		memcpy(videoram, vram_buffer, 80*25*2);
+	}
+
+	// TODO: keep multiple tasks and multiple consoles in mind!
+#if 0
+	// Also update the screen, if this console is currently displayed
+	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
+		assert(current_console->active == true);
+		cur_vis = cur_visible(console_task->console);
+		if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+			cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+		}
+		if (cur_vis + 80*25 >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+			uint32 copied = (console_task->console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
+			memcpy(videoram, cur_vis, copied*2);
+			memcpy(((uint8 *)videoram) + (copied*2), console_task->console->buffer, (80*25*2) - (copied*2));
+		}
+		else {
+			memcpy(videoram, cur_vis, 80*25*2);
+		}
+	}
+#endif
+}
+
 void scroll(void) {
 	if (console_task->console == NULL)
 		panic("scroll() in task without a console!");
 
 	if (console_task->console->current_position != 0) {
 		// We're in scrollback at the moment
+		return;
 		console_task->console->current_position++;
 		panic("TODO");
 		// TODO: make sure to update the buffer as needed!!!
@@ -308,6 +401,8 @@ void scroll(void) {
 	}
 //	return;
 
+	redraw_screen();
+	/*
 	// and draw it to the buffer, keeping in mind that we might need to wrap around
 	uint16 *cur_vis = cur_visible(current_console);
 	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
@@ -342,6 +437,7 @@ void scroll(void) {
 			memcpy(videoram, cur_vis, 80*25*2);
 		}
 	}
+	*/
 
 /*
 	// Copy the entire screen to the buffer
@@ -364,6 +460,17 @@ void scroll(void) {
 	// Move the cursor
 	cursor->y = 24;
 //	update_cursor();
+}
+
+// Prints a string directly to VRAM.
+// Mostly useful for console development/debugging.
+int puts_xy(const char *str, int x, int y) {
+	assert(str != NULL && (x >= 0 && x <= 79) && (y >= 0 && y <= 24));
+	for (size_t i=0; i < strlen(str); i++) {
+		const unsigned int offset = y*80 + x + i;
+		videoram[offset] = ((unsigned char)str[i]) | (0x07 << 8);
+	}
+	return strlen(str);
 }
 
 int putchar(int c) {
@@ -389,17 +496,22 @@ int putchar(int c) {
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		if (console_task->console != NULL) {
+			if (console_task->console->current_position != 0) {
+				return c;
+				panic("print with scrollback");
+			}
 			uint16 *cur_vis = cur_visible(console_task->console);
-			if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-				cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+				cur_vis = console_task->console->buffer + ((cur_vis) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
 			}
 			uint16 *addr = NULL;
+			addr = cur_vis + offset;
 
-			if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-				addr = console_task->console->buffer + ((cur_vis + offset) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
-			}
-			else
-				addr = cur_vis + offset;
+			//if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+				//addr = console_task->console->buffer + ((cur_vis + offset) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			//}
+			//else
+				//addr = cur_vis + offset;
 
 			*addr = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			//console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
@@ -469,7 +581,7 @@ static void force_update_cursor(void) {
 static char buf[1024];
 
 size_t printk(const char *fmt, ...) {
-/*	
+	/*
 	static int line = 1; // TODO
 	sprintf(buf, "%u\n", line++);
 	if (line >= 122)
@@ -481,7 +593,9 @@ size_t printk(const char *fmt, ...) {
 	//if (interrupts_enabled)
 	//delay(500);
 	return strlen(buf);
-*/	
+	*/
+
+
 	va_list args;
 	int i;
 

@@ -79,6 +79,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise. */
 	init_video();
 
+	printk("exscapeOS starting up...\n");
 	if (mbd->flags & 1) {
 		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n",
 			mbd->mem_lower, mbd->mem_upper);
