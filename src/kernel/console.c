@@ -214,9 +214,7 @@ void cursor_left(void) {
 
 Point get_cursor(void) {
 	assert(console_task->console != NULL);
-	Point p;
-	memcpy(&p, &console_task->console->cursor, sizeof(Point));
-	return p;
+	return console_task->console->cursor;
 }
 
 bool set_cursor(int x, int y) {
