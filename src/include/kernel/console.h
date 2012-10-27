@@ -63,6 +63,8 @@ size_t printk(const char *fmt, ...);
 int puts(const char *s);
 int puts_xy(const char *s, int x, int y);
 
+Point get_cursor(void);
+bool set_cursor(int x, int y);
 void cursor_left(void);
 void cursor_right(void);
 

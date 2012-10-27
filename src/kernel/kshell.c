@@ -97,6 +97,14 @@ static void delaypanic(void) {
 	panic("delaypanic()");
 }
 
+static void delaymput(void) {
+	sleep(5000);
+	Point p = get_cursor();
+	set_cursor((80-4)/2, 12);
+	printk("test");
+	set_cursor(p.x, p.y);
+}
+
 static void testbench(void) {
 	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
 	uint32 start_tick = gettickcount();
@@ -274,6 +282,9 @@ void kshell(void) {
 		}
 		else if(strcmp(p, "divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con);
+		}
+		else if (strcmp(p, "delaymput") == 0) {
+			task = create_task(&delaymput, "delaymput", con);
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;

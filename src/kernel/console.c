@@ -213,6 +213,28 @@ void cursor_left(void) {
 	update_cursor();
 }
 
+Point get_cursor(void) {
+	assert(console_task->console != NULL);
+	Point p;
+	memcpy(&p, &console_task->console->cursor, sizeof(Point));
+	return p;
+}
+
+bool set_cursor(int x, int y) {
+	assert(console_task->console != NULL);
+	Point *cursor = &console_task->console->cursor;
+	if (x < 0 || x > 79)
+		return false;
+	if (y < 0 || y > 24)
+		return false;
+
+	cursor->x = x;
+	cursor->y = y;
+	update_cursor();
+
+	return true;
+}
+
 void cursor_right(void) {
 	assert(console_task->console != NULL);
 	Point *cursor = &console_task->console->cursor;
@@ -416,7 +438,9 @@ int putchar(int c) {
 			else if (console_task->console->current_position <= 24 && (25UL - console_task->console->current_position) > cursor->y) {
 				// In scrollback, but this line should still be on screen. <= 24 because there's no chance it's on screen
 				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
-				panic("putchar() in scrollback, to point that should be on screen: TEST this");
+				uint32 sb_offset = 80*console_task->console->current_position;
+				videoram[offset + sb_offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+				vram_buffer[offset + sb_offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			}
 		}
 
