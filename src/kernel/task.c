@@ -75,7 +75,7 @@ volatile list_t ready_queue = {
 	.count = 1,
 };
 
-/* true if the function exists and is running/sleeping; false if it has exited (or never ever existed) */
+/* true if the task exists and is running/sleeping; false if it has exited (or never even existed) */
 bool does_task_exist(task_t *task) {
 	return (list_find_first((list_t *)&ready_queue, (void *)task) != NULL);
 }
