@@ -185,15 +185,15 @@ void init_video(void) {
 }
 
 void clrscr(void) {
-	//panic("TODO: clrscr() -- essientially, print 25 blank lines (due to scrollback)?");
-	for (int i=0; i<25; i++)
-		printk("\n"); // TODO: FIXME! Not very ideal! Besides, the cursor ends up at the bottom.
-/*
 	assert(console_task->console != NULL);
-	memsetw(console_task->console->videoram, blank, 80*25);
+
+	// This takes care of the scrollback. Hacky, but simple.
+	for (int i=0; i<24; i++)
+		printk("\n");
 
 	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		// If the task that's calling clrscr() has its console on display, also update the screen at once
+		memsetw(vram_buffer, blank, 80*25);
 		memsetw(videoram, blank, 80*25);
 	}
 
@@ -201,7 +201,6 @@ void clrscr(void) {
 	cursor->x = 0;
 	cursor->y = 0;
 	update_cursor();
-*/
 }
 
 void cursor_left(void) {
