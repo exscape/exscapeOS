@@ -98,33 +98,6 @@ void console_switch(console_t *new) {
 	current_console = new;
 	redraw_screen();
 	force_update_cursor();
-
-	//panic("test console_switch() Can this use redraw_screen()?!");
-
-	/*
-	// Copy the video memory of the new console to the actual video RAM, to display it
-	uint16 *cur_vis = cur_visible(new);
-	if (cur_vis >= new->buffer + CONSOLE_BUFFER_SIZE) {
-		cur_vis = new->buffer + (cur_vis - (new->buffer + CONSOLE_BUFFER_SIZE));
-	}
-
-	if (cur_vis + 80*25 >= new->buffer + CONSOLE_BUFFER_SIZE) {
-		// Copy part one: from somewhere in the "middle" to the end of the buffer
-		panic("FIXME");
-		uint32 copied = (new->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(videoram, cur_vis, copied * 2); // *2 to convert to bytes
-		// Part two: one screen worth, minus the amount we already copied
-		memcpy(((uint8 *)videoram) + copied, new->buffer, (80*25*2) - (copied*2));
-	}
-	else
-		memcpy(videoram, cur_vis, 80*25*2);
-
-	// Switch the consoles
-	current_console->active = false;
-	new->active = true;
-	current_console = new;
-	force_update_cursor();
-	*/
 }
 
 /* Creates a new console for the specified task */
@@ -162,8 +135,6 @@ void console_init(console_t *new) {
 	new->buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 	if (new->buffer == 0)
 		panic("temp");
-	//new->bufferptr = new->buffer;
-	//new->current_position = 0;
 
 	/* Copy the screen content and cursor position from the currently displayed console */
 	assert(current_console->buffer != NULL);
@@ -375,26 +346,6 @@ static void redraw_screen(void) {
 		memcpy(vram_buffer , cur_vis, 80*25*2);
 	}
 	memcpy(videoram, vram_buffer, 80*25*2);
-
-	// TODO: keep multiple tasks and multiple consoles in mind!
-#if 0
-	// Also update the screen, if this console is currently displayed
-	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
-		assert(current_console->active == true);
-		cur_vis = cur_visible(console_task->console);
-		if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-			cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
-		}
-		if (cur_vis + 80*25 >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-			uint32 copied = (console_task->console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-			memcpy(videoram, cur_vis, copied*2);
-			memcpy(((uint8 *)videoram) + (copied*2), console_task->console->buffer, (80*25*2) - (copied*2));
-		}
-		else {
-			memcpy(videoram, cur_vis, 80*25*2);
-		}
-	}
-#endif
 }
 
 void scroll(void) {
@@ -444,90 +395,8 @@ void scroll(void) {
 	if (console_task->console->current_position == 0) {
 		redraw_screen();
 	}
-	/*
-	else {
-		// This console is in scrollback mode. redraw_screen() will only work properly when
-		// the screen is in "normal" display mode.
-		uint16 *cur_scr = cur_screen(current_console);
-		if (cur_scr >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-			cur_scr = current_console->buffer + (cur_scr - (current_console->buffer + CONSOLE_BUFFER_SIZE));
-		}
-	*/
-		/*
-		if (cur_scr + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-			// Copy part one
-			uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_scr;
-			memcpy(vram_buffer, cur_scr, copied * 2);
-			// Part two
-			memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25*2) - (copied*2));
-		}
-		else {
-			memcpy(vram_buffer , cur_scr, 80*25*2);
-		}
-		memcpy(videoram, vram_buffer, 80*25*2); // TODO: this + vram_buffer update shouldn't be needed - in MOST cases, nothing
-		// should change. Think this through.
 
-		*/
-	// Move the cursor
 	cursor->y = 24;
-//	update_cursor();
-
-//	return;
-	/*
-	// and draw it to the buffer, keeping in mind that we might need to wrap around
-	uint16 *cur_vis = cur_visible(current_console);
-	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
-	}
-
-	if (cur_vis + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-		// Copy part one
-		//panic("FIXME");
-		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(vram_buffer, cur_vis, copied * 2);
-		// Part two
-		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25*2) - (copied*2));
-	}
-	else {
-		memcpy(vram_buffer , cur_vis, 80*25*2);
-	}
-
-	// Also update the screen, if this console is currently displayed
-	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
-		assert(current_console->active == true);
-		cur_vis = cur_visible(console_task->console);
-		if (cur_vis >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-			cur_vis = console_task->console->buffer + (cur_vis - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
-		}
-		if (cur_vis + 80*25 >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-			uint32 copied = (console_task->console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-			memcpy(videoram, cur_vis, copied*2);
-			memcpy(((uint8 *)videoram) + (copied*2), console_task->console->buffer, (80*25*2) - (copied*2));
-		}
-		else {
-			memcpy(videoram, cur_vis, 80*25*2);
-		}
-	}
-	*/
-
-/*
-	// Copy the entire screen to the buffer
-	memcpy(vram_buffer, cur_visible(console_task->console), 80*25*2);
-
-	// Copy back the lower 24 lines
-	// Note that we add 80, not 80*2, due to pointer arithmetic! (vram_buffer is a uint16 *)
-	memcpy(console_task->console->videoram, vram_buffer + 80, 80*24*2);
-
-	// Blank the last line
-	memsetw(console_task->console->videoram + 24*80, blank, 80);
-
-	// Also update the screen, if this console is currently displayed
-	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
-		assert(current_console->active == true);
-		memcpy(videoram, console_task->console->videoram, 80*25*2);
-	}
-	*/
-
 }
 
 // Prints a string directly to VRAM.
@@ -571,14 +440,6 @@ int putchar(int c) {
 			}
 
 			*addr = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-			//console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-
-			//if (console_task->console->current_position != 0) {
-				//if (console_task->console->current_position != MAX_SCROLLBACK) {
-					//console_task->console->current_position++;
-					//// TODO: does this automatically scroll down if you're at max scrollback?
-				//}
-			//}
 		}
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
@@ -650,21 +511,6 @@ static void force_update_cursor(void) {
 static char buf[1024];
 
 size_t printk(const char *fmt, ...) {
-	/*
-	static int line = 1; // TODO
-	sprintf(buf, "%u\n", line++);
-	if (line >= 122)
-		delay(10);
-	for (size_t j = 0; j < strlen(buf); j++)
-		putchar(buf[j]);
-	fmt += 1;
-	update_cursor();
-	//if (interrupts_enabled)
-	//delay(500);
-	return strlen(buf);
-	*/
-
-
 	va_list args;
 	int i;
 
