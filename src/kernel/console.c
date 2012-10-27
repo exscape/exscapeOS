@@ -421,24 +421,24 @@ void scroll(void) {
 
 	// Move forward one line in the scrollback buffer, which causes the last line to "fall out"
 	// Also, handle wrapping (this is a ring buffer)
-	current_console->bufferptr += 80;
-	if (current_console->bufferptr >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
-		if (!(current_console->bufferptr - (current_console->buffer + CONSOLE_BUFFER_SIZE) == 0)) {
+	console_task->console->bufferptr += 80;
+	if (console_task->console->bufferptr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+		if (!(console_task->console->bufferptr - (console_task->console->buffer + CONSOLE_BUFFER_SIZE) == 0)) {
 			// Ugly, temporary assert! TODO
 			memsetw(videoram, 0xfabc, 80*2);
 			while(true) { }
 		}
-		current_console->bufferptr = current_console->buffer;
+		console_task->console->bufferptr = console_task->console->buffer;
 	}
 
 	// Blank the last line...
-	//assert(cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE);
-	if ((cur_screen(current_console) + 80*24 + 80 <= current_console->buffer + CONSOLE_BUFFER_SIZE)) {
-		memsetw(cur_screen(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
+	//assert(cur_visible(console_task->console) + 80*24 + 80 < console_task->console->buffer + CONSOLE_BUFFER_SIZE);
+	if ((cur_screen(console_task->console) + 80*24 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
+		memsetw(cur_screen(console_task->console) + 80*24, blank, 80); // no wrap trouble, one line always fits
 	}
 	else {
-		uint32 offset = (cur_screen(current_console) + 80*24) - (current_console->buffer + CONSOLE_BUFFER_SIZE);
-		memsetw(current_console->buffer + offset, blank, 80);
+		uint32 offset = (cur_screen(console_task->console) + 80*24) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE);
+		memsetw(console_task->console->buffer + offset, blank, 80);
 	}
 
 	if (console_task->console->current_position == 0) {
@@ -587,6 +587,7 @@ int putchar(int c) {
 				// but at an offset
 				/* ... but only if we're not scrolled back past this */
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+				vram_buffer[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			}
 		}
 
