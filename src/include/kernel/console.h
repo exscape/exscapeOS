@@ -25,6 +25,7 @@ typedef struct console {
 } console_t;
 
 #define NUM_SCROLLBACK 3 // how many screens worth of scrollback should each console have?
+#define MAX_SCROLLBACK (25*NUM_SCROLLBACK) // how many LINES can we scroll back maximum?
 #define CONSOLE_BUFFER_SIZE (80*25*(NUM_SCROLLBACK+1)) // number of CHARACTERS (one character uses 16 bits)
 #define CONSOLE_BUFFER_SIZE_BYTES (CONSOLE_BUFFER_SIZE * 2) // number of BYTES, for kmalloc etc.
 
@@ -37,6 +38,9 @@ unsigned char getchar(void);
 
 void scrollback_up(void);
 void scrollback_down(void);
+void scrollback_pgup(void);
+void scrollback_pgdown(void);
+void scrollback_reset(void);
 
 extern volatile console_t *current_console;
 extern console_t kernel_console;

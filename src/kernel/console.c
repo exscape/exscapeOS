@@ -77,8 +77,12 @@ unsigned char getchar(void) {
 	return ret;
 }
 
+// NOTE: these only do half the work... they may well point outside of the buffer!
+// TODO: fix this.
+// cur_visible: what part of the screen is visible, period - possibly in scrollback
 #define cur_visible(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK - 1) - 80*(_con->current_position)) )
-// BROKEN!!!
+// cur_screen: the "current" 80x25 screen. Part (or all of it) may be undisplayed due to scrollback.
+#define cur_screen(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK - 1)) )
 
 void console_switch(console_t *new) {
 	assert(new != NULL);
@@ -272,11 +276,19 @@ void cursor_right(void) {
 	update_cursor();
 }
 
+static void print_scrollback_pos(void) {
+	// Temporary! TODO FIXME
+	char buf[16] = {0};
+	sprintf(buf, "%u", current_console->current_position);
+	puts_xy(buf, 76, 0);
+	puts_xy("   ", 76, 1);
+}
+
 void scrollback_up(void) {
 	if (current_console == NULL)
 		panic("scrollback_up without a console - fix this panic!");
 
-	if (current_console->current_position >= 25 * NUM_SCROLLBACK) {
+	if (current_console->current_position >= MAX_SCROLLBACK) {
 		// TODO: beep / visual bell?
 		return;
 	}
@@ -284,11 +296,24 @@ void scrollback_up(void) {
 
 	current_console->current_position++;
 	redraw_screen();
+	print_scrollback_pos();
+}
 
-	char buf[16] = {0};
-	sprintf(buf, "%u", current_console->current_position);
-	puts_xy(buf, 76, 0);
-	puts_xy("   ", 76, 1);
+void scrollback_pgup(void) {
+	if (current_console == NULL)
+		panic("scrollback_up without a console - fix this panic!");
+
+	if (current_console->current_position >= MAX_SCROLLBACK) {
+		return;
+	}
+	else if (current_console->current_position + 25 >= MAX_SCROLLBACK) {
+		current_console->current_position = MAX_SCROLLBACK;
+	}
+	else
+		current_console->current_position += 25;
+
+	redraw_screen();
+	print_scrollback_pos();
 }
 
 void scrollback_down(void) {
@@ -302,11 +327,33 @@ void scrollback_down(void) {
 
 	current_console->current_position--;
 	redraw_screen();
+	print_scrollback_pos();
+}
 
-	char buf[16] = {0};
-	sprintf(buf, "%u", current_console->current_position);
-	puts_xy(buf, 76, 0);
-	puts_xy("   ", 76, 1);
+void scrollback_pgdown(void) {
+	if (current_console == NULL)
+		panic("scrollback_up without a console - fix this panic!");
+
+	if (current_console->current_position == 0) {
+		return;
+	}
+	else if (current_console->current_position < 25) {
+		current_console->current_position = 0;
+	}
+	else
+		current_console->current_position -= 25;
+
+	redraw_screen();
+	print_scrollback_pos();
+}
+
+void scrollback_reset(void) {
+	if (current_console == NULL)
+		panic("scrollback_reset without a console - fix this panic!");
+
+	current_console->current_position = 0;
+	redraw_screen();
+	print_scrollback_pos();
 }
 
 // Copies the part of the screen that should be visible from the scrollback
@@ -328,13 +375,7 @@ static void redraw_screen(void) {
 	else {
 		memcpy(vram_buffer , cur_vis, 80*25*2);
 	}
-
-	// Also update the screen, if this console is currently displayed
-	// This should never cause any problem if we run it either way...? So why not?
-	{//	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
-		assert(current_console->active == true);
-		memcpy(videoram, vram_buffer, 80*25*2);
-	}
+	memcpy(videoram, vram_buffer, 80*25*2);
 
 	// TODO: keep multiple tasks and multiple consoles in mind!
 #if 0
@@ -361,18 +402,23 @@ void scroll(void) {
 	if (console_task->console == NULL)
 		panic("scroll() in task without a console!");
 
-	if (console_task->console->current_position != 0) {
-		// We're in scrollback at the moment
-		return;
-		console_task->console->current_position++;
-		panic("TODO");
-		// TODO: make sure to update the buffer as needed!!!
-		return;
-	}
-
 	Point *cursor = &console_task->console->cursor;
 	if (cursor->y < 25)
 		return;
+
+	if (console_task->console->current_position != 0) {
+		// We're in scrollback at the moment
+		if (console_task->console->current_position == MAX_SCROLLBACK) {
+			// We're scrolled back too far - a line on screen will be overwritten
+			console_task->console->current_position--;
+			//redraw_screen(); // probably shouldn't redraw until the rest is done, or there will be two "jerks" for one line printed
+		}
+		else {
+			// In scrollback, but not maximum. Since a new line has entered the screen,
+			// we're now one line further back in the buffer.
+			console_task->console->current_position++;
+		}
+	}
 
 	// Move forward one line in the scrollback buffer, which causes the last line to "fall out"
 	// Also, handle wrapping (this is a ring buffer)
@@ -389,19 +435,46 @@ void scroll(void) {
 
 	// Blank the last line...
 	//assert(cur_visible(current_console) + 80*24 + 80 < current_console->buffer + CONSOLE_BUFFER_SIZE);
-	if ((cur_visible(current_console) + 80*24 + 80 <= current_console->buffer + CONSOLE_BUFFER_SIZE)) { 
-		memsetw(cur_visible(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
+	if ((cur_screen(current_console) + 80*24 + 80 <= current_console->buffer + CONSOLE_BUFFER_SIZE)) {
+		memsetw(cur_screen(current_console) + 80*24, blank, 80); // no wrap trouble, one line always fits
 	}
 	else {
-		uint32 offset = (cur_visible(current_console) + 80*24) - (current_console->buffer + CONSOLE_BUFFER_SIZE);
+		uint32 offset = (cur_screen(current_console) + 80*24) - (current_console->buffer + CONSOLE_BUFFER_SIZE);
 		memsetw(current_console->buffer + offset, blank, 80);
-		// "panic"n
-		//memsetw(videoram, 0xdada, 80*25);
-		//while(true) { } 
 	}
-//	return;
 
-	redraw_screen();
+	if (console_task->console->current_position == 0) {
+		redraw_screen();
+	}
+	else {
+		// This console is in scrollback mode. redraw_screen() will only work properly when
+		// the screen is in "normal" display mode.
+		uint16 *cur_scr = cur_screen(current_console);
+		if (cur_scr >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+			cur_scr = current_console->buffer + (cur_scr - (current_console->buffer + CONSOLE_BUFFER_SIZE));
+		}
+
+		/*
+		if (cur_scr + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+			// Copy part one
+			uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_scr;
+			memcpy(vram_buffer, cur_scr, copied * 2);
+			// Part two
+			memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25*2) - (copied*2));
+		}
+		else {
+			memcpy(vram_buffer , cur_scr, 80*25*2);
+		}
+		memcpy(videoram, vram_buffer, 80*25*2); // TODO: this + vram_buffer update shouldn't be needed - in MOST cases, nothing
+		// should change. Think this through.
+
+		*/
+	}
+	// Move the cursor
+	cursor->y = 24;
+//	update_cursor();
+
+//	return;
 	/*
 	// and draw it to the buffer, keeping in mind that we might need to wrap around
 	uint16 *cur_vis = cur_visible(current_console);
@@ -457,13 +530,11 @@ void scroll(void) {
 	}
 	*/
 
-	// Move the cursor
-	cursor->y = 24;
-//	update_cursor();
 }
 
 // Prints a string directly to VRAM.
-// Mostly useful for console development/debugging.
+// Mostly useful for console development/debugging, since it will be easily
+// overwritten by stuff.
 int puts_xy(const char *str, int x, int y) {
 	assert(str != NULL && (x >= 0 && x <= 79) && (y >= 0 && y <= 24));
 	for (size_t i=0; i < strlen(str); i++) {
@@ -496,30 +567,31 @@ int putchar(int c) {
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		if (console_task->console != NULL) {
-			if (console_task->console->current_position != 0) {
-				return c;
-				panic("print with scrollback");
-			}
-			uint16 *cur_vis = cur_visible(console_task->console);
-			if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-				cur_vis = console_task->console->buffer + ((cur_vis) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			uint16 *cur_scr = cur_screen(console_task->console);
+			if (cur_scr + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
+				cur_scr = console_task->console->buffer + ((cur_scr) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
 			}
 			uint16 *addr = NULL;
-			addr = cur_vis + offset;
-
-			//if (cur_vis + offset >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-				//addr = console_task->console->buffer + ((cur_vis + offset) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
-			//}
-			//else
-				//addr = cur_vis + offset;
+			addr = cur_scr + offset;
 
 			*addr = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			//console_task->console->videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+
+			if (console_task->console->current_position != 0) {
+				if (console_task->console->current_position != MAX_SCROLLBACK) {
+					console_task->console->current_position++;
+					// TODO: does this automatically scroll down if you're at max scrollback?
+				}
+			}
 		}
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
-				/* Also update the actual video ram if this console is currently displayed */
+			/* Also update the actual video ram if this console is currently displayed */
+			if (console_task->console->current_position == 0) { // TODO: FIXME: there are other cases where we're scrolled but it's still visible
+				// but at an offset
+				/* ... but only if we're not scrolled back past this */
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+			}
 		}
 
 		if (cursor->x + 1 == 80) {

@@ -64,9 +64,15 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	kernel_console.keybuffer.read_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.write_ptr = kernel_console.keybuffer.data;
 	kernel_console.keybuffer.counter = 0;
+
+	/* Set up the scrollback buffer for the kernel console */
 	kernel_console.buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 	kernel_console.bufferptr = kernel_console.buffer;
 	kernel_console.current_position = 0;
+
+	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise.
+	 * NOT earlier than the kernel console setup, though! */
+	init_video();
 
 	if (magic != 0x2BADB002) {
 		panic("Invalid magic received from bootloader!");
@@ -76,13 +82,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		panic("initrd.img not loaded! Make sure the GRUB config contains a \"module\" line.\nSystem halted.");
 	}
 
-	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise. */
-	init_video();
 
 	printk("exscapeOS starting up...\n");
 	if (mbd->flags & 1) {
-		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n",
-			mbd->mem_lower, mbd->mem_upper);
+		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n", mbd->mem_lower, mbd->mem_upper);
 	}
 	else
 		panic("mbd->flags bit 0 is unset!");

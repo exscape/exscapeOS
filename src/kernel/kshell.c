@@ -92,6 +92,11 @@ static void divzero(void) {
 	printk("divzero: after dividing\n");
 }
 
+static void delaypanic(void) {
+	sleep(5000);
+	panic("delaypanic()");
+}
+
 static void testbench(void) {
 	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
 	uint32 start_tick = gettickcount();
@@ -183,6 +188,9 @@ void kshell(void) {
 
 		if (strcmp(p, "heaptest") == 0) {
 			task = create_task(&heaptest, "heaptest", con);
+		}
+		else if (strcmp(p, "delaypanic") == 0) {
+			task = create_task(&delaypanic, "delaypanic", con);
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();
@@ -312,6 +320,7 @@ void kshell(void) {
 			printk("testbench, testbench_task: run a simple benchmark, in-kernel or as a task\n");
 			printk("sleeptest, permaidle: launch tasks that sleep 20 seconds once/sleep 100 seconds in a loop\n");
 			printk("print_1_sec: launch a task that loops 10 times, printing a message and then sleeping 1 second\n");
+			printk("delaypanic: wait 5 seconds, then panic\n");
 			printk("help: show this help message\n");
 		}
 		else {

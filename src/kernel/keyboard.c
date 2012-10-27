@@ -236,13 +236,23 @@ uint32 keyboard_callback(uint32 esp) {
 	if (mod_keys == MOD_SHIFT && scancode == 0x48) {
 		// Shift + arrow up
 		scrollback_up();
+		return esp;
 	}
 	else if (mod_keys == MOD_SHIFT && scancode == 0x50) {
 		// Shift + arrow down
 		scrollback_down();
+		return esp;
 	}
-
-	/* We're still here, so the scancode wasn't a modifier key changing state */
+	else if (mod_keys == (MOD_SHIFT | MOD_ALT) && scancode == 0x48) {
+		// Shift + alt + arrow up
+		scrollback_pgup();
+		return esp;
+	}
+	else if (mod_keys == (MOD_SHIFT | MOD_ALT) && scancode == 0x50) {
+		// Shift + alt + arrow down
+		scrollback_pgdown();
+		return esp;
+	}
 
 	if (mod_keys == MOD_NONE && !(scancode & 0x80)) {
 		// No modifiers

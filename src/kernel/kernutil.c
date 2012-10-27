@@ -47,6 +47,7 @@ uint32 inl(uint16 port)
 void panic(const char *str) {
 //	clrscr();
 	console_switch(&kernel_console);
+	scrollback_reset();
 	asm volatile("cli");
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
 	memsetw((void *)0xb8000, 0xabcd, 80); // TODO: FIXME
