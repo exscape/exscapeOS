@@ -425,14 +425,15 @@ void heaptest(void) {
 	memset(alloced_size, 0, sizeof(uint32) * NUM);
 
 	uint32 total = 0;
-//while(1) {
+while(1) {
 	total = 0;
 
 	for (uint32 i = 0; i < NUM; i++) {
-		p[i] = kmalloc(128 * 1024);
+		uint32 sz = RAND_RANGE(4, 65535);
+		p[i] = kmalloc(sz);
 		if (p[i] > max_alloc) max_alloc = p[i];
-		total += 128 * 1024;
-		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, 128 * 1024, p[i]);
+		total += sz;
+		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, sz, p[i]);
 
 		validate_heap_index(false);
 		//print_heap_index();
@@ -456,7 +457,7 @@ void heaptest(void) {
 	}
 	printk("%d frees done\n", NUM);
 
-//}
+}
 	validate_heap_index(false);
 	print_heap_index();
 
@@ -464,7 +465,7 @@ void heaptest(void) {
   *** STRESS TEST PART II ***
   ***************************/
 
-#define NUM_OUTER_LOOPS 1
+#define NUM_OUTER_LOOPS 1000
 
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 	uint32 kbytes_allocated = 0;
@@ -556,7 +557,7 @@ void heaptest(void) {
 	validate_heap_index(false);
 }
 printk("\n");
-print_heap_index();
+//print_heap_index();
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
 	printk("Total allocated: (approx.) %u kiB (%u MiB)\n", kbytes_allocated, kbytes_allocated >> 10);
 
