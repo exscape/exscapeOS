@@ -266,6 +266,7 @@ void scrollback_up(void) {
 
 	current_console->current_position++;
 	redraw_screen();
+	force_update_cursor();
 	print_scrollback_pos();
 }
 
@@ -283,6 +284,7 @@ void scrollback_pgup(void) {
 		current_console->current_position += 25;
 
 	redraw_screen();
+	force_update_cursor();
 	print_scrollback_pos();
 }
 
@@ -296,6 +298,7 @@ void scrollback_down(void) {
 
 	current_console->current_position--;
 	redraw_screen();
+	force_update_cursor();
 	print_scrollback_pos();
 }
 
@@ -313,6 +316,7 @@ void scrollback_pgdown(void) {
 		current_console->current_position -= 25;
 
 	redraw_screen();
+	force_update_cursor();
 	print_scrollback_pos();
 }
 
@@ -472,7 +476,10 @@ void update_cursor(void) {
 	assert(console_task->console == current_console);
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
-	uint16 loc = cursor->y * 80 + cursor->x;
+	int y = 0;
+	uint16 loc = 0;
+	y = cursor->y + current_console->current_position;
+	loc = y * 80 + cursor->x;
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
@@ -485,10 +492,14 @@ void update_cursor(void) {
 /* Ugh, code duplication... */
 static void force_update_cursor(void) {
 	assert(current_console != NULL);
+
+
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);
-
-	uint16 loc = cursor->y * 80 + cursor->x;
+	int y = 0;
+	uint16 loc = 0;
+	y = cursor->y + current_console->current_position;
+	loc = y * 80 + cursor->x;
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
