@@ -101,7 +101,6 @@ void console_switch(console_t *new) {
 }
 
 /* Creates a new console for the specified task */
-#if 1
 console_t *console_create(void) {
 
 	/* This function should only be used to set up the virtual consoles,
@@ -117,7 +116,6 @@ console_t *console_create(void) {
 
 	return new;
 }
-#endif
 
 /* Initalize a console. Used during console creation; only called manually for static console_t's */
 void console_init(console_t *new) {
@@ -174,26 +172,6 @@ int puts(const char *s) {
 
 	return len;
 }
-/*
-void print_time(const Time *t) {
-	// Prints the time in the bottom corner.
-
-	// Save the cursor (since printk will modify it)
-	Point p = cursor;
-
-	cursor.y = 24;
-	cursor.x = 0;
-
-	// clear the area
-	memsetw(videoram + 24*80, blank, 80);
-
-	printk("%d-%02d-%02d %02d:%02d:%02d", 
-			t->year, t->month, t->day, t->hour, t->minute, t->second);
-
-	// Restore the cursor
-	cursor = p;
-}
-*/
 
 /* Called by kmain() on boot. Creates the VRAM buffer (used in scroll() and maybe others). */
 void init_video(void) {
@@ -358,15 +336,9 @@ void scroll(void) {
 
 	if (console_task->console->current_position != 0) {
 		// We're in scrollback at the moment
-		if (console_task->console->current_position == MAX_SCROLLBACK) {
-			// We're scrolled back too far - a line on screen will be overwritten
-			console_task->console->current_position--;
-			//redraw_screen(); // probably shouldn't redraw until the rest is done, or there will be two "jerks" for one line printed
-		}
-		else {
-			// In scrollback, but not maximum. Since a new line has entered the screen,
-			// we're now one line further back in the buffer.
-			console_task->console->current_position++;
+		console_task->console->current_position++;
+		if (console_task->console->current_position > MAX_SCROLLBACK) {
+			console_task->console->current_position = MAX_SCROLLBACK;
 		}
 	}
 
@@ -374,16 +346,10 @@ void scroll(void) {
 	// Also, handle wrapping (this is a ring buffer)
 	console_task->console->bufferptr += 80;
 	if (console_task->console->bufferptr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-		if (!(console_task->console->bufferptr - (console_task->console->buffer + CONSOLE_BUFFER_SIZE) == 0)) {
-			// Ugly, temporary assert! TODO
-			memsetw(videoram, 0xfabc, 80*2);
-			while(true) { }
-		}
 		console_task->console->bufferptr = console_task->console->buffer;
 	}
 
 	// Blank the last line...
-	//assert(cur_visible(console_task->console) + 80*24 + 80 < console_task->console->buffer + CONSOLE_BUFFER_SIZE);
 	if ((cur_screen(console_task->console) + 80*24 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
 		memsetw(cur_screen(console_task->console) + 80*24, blank, 80); // no wrap trouble, one line always fits
 	}
@@ -392,10 +358,7 @@ void scroll(void) {
 		memsetw(console_task->console->buffer + offset, blank, 80);
 	}
 
-	if (console_task->console->current_position == 0) {
-		redraw_screen();
-	}
-
+	redraw_screen();
 	cursor->y = 24;
 }
 
@@ -449,6 +412,11 @@ int putchar(int c) {
 				/* ... but only if we're not scrolled back past this */
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 				vram_buffer[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+			}
+			else if (console_task->console->current_position <= 24 && (25UL - console_task->console->current_position) > cursor->y) {
+				// In scrollback, but this line should still be on screen. <= 24 because there's no chance it's on screen
+				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
+				panic("putchar() in scrollback, to point that should be on screen: TEST this");
 			}
 		}
 
