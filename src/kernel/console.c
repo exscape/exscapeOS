@@ -78,13 +78,12 @@ unsigned char getchar(void) {
 }
 
 // NOTE: these only do half the work... they may well point outside of the buffer!
-// TODO: fix this.
-// cur_visible: what part of the screen is visible, period - possibly in scrollback
-// TODO: these had NUM_SCROLLBACK-1 previously, which mostly worked as well - WHY?
-// Wouldn't that fail horribly?
-#define cur_visible(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK) - 80*(_con->current_position)) )
+// This is fixed wherever they are used.
+
 // cur_screen: the "current" 80x25 screen. Part (or all of it) may be undisplayed due to scrollback.
 #define cur_screen(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK)) )
+// cur_visible: what part of the screen is visible, period - possibly in scrollback (partially or fully)
+#define cur_visible(_con) ( cur_screen(_con) - 80*(_con->current_position) )
 
 void console_switch(console_t *new) {
 	assert(new != NULL);
@@ -255,9 +254,6 @@ static void print_scrollback_pos(void) {
 }
 
 void scrollback_up(void) {
-	if (current_console == NULL)
-		panic("scrollback_up without a console - fix this panic!");
-
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
 	}
@@ -269,9 +265,6 @@ void scrollback_up(void) {
 }
 
 void scrollback_pgup(void) {
-	if (current_console == NULL)
-		panic("scrollback_up without a console - fix this panic!");
-
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
 	}
@@ -287,9 +280,6 @@ void scrollback_pgup(void) {
 }
 
 void scrollback_down(void) {
-	if (current_console == NULL)
-		panic("scrollback_down without a console - fix this panic!");
-
 	if (current_console->current_position == 0) {
 		return;
 	}
@@ -301,9 +291,6 @@ void scrollback_down(void) {
 }
 
 void scrollback_pgdown(void) {
-	if (current_console == NULL)
-		panic("scrollback_up without a console - fix this panic!");
-
 	if (current_console->current_position == 0) {
 		return;
 	}
@@ -319,9 +306,6 @@ void scrollback_pgdown(void) {
 }
 
 void scrollback_reset(void) {
-	if (current_console == NULL)
-		panic("scrollback_reset without a console - fix this panic!");
-
 	current_console->current_position = 0;
 	redraw_screen();
 	print_scrollback_pos();
@@ -330,7 +314,6 @@ void scrollback_reset(void) {
 // Copies the part of the screen that should be visible from the scrollback
 // buffer to both the VRAM buffer and the actual video RAM
 static void redraw_screen(void) {
-
 	uint16 *cur_vis = cur_visible(current_console);
 	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
@@ -430,9 +413,8 @@ int putchar(int c) {
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 			/* Also update the actual video ram if this console is currently displayed */
-			if (console_task->console->current_position == 0) { // TODO: FIXME: there are other cases where we're scrolled but it's still visible
-				// but at an offset
-				/* ... but only if we're not scrolled back past this */
+			if (console_task->console->current_position == 0) {
+				// ... but only if we're not scrolled back past this
 				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 				vram_buffer[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
 			}
@@ -464,7 +446,6 @@ int putchar(int c) {
 
 void update_cursor(void) {
 	// Moves the hardware cursor to the current position specified by the cursor struct
-
 	if (list_find_first(current_console->tasks, (void *)console_task) == NULL) {
 		/* The current task (console_task) isn't among this console's tasks.
 		 * Don't update the cursor on screen now. */
