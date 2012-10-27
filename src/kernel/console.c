@@ -71,7 +71,7 @@ unsigned char getchar(void) {
 	assert(keybuffer->read_ptr != NULL);
 	unsigned char ret = *(keybuffer->read_ptr++);
 	keybuffer->counter--;
-	if (keybuffer->read_ptr > keybuffer->data + KEYBUFFER_SIZE) // TODO: OBOE?
+	if (keybuffer->read_ptr >= keybuffer->data + KEYBUFFER_SIZE)
 		keybuffer->read_ptr = keybuffer->data;
 
 	return ret;

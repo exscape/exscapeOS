@@ -292,7 +292,7 @@ uint32 keyboard_callback(uint32 esp) {
 	keybuffer->counter++;
 
 	/* Wrap the write pointer */
-	if (keybuffer->write_ptr > keybuffer->data + KEYBUFFER_SIZE)
+	if (keybuffer->write_ptr >= keybuffer->data + KEYBUFFER_SIZE)
 		keybuffer->write_ptr = keybuffer->data;
 
 	return esp;
