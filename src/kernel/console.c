@@ -139,6 +139,9 @@ void console_init(console_t *new) {
 	new->bufferptr = new->buffer + (current_console->bufferptr - current_console->buffer);
 	new->current_position = current_console->current_position;
 	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
+
+	new->text_color = current_console->text_color;
+	new->back_color = current_console->back_color;
 }
 
 /* Destroy a console (free its memory, etc.) and switch to the previous one */
@@ -209,6 +212,18 @@ void cursor_left(void) {
 		cursor->x--;
 
 	update_cursor();
+}
+
+void set_text_color(int color) {
+	assert(console_task->console != NULL);
+	if (color >= 0 && color <= 15)
+		console_task->console->text_color = color;
+}
+
+void set_back_color(int color) {
+	assert(console_task->console != NULL);
+	if (color >= 0 && color <= 15)
+		console_task->console->back_color = color;
 }
 
 Point get_cursor(void) {
@@ -402,28 +417,29 @@ int putchar(int c) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
 		const unsigned int offset = cursor->y*80 + cursor->x;
+		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
 		if (console_task->console != NULL) {
 			uint16 *addr = cur_screen(console_task->console) + offset;
 			if (addr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
 				addr = console_task->console->buffer + (addr - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
 			}
 
-			*addr = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+			*addr = ( ((unsigned char)c)) | color;
 		}
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 			/* Also update the actual video ram if this console is currently displayed */
 			if (console_task->console->current_position == 0) {
 				// ... but only if we're not scrolled back past this
-				videoram[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-				vram_buffer[offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+				videoram[offset] = ( ((unsigned char)c)) | color;
+				vram_buffer[offset] = ( ((unsigned char)c)) | color;
 			}
 			else if (console_task->console->current_position <= 24 && (25UL - console_task->console->current_position) > cursor->y) {
 				// In scrollback, but this line should still be on screen. <= 24 because there's no chance it's on screen
 				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
 				uint32 sb_offset = 80*console_task->console->current_position;
-				videoram[offset + sb_offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
-				vram_buffer[offset + sb_offset] = ( ((unsigned char)c)) | (0x07 << 8); /* grey on black */
+				videoram[offset + sb_offset] = ( ((unsigned char)c)) | color;
+				vram_buffer[offset + sb_offset] = ( ((unsigned char)c)) | color;
 			}
 		}
 
@@ -490,6 +506,34 @@ static void force_update_cursor(void) {
 
 /* The buffer used by printk */
 static char buf[1024];
+
+size_t printc(int back_color, int text_color, const char *fmt, ...) {
+	assert(console_task->console != NULL);
+	int orig_text = console_task->console->text_color;
+	int orig_back = console_task->console->back_color;
+	set_text_color(text_color);
+	set_back_color(back_color);
+
+	va_list args;
+	int i;
+
+	va_start(args, fmt);
+	i = vsprintf(buf, fmt, args);
+	va_end(args);
+
+	if (i > 0) {
+		size_t len = strlen(buf);
+		for (size_t j = 0; j < len; j++) {
+			putchar(buf[j]);
+		}
+	}
+	update_cursor();
+
+	set_text_color(orig_text);
+	set_back_color(orig_back);
+
+	return i;
+}
 
 size_t printk(const char *fmt, ...) {
 	va_list args;

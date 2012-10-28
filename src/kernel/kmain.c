@@ -70,6 +70,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	kernel_console.bufferptr = kernel_console.buffer;
 	kernel_console.current_position = 0;
 
+	/* Set up kernel console colors */
+	kernel_console.text_color = LIGHT_GREY;
+	kernel_console.back_color = BLACK;
+
 	/* This should be done EARLY on, since many other things will fail (possibly even panic() output) otherwise.
 	 * NOT earlier than the kernel console setup, though! */
 	init_video();
@@ -83,7 +87,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 
 
-	printk("exscapeOS starting up...\n");
+	printc(BLACK, RED, "exscapeOS starting up...\n");
 	if (mbd->flags & 1) {
 		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n", mbd->mem_lower, mbd->mem_upper);
 	}
@@ -93,27 +97,27 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");
 	gdt_install();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	/* Load the IDT */
 	printk("Initializing IDTs... ");
 	idt_install();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	/* Enable interrupts */
 	printk("Initializing ISRs and enabling interrupts... ");
 	enable_interrupts();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	/* Set up the keyboard callback */
 	printk("Setting up the keyboard handler... ");
 	init_keyboard();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	/* Set up the PIT and start counting ticks */
 	printk("Initializing the PIT... ");
 	timer_install();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	/* Initialize the initrd */
 	/* (do this before paging, so that it doesn't end up in the kernel heap) */
@@ -122,11 +126,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
 	init_paging(mbd->mem_upper);
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	printk("Detecting and initializing PCI devices... ");
 	init_pci();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	//while (true) {
 	//printk("test\n");
@@ -134,30 +138,29 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("Initializing RTL8139 network adapter... ");
 	if (init_rtl8139())
-		printk("done\n");
+		printc(BLACK, GREEN, "done\n");
 	else
 		printk("failed!\n");
 
 	/* Set up the syscall interface */
 	printk("Initializing syscalls... ");
 	init_syscalls();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	printk("Initializing multitasking and setting up the kernel task... ");
 	init_tasking(init_esp0);
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task", /*console = */ false);
-	//printk("done\n");
+	//printc(BLACK, GREEN, "done\n");
 
 	create_task(force_switch_task, "force_switch_task", false);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
-	printk("\n");
 	ata_init();
-	printk("done\n");
+	printc(BLACK, GREEN, "done\n");
 #endif
 
 	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */

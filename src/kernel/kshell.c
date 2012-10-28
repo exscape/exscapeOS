@@ -156,7 +156,8 @@ void kshell(void) {
 			sleep(10);
 		}
 
-		printk("kshell%u # ", current_task->id);
+		printc(BLACK, GREEN, "kshell%u ", current_task->id);
+		printc(BLACK, RED, "# ");
 		unsigned char ch;
 		uint32 i = 0;
 		while ( (ch = getchar()) != '\n') {

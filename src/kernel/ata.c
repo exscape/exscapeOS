@@ -23,6 +23,8 @@
  */
 #define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
+#define ATA_VERBOSE 0
+
 /* Globals */
 ata_channel_t channels[2];
 ata_device_t devices[4];
@@ -398,12 +400,15 @@ void ata_init(void) {
 			} while (status & ATA_SR_BSY);
 
 			assert(!(status & ATA_SR_ERR));
+#if ATA_VERBOSE > 0
 			printk("Set ch=%u drive=%u to PIO mode %u\n", ch, drive, devices[dev].max_pio_mode);
+#endif
 		} /* end drive loop */
 	} /* end channel loop */
 
 	/* We're done detecting drives! */
 
+#if ATA_VERBOSE > 0
 	/* Print the info we have about each device */
 	for (int dev = 0; dev < 4; dev++) {
 		/* a shorthand */
@@ -432,6 +437,7 @@ void ata_init(void) {
 					((d->exists == true && d->is_atapi == true) ? "ATAPI device" : "not present")); 
 		}
 	}
+#endif
 
 	/* Re-enable ATA interrupts (clear the nIEN flag, along with SRST/HOB) */
 	ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, 0);

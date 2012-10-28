@@ -12,6 +12,8 @@
 
 list_t *pci_devices = NULL;
 
+#define PCI_DEBUG 0
+
 pci_device_t *find_pci_device(uint32 vendor_id, uint32 device_id) {
 	// list_node_find_next_predicate can't accept additional parameters (d'oh!),
 	// so we'll have to do this ourselves.
@@ -102,6 +104,7 @@ void init_pci(void) {
 		}
 	}
 
+#if PCI_DEBUG > 0
 	for (node_t *n = pci_devices->head; n != NULL; n = n->next) {
 		pci_device_t *cur = (pci_device_t *)n->data;
 		printk("%04x:%04x", cur->vendor_id, cur->device_id);
@@ -114,4 +117,5 @@ void init_pci(void) {
 		}
 		printk("\n");
 	}
+#endif
 }
