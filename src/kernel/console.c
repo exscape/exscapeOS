@@ -27,6 +27,7 @@ volatile console_t *current_console;
 
 static void force_update_cursor(void);
 static void redraw_screen(void);
+static void redraw_statusbar(void);
 
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
@@ -54,7 +55,7 @@ list_t kernel_console_tasks = {
 console_t kernel_console = {
 	.tasks = &kernel_console_tasks,
 	.active = true,
-	.cursor = { .x = 0, .y = 0},
+	.cursor = { .x = 0, .y = 0 },
 };
 
 /* Returns a key from the keyboard buffer, if possible. */
@@ -80,8 +81,8 @@ unsigned char getchar(void) {
 // NOTE: these only do half the work... they may well point outside of the buffer!
 // This is fixed wherever they are used.
 
-// cur_screen: the "current" 80x25 screen. Part (or all of it) may be undisplayed due to scrollback.
-#define cur_screen(_con) ( (uint16 *)(_con->bufferptr + 80*25*(NUM_SCROLLBACK)) )
+// cur_screen: the "current" 80x24 screen. Part (or all of it) may be undisplayed due to scrollback.
+#define cur_screen(_con) ( (uint16 *)(_con->bufferptr + 80*24*(NUM_SCROLLBACK)) )
 // cur_visible: what part of the screen is visible, period - possibly in scrollback (partially or fully)
 #define cur_visible(_con) ( cur_screen(_con) - 80*(_con->current_position) )
 
@@ -130,8 +131,6 @@ void console_init(console_t *new) {
 	new->tasks = list_create();
 
 	new->buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
-	if (new->buffer == 0)
-		panic("temp");
 
 	/* Copy the screen content and cursor position from the currently displayed console */
 	assert(current_console->buffer != NULL);
@@ -190,13 +189,14 @@ void clrscr(void) {
 	assert(console_task->console != NULL);
 
 	// This takes care of the scrollback. Hacky, but simple.
-	for (int i=0; i<24; i++)
+	for (int i=0; i<23; i++)
 		printk("\n");
 
 	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		// If the task that's calling clrscr() has its console on display, also update the screen at once
 		memsetw(vram_buffer, blank, 80*25);
 		memsetw(videoram, blank, 80*25);
+		redraw_statusbar();
 	}
 
 	Point *cursor = &console_task->console->cursor;
@@ -236,7 +236,7 @@ bool set_cursor(int x, int y) {
 	Point *cursor = &console_task->console->cursor;
 	if (x < 0 || x > 79)
 		return false;
-	if (y < 0 || y > 24)
+	if (y < 0 || y > 23)
 		return false;
 
 	cursor->x = x;
@@ -260,14 +260,6 @@ void cursor_right(void) {
 	update_cursor();
 }
 
-static void print_scrollback_pos(void) {
-	// Temporary! TODO FIXME
-	char buf[16] = {0};
-	sprintf(buf, "%u", current_console->current_position);
-	puts_xy(buf, 76, 0);
-	puts_xy("   ", 76, 1);
-}
-
 void scrollback_up(void) {
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
@@ -276,22 +268,20 @@ void scrollback_up(void) {
 	current_console->current_position++;
 	redraw_screen();
 	force_update_cursor();
-	print_scrollback_pos();
 }
 
 void scrollback_pgup(void) {
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
 	}
-	else if (current_console->current_position + 25 >= MAX_SCROLLBACK) {
+	else if (current_console->current_position + 24 >= MAX_SCROLLBACK) {
 		current_console->current_position = MAX_SCROLLBACK;
 	}
 	else
-		current_console->current_position += 25;
+		current_console->current_position += 24;
 
 	redraw_screen();
 	force_update_cursor();
-	print_scrollback_pos();
 }
 
 void scrollback_down(void) {
@@ -302,28 +292,31 @@ void scrollback_down(void) {
 	current_console->current_position--;
 	redraw_screen();
 	force_update_cursor();
-	print_scrollback_pos();
 }
 
 void scrollback_pgdown(void) {
 	if (current_console->current_position == 0) {
 		return;
 	}
-	else if (current_console->current_position < 25) {
+	else if (current_console->current_position < 24) {
 		current_console->current_position = 0;
 	}
 	else
-		current_console->current_position -= 25;
+		current_console->current_position -= 24;
 
 	redraw_screen();
 	force_update_cursor();
-	print_scrollback_pos();
 }
 
 void scrollback_reset(void) {
 	current_console->current_position = 0;
 	redraw_screen();
-	print_scrollback_pos();
+}
+
+static void redraw_statusbar(void) {
+	if (vram_buffer != NULL)
+		memsetw(vram_buffer, (uint16)((BLUE << BGCOLOR) | (WHITE << FGCOLOR) | ' '), 80);
+	memsetw(videoram, (uint16)((BLUE << BGCOLOR) | (WHITE << FGCOLOR) | ' '), 80);
 }
 
 // Copies the part of the screen that should be visible from the scrollback
@@ -334,17 +327,19 @@ static void redraw_screen(void) {
 		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
 	}
 
-	if (cur_vis + 80*25 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
+	if (cur_vis + 80*24 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		// Copy part one
 		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(vram_buffer, cur_vis, copied * 2);
+		memcpy(vram_buffer + 80, cur_vis, copied * 2);
 		// Part two
-		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*25 - copied)*2);
+		memcpy(((uint8 *)vram_buffer) + (copied*2) + 80*2, current_console->buffer, (80*24 - copied)*2);
 	}
 	else {
-		memcpy(vram_buffer , cur_vis, 80*25*2);
+		memcpy(vram_buffer + 80, cur_vis, 80*24*2);
 	}
-	memcpy(videoram, vram_buffer, 80*25*2);
+	memcpy(videoram + 80, vram_buffer + 80, 80*24*2);
+
+	redraw_statusbar();
 }
 
 void scroll(void) {
@@ -352,7 +347,7 @@ void scroll(void) {
 		panic("scroll() in task without a console!");
 
 	Point *cursor = &console_task->console->cursor;
-	if (cursor->y < 25)
+	if (cursor->y <= 23)
 		return;
 
 	if (console_task->console->current_position != 0) {
@@ -371,16 +366,16 @@ void scroll(void) {
 	}
 
 	// Blank the last line...
-	if ((cur_screen(console_task->console) + 80*24 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
-		memsetw(cur_screen(console_task->console) + 80*24, blank, 80); // no wrap trouble, one line always fits
+	if ((cur_screen(console_task->console) + 80*23 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
+		memsetw(cur_screen(console_task->console) + 80*23, blank, 80); // no wrap trouble, one line always fits
 	}
 	else {
-		uint32 offset = (cur_screen(console_task->console) + 80*24) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE);
+		uint32 offset = (cur_screen(console_task->console) + 80*23 + 80) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE);
 		memsetw(console_task->console->buffer + offset, blank, 80);
 	}
 
 	redraw_screen();
-	cursor->y = 24;
+	cursor->y = 23;
 }
 
 // Prints a string directly to VRAM.
@@ -416,7 +411,8 @@ int putchar(int c) {
 	else if (c >= 0x20) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
-		const unsigned int offset = cursor->y*80 + cursor->x;
+		assert(cursor->y <= 23 && cursor->x <= 79);
+		const unsigned int offset = cursor->y*80 + cursor->x + 80; /* + 80 due to the status bar */
 		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
 		if (console_task->console != NULL) {
 			uint16 *addr = cur_screen(console_task->console) + offset;
@@ -434,8 +430,8 @@ int putchar(int c) {
 				videoram[offset] = ( ((unsigned char)c)) | color;
 				vram_buffer[offset] = ( ((unsigned char)c)) | color;
 			}
-			else if (console_task->console->current_position <= 24 && (25UL - console_task->console->current_position) > cursor->y) {
-				// In scrollback, but this line should still be on screen. <= 24 because there's no chance it's on screen
+			else if (console_task->console->current_position < 24 && (24UL - console_task->console->current_position) > cursor->y) {
+				// In scrollback, but this line should still be on screen. < 24 because there's no chance it's on screen
 				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
 				uint32 sb_offset = 80*console_task->console->current_position;
 				videoram[offset + sb_offset] = ( ((unsigned char)c)) | color;
@@ -471,10 +467,12 @@ void update_cursor(void) {
 	assert(console_task->console == current_console);
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
+	assert(cursor != NULL);
+	assert(cursor->y <= 23);
 	int y = 0;
 	uint16 loc = 0;
 	y = cursor->y + current_console->current_position;
-	loc = y * 80 + cursor->x;
+	loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
@@ -491,10 +489,11 @@ static void force_update_cursor(void) {
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);
+	assert(cursor->y <= 23);
 	int y = 0;
 	uint16 loc = 0;
 	y = cursor->y + current_console->current_position;
-	loc = y * 80 + cursor->x;
+	loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
