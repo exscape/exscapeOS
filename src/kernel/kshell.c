@@ -371,6 +371,9 @@ void heaptest(void) {
 	 *** HEAP DEBUGGING AND TESTING ***
 	 **********************************/
 
+#define TEST_1_LOOPS 1
+#define TEST_2_LOOPS 1
+
 	print_heap_index();
 
 	void *a = kmalloc(8);
@@ -417,9 +420,6 @@ void heaptest(void) {
 	kfree(aligned);
 	print_heap_index();
 
-//	printk("Infinite loop...\n");
-//	for(;;);
-
 	/* The highest address allocated in the stress tests; stored for testing purposes, of course */
 	void *max_alloc = NULL;
 
@@ -447,7 +447,7 @@ void heaptest(void) {
 	memset(alloced_size, 0, sizeof(uint32) * NUM);
 
 	uint32 total = 0;
-while(1) {
+	for (int x=0; x < TEST_1_LOOPS; x++) {
 	total = 0;
 
 	for (uint32 i = 0; i < NUM; i++) {
@@ -487,16 +487,14 @@ while(1) {
   *** STRESS TEST PART II ***
   ***************************/
 
-#define NUM_OUTER_LOOPS 1000
-
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
 	uint32 kbytes_allocated = 0;
 
 	srand(1234567);
 	printk("Running the large stress test\n");
 
-	for(int outer=1; outer <= NUM_OUTER_LOOPS  ; outer++) {
-		printk("\nloop %d/%d\n", outer, NUM_OUTER_LOOPS);
+	for(int outer=1; outer <= TEST_2_LOOPS ; outer++) {
+		printk("\nloop %d/%d\n", outer, TEST_2_LOOPS);
 
 	/*
 	 * This code is a damn mess, but i won't bother making this easily readable,
@@ -583,6 +581,7 @@ printk("\n");
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
 	printk("Total allocated: (approx.) %u kiB (%u MiB)\n", kbytes_allocated, kbytes_allocated >> 10);
 
+#if 0
 	printk("Benchmarking...\n");
 	void **mem = kmalloc(3250 * sizeof(void *));
 	memset(mem, 0, sizeof(void *) * 3250);
@@ -599,6 +598,7 @@ printk("\n");
 	kfree(mem);
 	mem = 0;
 	printk("Time taken: %d ticks (%d ms)\n", end_ticks - start_ticks, (end_ticks - start_ticks) * 10);
+#endif
 }
 
 void ls_initrd(void) {
