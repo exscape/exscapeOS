@@ -49,9 +49,10 @@ static void print_1_sec(void) {
 }
 
 static void fill_scrollback(void) {
-	for (int i=1; i <= MAX_SCROLLBACK + 24; i++) {
+	for (int i=1; i <= MAX_SCROLLBACK * 2; i++) {
 		printk("%d\n", i);
-		delay(50);
+		if (i > 300)
+			delay(40);
 	}
 }
 

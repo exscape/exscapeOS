@@ -485,22 +485,17 @@ int putchar(int c) {
 			}
 
 			// Set it
-			*addr = ( ((unsigned char)c)) | color;
+			*addr = ((unsigned char)c) | color;
 		}
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 			/* Also update the actual video ram if this console is currently displayed */
-			if (console_task->console->current_position == 0) {
-				// ... but only if we're not scrolled back past this
-				videoram[offset] = ( ((unsigned char)c)) | color;
-				vram_buffer[offset] = ( ((unsigned char)c)) | color;
-			}
-			else if (console_task->console->current_position < 24 && (24UL - console_task->console->current_position) > cursor->y) {
+			if (console_task->console->current_position < 24 && (24UL - console_task->console->current_position) > cursor->y) {
 				// In scrollback, but this line should still be on screen. < 24 because there's no chance it's on screen
 				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
 				uint32 sb_offset = 80*console_task->console->current_position;
-				videoram[offset + sb_offset] = ( ((unsigned char)c)) | color;
-				vram_buffer[offset + sb_offset] = ( ((unsigned char)c)) | color;
+				videoram[offset + sb_offset] = ((unsigned char)c) | color;
+				vram_buffer[offset + sb_offset] = ((unsigned char)c) | color;
 			}
 		}
 
