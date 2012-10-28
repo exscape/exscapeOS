@@ -19,11 +19,12 @@ static uint16 *videoram = (uint16 *) (0xb8000 + 2*80);
 /* Used for double buffering when scrolling (due to a lack of memmove()) */
 static uint16 *vram_buffer = NULL;
 
-// Used by the status bar ONLY
+/* Used by the status bar ONLY */
 static uint16 *real_vmem = (uint16 *)0xb8000;
-static const uint8 status_bgcolor = BLUE;
+static uint8 status_bgcolor = BLUE; /* not const, needs to be able to change */
 static const uint8 status_fgcolor = WHITE;
 static uint8 current_console_number = 0;
+bool kernel_paniced = false;
 
 /* task.c */
 extern volatile task_t *current_task;
@@ -59,7 +60,6 @@ list_t kernel_console_tasks = {
 	.tail = &tmp,
 	.count = 1
 };
-
 console_t kernel_console = {
 	.tasks = &kernel_console_tasks,
 	.active = true,
@@ -80,6 +80,8 @@ unsigned char getchar(void) {
 	assert(keybuffer->read_ptr != NULL);
 	unsigned char ret = *(keybuffer->read_ptr++);
 	keybuffer->counter--;
+
+	// Wrap the pointer if we've reached the end
 	if (keybuffer->read_ptr >= keybuffer->data + KEYBUFFER_SIZE)
 		keybuffer->read_ptr = keybuffer->data;
 
@@ -88,12 +90,12 @@ unsigned char getchar(void) {
 
 // NOTE: these only do half the work... they may well point outside of the buffer!
 // This is fixed wherever they are used.
-
 // cur_screen: the "current" 80x24 screen. Part (or all of it) may be undisplayed due to scrollback.
 #define cur_screen(_con) ( (uint16 *)(_con->bufferptr + 80*24*(NUM_SCROLLBACK)) )
 // cur_visible: what part of the screen is visible, period - possibly in scrollback (partially or fully)
 #define cur_visible(_con) ( cur_screen(_con) - 80*(_con->current_position) )
 
+// Switch the currently displayed console. Called when Alt+F1-F4 is pressed.
 void console_switch(console_t *new) {
 	assert(new != NULL);
 
@@ -337,8 +339,17 @@ static void puts_status(int x, const char *str) {
 }
 
 void update_statusbar(void) {
+	if (kernel_paniced) {
+		status_bgcolor = RED;
+	}
+
+	// Clear everything
 	memsetw(real_vmem, (uint16)((status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | ' '), 80);
 
+	if (kernel_paniced) {
+		puts_status(0, "  KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC  ");
+		return;
+	}
 	puts_status(0, "[exscapeOS]");
 
 	// Show the VC number
@@ -348,7 +359,7 @@ void update_statusbar(void) {
 
 	// Show scrollback status
 	if (current_console->current_position != 0) {
-		sprintf(buf, "Scrollback: %u", current_console->current_position);
+		sprintf(buf, "Scrollback: %u line%c", current_console->current_position, (current_console->current_position > 1 ? 's' : 0));
 		puts_status(16, buf);
 	}
 
@@ -356,8 +367,7 @@ void update_statusbar(void) {
 	Time t;
 	get_time(&t);
 	t.hour++;
-	if (t.hour > 23)
-		t.hour = 0;
+	t.hour %= 24;
 	sprintf(buf, "[%02d:%02d]", t.hour, t.minute);
 	puts_status(73, buf);
 }

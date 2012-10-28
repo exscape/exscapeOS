@@ -44,13 +44,14 @@ uint32 inl(uint16 port)
    return ret;
 }
 
+extern bool kernel_paniced;
 void panic(const char *str) {
-//	clrscr();
 	console_switch(&kernel_console);
 	scrollback_reset();
 	asm volatile("cli");
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
-	memsetw((void *)0xb8000, 0xabcd, 8);
+	kernel_paniced = true;
+	update_statusbar();
 	asm volatile("0: hlt ; jmp 0b");
 }
 
