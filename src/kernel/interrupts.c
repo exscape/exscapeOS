@@ -80,7 +80,7 @@ extern void irq14(void);
 extern void irq15(void);
 extern void irq126(void);
 
-/* The array of ISR handlers */
+/* The array of ISRs */
 isr_t interrupt_handlers[256] = {0};
 
 void register_interrupt_handler(uint8 n, isr_t handler) {

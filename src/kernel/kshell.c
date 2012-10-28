@@ -131,6 +131,10 @@ static void permaidle(void) {
 	}
 }
 
+static void free(void) {
+	printk("Free RAM: %u bytes\n", free_bytes());
+}
+
 static void sleep_test(void) {
 	printk("sleep_test: sleeping for 20 seconds\n");
 	sleep(20000);
@@ -204,6 +208,9 @@ void kshell(void) {
 
 		if (strcmp(p, "heaptest") == 0) {
 			task = create_task(&heaptest, "heaptest", con);
+		}
+		if (strcmp(p, "free") == 0) {
+			task = create_task(&free, "free", con);
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
 			task = create_task(&delaypanic, "delaypanic", con);
@@ -427,13 +434,13 @@ void heaptest(void) {
 //#define NUM 2750
 
 	/* account for the overhead and a tiny bit more */
-	uint32 free = free_bytes();
-	free -= ((free/1024/128) + 24) * (sizeof(area_header_t) + sizeof(area_footer_t));
+	uint32 free_ = free_bytes();
+	free_ -= ((free_/1024/128) + 24) * (sizeof(area_header_t) + sizeof(area_footer_t));
 
 
 	/* This MUST be const and MUST NOT change (especially not being INCREASED in size) later!
 	 * If this is increased, accessing p[] outside of NUM-1 will cause invalid memory accesses (duh!) */
-	const uint32 NUM = ((free / 1024 / 128) - 8); /* we allocate 128k at a time; reduce slighly to not run out of frames */
+	const uint32 NUM = ((free_ / 1024 / 128) - 8); /* we allocate 128k at a time; reduce slighly to not run out of frames */
 
 	/* Make sure it didn't overflow or anything... not exactly a rigorous test; whatever */
 	assert (NUM > 0 && NUM < 0xffffff00);

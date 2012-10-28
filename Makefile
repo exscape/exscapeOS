@@ -21,7 +21,7 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -fmax-errors=0 \
                 -Wwrite-strings \
                 -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
-                -Wuninitialized -Wstrict-prototypes -Werror \
+                -Wuninitialized -Wstrict-prototypes -Werror -Wno-unused-function
 #WARNINGS := -Wall -Werror
 
 CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)

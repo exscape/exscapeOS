@@ -60,6 +60,8 @@ uint32 page_fault_handler(uint32);
 void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable);
 void free_frame(uint32 virtual_addr, page_directory_t *page_dir);
 
+void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
+
 bool addr_is_mapped(uint32 addr);
 
 /* Executes INVLPG for the argument. */

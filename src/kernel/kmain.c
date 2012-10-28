@@ -141,7 +141,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	if (init_rtl8139())
 		printc(BLACK, GREEN, "done\n");
 	else
-		printk("failed!\n");
+		printc(BLACK, RED, "failed!\n");
 
 	/* Set up the syscall interface */
 	printk("Initializing syscalls... ");

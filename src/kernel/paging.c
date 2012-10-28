@@ -19,6 +19,8 @@ uint32 nframes;
 extern uint32 placement_address;
 extern heap_t *kheap;
 
+uint32 mem_end_page = 0;
+
 /* Bitmap macros */
 /* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
  * and the number of bits to shift that dword to find it, respectively. */
@@ -78,7 +80,7 @@ static uint32 first_free_frame(void) {
 	return 0xffffffff;
 }
 
-/* Returns the number of *physical* RAM that it still unused, i.e. unused_frame_count * 4096
+/* Returns the amount of *physical* RAM that it still unused, i.e. unused_frame_count * 4096
  * Note that this function is simple, not fast! It should NOT be called often, e.g. in loops! */
 uint32 free_bytes(void) {
 	uint32 unused = 0;
@@ -109,6 +111,46 @@ uint32 free_bytes(void) {
 /**********************************
  **** END BITMAP HANDLING CODE ****
  **********************************/
+
+void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
+	assert((physical_addr & 0xfff) == 0);
+	assert((virtual_addr  & 0xfff) == 0);
+
+	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
+
+	assert(mem_end_page != 0); // This needs to be set up first!
+
+	if (physical_addr < mem_end_page) {
+		// This is a regular memory address, as opposed to MMIO and stuff
+		if (page->frame != 0) {
+			/* This frame is already allocated! */
+			return;
+		}
+		else {
+			uint32 index = physical_addr / 4096;
+
+			/* Claim the frame */
+			/* First, make sure it's currently set to being unused. */
+			assert(test_frame(index) == false);
+			set_frame(index);
+
+			/* Set up the page associated with this frame */
+			page->present = 1;
+			page->rw = (writable ? 1 : 0);
+			page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
+			page->frame = index;
+		}
+	}
+	else {
+		//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
+		assert(page != NULL);
+
+		page->present = 1;
+		page->rw = (writable ? 1 : 0);
+		page->user = (kernelmode ? 0 : 1);
+		page->frame = (physical_addr / PAGE_SIZE);
+	}
+}
 
 static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 	if (page->frame != 0) {
@@ -168,7 +210,7 @@ void init_paging(unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);
 
 	/* upper_mem is provided by GRUB; it's the number of *continuous* kilobytes of memory starting at 1MB (0x100000). */
-	uint32 mem_end_page = 0x100000 + (uint32)upper_mem*1024;
+	mem_end_page = 0x100000 + (uint32)upper_mem*1024;
 	//printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
 	if (!IS_PAGE_ALIGNED(mem_end_page)) {
 		/* Ignore the last few bytes of RAM to align */
@@ -179,6 +221,7 @@ void init_paging(unsigned long upper_mem) {
 	nframes = mem_end_page / PAGE_SIZE;
 
 	/* allocate and initialize the bitmap */
+	// TODO: can nframes % 32 != 0, causing the allocation to be off-by-one?
 	used_frames = (uint32 *)kmalloc(nframes / 32);
 	memset(used_frames, 0, nframes / 32);
 
@@ -225,7 +268,8 @@ void init_paging(unsigned long upper_mem) {
 
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
+		//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
+		map_phys_to_virt(addr, addr, false, true);
 		addr += PAGE_SIZE;
 	}
 
@@ -298,10 +342,10 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
 	else if (create == true) {
-		uint32 tmp;
-		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &tmp);
+		uint32 phys;
+		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
 		memset(dir->tables[table_idx], 0, sizeof(page_table_t));
-		dir->tables_physical[table_idx] = tmp | 0x07;
+		dir->tables_physical[table_idx] = phys | 0x07;
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
 	else {
