@@ -48,6 +48,12 @@ static void print_1_sec(void) {
 	printk("print_1_sec exiting\n");
 }
 
+static void fill_scrollback(void) {
+	for (int i=1; i <= MAX_SCROLLBACK + 24; i++) {
+		printk("%d\n", i);
+		delay(50);
+	}
+}
 
 static void fpu_task(void) {
 	asm volatile("fldpi");
@@ -200,6 +206,9 @@ void kshell(void) {
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
 			task = create_task(&delaypanic, "delaypanic", con);
+		}
+		else if (strcmp(p, "fill_scrollback") == 0) {
+			task = create_task(&fill_scrollback, "fill_scrollback", con);
 		}
 		else if (strcmp(p, "ls") == 0) {
 			ls_initrd();

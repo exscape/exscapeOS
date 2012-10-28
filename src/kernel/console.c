@@ -99,10 +99,10 @@ unsigned char getchar(void) {
 void console_switch(console_t *new) {
 	assert(new != NULL);
 
-	if (new == current_console) {
+	if (new == current_console)
 		return;
-	}
 
+	// Update the console number used in the status bar
 	for (int i=0; i<NUM_VIRTUAL_CONSOLES; i++) {
 		if (new == virtual_consoles[i]) {
 			current_console_number = i;
@@ -110,6 +110,7 @@ void console_switch(console_t *new) {
 		}
 	}
 
+	// Do the switch
 	current_console->active = false;
 	new->active = true;
 	current_console = new;
@@ -147,15 +148,17 @@ void console_init(console_t *new) {
 	assert(new->tasks == NULL);
 	new->tasks = list_create();
 
+	/* Set up the scrollback buffer */
 	new->buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 
-	/* Copy the screen content and cursor position from the currently displayed console */
+	/* Copy the scrollback buffer content and cursor position from the currently displayed console */
 	assert(current_console->buffer != NULL);
 	memcpy(new->buffer, ((console_t *)current_console)->buffer, CONSOLE_BUFFER_SIZE_BYTES);
 	new->bufferptr = new->buffer + (current_console->bufferptr - current_console->buffer);
 	new->current_position = current_console->current_position;
 	memcpy(& new->cursor, & ((console_t *)current_console)->cursor, sizeof(Point));
 
+	/* Copy the color settings */
 	new->text_color = current_console->text_color;
 	new->back_color = current_console->back_color;
 }
@@ -277,6 +280,7 @@ void cursor_right(void) {
 	update_cursor();
 }
 
+// Move one line back in the scrollback buffer
 void scrollback_up(void) {
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
@@ -287,6 +291,7 @@ void scrollback_up(void) {
 	force_update_cursor();
 }
 
+// Move one screen back in the scrollback buffer
 void scrollback_pgup(void) {
 	if (current_console->current_position >= MAX_SCROLLBACK) {
 		return;
@@ -301,6 +306,7 @@ void scrollback_pgup(void) {
 	force_update_cursor();
 }
 
+// Move one line forward in the scrollback buffer
 void scrollback_down(void) {
 	if (current_console->current_position == 0) {
 		return;
@@ -311,6 +317,7 @@ void scrollback_down(void) {
 	force_update_cursor();
 }
 
+// Move one screen forward in the scrollback buffer
 void scrollback_pgdown(void) {
 	if (current_console->current_position == 0) {
 		return;
@@ -325,11 +332,13 @@ void scrollback_pgdown(void) {
 	force_update_cursor();
 }
 
+// Exit scrollback mode
 void scrollback_reset(void) {
 	current_console->current_position = 0;
 	redraw_screen();
 }
 
+// Used by update_statusbar() to print text
 static void puts_status(int x, const char *str) {
 	size_t len = strlen(str);
 	assert(x + len <= 80);
@@ -338,6 +347,7 @@ static void puts_status(int x, const char *str) {
 	}
 }
 
+// Draw/update the status bar at the top of the screen
 void update_statusbar(void) {
 	if (kernel_paniced) {
 		status_bgcolor = RED;
@@ -350,6 +360,7 @@ void update_statusbar(void) {
 		puts_status(0, "  KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC  ");
 		return;
 	}
+
 	puts_status(0, "[exscapeOS]");
 
 	// Show the VC number
@@ -366,7 +377,7 @@ void update_statusbar(void) {
 	// Show a clock
 	Time t;
 	get_time(&t);
-	t.hour++;
+	t.hour++; // I'm at UTC+1, and there's no real TZ support in this OS!
 	t.hour %= 24;
 	sprintf(buf, "[%02d:%02d]", t.hour, t.minute);
 	puts_status(73, buf);
@@ -375,26 +386,34 @@ void update_statusbar(void) {
 // Copies the part of the screen that should be visible from the scrollback
 // buffer to both the VRAM buffer and the actual video RAM
 static void redraw_screen(void) {
+	// Find the pointer to the visible data, and wrap it if necessary (this is a ring buffer)
 	uint16 *cur_vis = cur_visible(current_console);
 	if (cur_vis >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		cur_vis = current_console->buffer + (cur_vis - (current_console->buffer + CONSOLE_BUFFER_SIZE));
 	}
 
+	// More ring buffer stuff: if the entire screen isn't continuous in memory, copy
+	// the two parts separately
 	if (cur_vis + 80*24 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		// Copy part one
-		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(vram_buffer, cur_vis, copied * 2);
+		uint32 copied = ((current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis) * 2; // *2 to convert 16-bit chars to bytes
+		memcpy(vram_buffer, cur_vis, copied);
 		// Part two
-		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*24 - copied)*2);
+		memcpy(((uint8 *)vram_buffer) + copied, current_console->buffer, 80*24*2 - copied);
 	}
 	else {
+		// If it is continuous, just copy it.
 		memcpy(vram_buffer, cur_vis, 80*24*2);
 	}
+
+	// In either case, update the screen with the new data
 	memcpy(videoram, vram_buffer, 80*24*2);
 
+	// Shouldn't be necessary (as the timer calls this), but up-to-date info is always nice anyway
 	update_statusbar();
 }
 
+// Scroll the screen, if necessary. If not, this will just return.
 void scroll(void) {
 	if (console_task->console == NULL)
 		panic("scroll() in task without a console!");
@@ -404,7 +423,8 @@ void scroll(void) {
 		return;
 
 	if (console_task->console->current_position != 0) {
-		// We're in scrollback at the moment
+		// We're in scrollback at the moment. Since a new line has shown up (or will, when this function is done),
+		// we are now one position further back.
 		console_task->console->current_position++;
 		if (console_task->console->current_position > MAX_SCROLLBACK) {
 			console_task->console->current_position = MAX_SCROLLBACK;
@@ -418,7 +438,7 @@ void scroll(void) {
 		console_task->console->bufferptr = console_task->console->buffer;
 	}
 
-	// Blank the last line...
+	// Blank the last line on screen, handling the wrapping of the buffer if necessary
 	if ((cur_screen(console_task->console) + 80*23 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
 		memsetw(cur_screen(console_task->console) + 80*23, blank, 80); // no wrap trouble, one line always fits
 	}
@@ -431,6 +451,7 @@ void scroll(void) {
 	cursor->y = 23;
 }
 
+// Print a character to the current cursor location
 int putchar(int c) {
 	Point *cursor = NULL;
 
@@ -451,16 +472,19 @@ int putchar(int c) {
 	}
 	else if (c >= 0x20) {
 		// 0x20 is the lowest printable character (space)
-		// Write the character
 		assert(cursor->y <= 23 && cursor->x <= 79);
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
+
 		if (console_task->console != NULL) {
+			// Find the MMIO address and take care of wrapping, as cur_screen() can point outside
+			// the actual buffer. Ugly, yes.
 			uint16 *addr = cur_screen(console_task->console) + offset;
 			if (addr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
 				addr = console_task->console->buffer + (addr - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
 			}
 
+			// Set it
 			*addr = ( ((unsigned char)c)) | color;
 		}
 
