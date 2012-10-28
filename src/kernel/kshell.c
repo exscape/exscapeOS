@@ -163,7 +163,7 @@ void kshell(void) {
 			sleep(10);
 		}
 
-		printc(BLACK, GREEN, "kshell%u ", current_task->id);
+		printc(BLACK, GREEN, "kshell ");
 		printc(BLACK, RED, "# ");
 		unsigned char ch;
 		uint32 i = 0;
