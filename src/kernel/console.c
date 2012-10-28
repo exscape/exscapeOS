@@ -529,10 +529,8 @@ void update_cursor(void) {
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);
 	assert(cursor->y <= 23);
-	int y = 0;
-	uint16 loc = 0;
-	y = cursor->y + current_console->current_position;
-	loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
+	int y = cursor->y + current_console->current_position;
+	uint16 loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);
@@ -549,10 +547,8 @@ static void force_update_cursor(void) {
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);
 	assert(cursor->y <= 23);
-	int y = 0;
-	uint16 loc = 0;
-	y = cursor->y + current_console->current_position;
-	loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
+	int y = cursor->y + current_console->current_position;
+	uint16 loc = y * 80 + cursor->x + 80; /* + 80 due to the status bar */
 
 	uint8 high = (uint8)((loc >> 8) & 0xff);
 	uint8 low  = (uint8)(loc & 0xff);

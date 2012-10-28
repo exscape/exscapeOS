@@ -69,6 +69,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	kernel_console.buffer = kmalloc(CONSOLE_BUFFER_SIZE_BYTES);
 	kernel_console.bufferptr = kernel_console.buffer;
 	kernel_console.current_position = 0;
+	memsetw(kernel_console.buffer, (0x7 << 8 /* grey on black */) | 0x20 /* space */, CONSOLE_BUFFER_SIZE);
 
 	/* Set up kernel console colors */
 	kernel_console.text_color = LIGHT_GREY;
