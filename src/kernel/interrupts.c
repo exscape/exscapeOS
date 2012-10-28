@@ -281,18 +281,6 @@ uint32 irq_handler(uint32 esp) {
 	console_task = &kernel_task;
 
 	registers_t *regs = (registers_t *)esp;
-	/* If this interrupt came from the slave PIC, send an
-	   EOI (End Of Interrupt) to it */
-	if (regs->int_no >= IRQ8 && regs->int_no != 0x7e) {
-		outb(0xa0, 0x20);
-	}
-
-	/* Send an EOI to the master PIC in either case, since slave IRQs go through it, too */
-	if (regs->int_no != 0x7e) {
-		/* Don't do this if this is vector 0x7e, aka. the task switch vector */
-		outb(0x20, 0x20);
-	}
-
 	/* Call the interrupt handler, if there is one. */
 	if (interrupt_handlers[regs->int_no] != 0 || regs->int_no == 0x7e) {
 		isr_t handler = interrupt_handlers[regs->int_no];
@@ -318,6 +306,18 @@ uint32 irq_handler(uint32 esp) {
 
 	/* Return the console_task pointer to its correct state */
 	console_task = current_task;
+
+	/* If this interrupt came from the slave PIC, send an
+	   EOI (End Of Interrupt) to it */
+	if (regs->int_no >= IRQ8 && regs->int_no != 0x7e) {
+		outb(0xa0, 0x20);
+	}
+
+	/* Send an EOI to the master PIC in either case, since slave IRQs go through it, too */
+	if (regs->int_no != 0x7e) {
+		/* Don't do this if this is vector 0x7e, aka. the task switch vector */
+		outb(0x20, 0x20);
+	}
 
 	return esp;
 }
