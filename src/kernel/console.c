@@ -7,14 +7,23 @@
 #include <kernel/kheap.h>
 #include <kernel/list.h>
 #include <kernel/timer.h>
+#include <kernel/rtc.h>
 
 /* A character representing empty space on the screen */
 static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
 
-static uint16 *videoram = (uint16 *) 0xb8000;
+// Pretend that the video RAM is 80*24, so that the first line is never
+// accessed by anything but the status bar updater
+static uint16 *videoram = (uint16 *) (0xb8000 + 2*80);
 
 /* Used for double buffering when scrolling (due to a lack of memmove()) */
 static uint16 *vram_buffer = NULL;
+
+// Used by the status bar ONLY
+static uint16 *real_vmem = (uint16 *)0xb8000;
+static const uint8 status_bgcolor = BLUE;
+static const uint8 status_fgcolor = WHITE;
+static uint8 current_console_number = 0;
 
 /* task.c */
 extern volatile task_t *current_task;
@@ -27,7 +36,6 @@ volatile console_t *current_console;
 
 static void force_update_cursor(void);
 static void redraw_screen(void);
-static void redraw_statusbar(void);
 
 /* A set of virtual consoles, accessed using Alt+F1, Alt+F2, ..., Alt+Fn */
 #define NUM_VIRTUAL_CONSOLES 4
@@ -91,6 +99,13 @@ void console_switch(console_t *new) {
 
 	if (new == current_console) {
 		return;
+	}
+
+	for (int i=0; i<NUM_VIRTUAL_CONSOLES; i++) {
+		if (new == virtual_consoles[i]) {
+			current_console_number = i;
+			break;
+		}
 	}
 
 	current_console->active = false;
@@ -180,7 +195,7 @@ void init_video(void) {
 	current_console = &kernel_console;
 
 	if (vram_buffer == NULL)
-		vram_buffer = (uint16 *)kmalloc(80*25*2);
+		vram_buffer = (uint16 *)kmalloc(80*24*2);
 
 	clrscr();
 }
@@ -194,9 +209,9 @@ void clrscr(void) {
 
 	if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 		// If the task that's calling clrscr() has its console on display, also update the screen at once
-		memsetw(vram_buffer, blank, 80*25);
-		memsetw(videoram, blank, 80*25);
-		redraw_statusbar();
+		memsetw(vram_buffer, blank, 80*24);
+		memsetw(videoram, blank, 80*24);
+		update_statusbar();
 	}
 
 	Point *cursor = &console_task->console->cursor;
@@ -313,10 +328,38 @@ void scrollback_reset(void) {
 	redraw_screen();
 }
 
-static void redraw_statusbar(void) {
-	if (vram_buffer != NULL)
-		memsetw(vram_buffer, (uint16)((BLUE << BGCOLOR) | (WHITE << FGCOLOR) | ' '), 80);
-	memsetw(videoram, (uint16)((BLUE << BGCOLOR) | (WHITE << FGCOLOR) | ' '), 80);
+static void puts_status(int x, const char *str) {
+	size_t len = strlen(str);
+	assert(x + len <= 80);
+	for (size_t i = 0; i < len; i++) {
+		real_vmem[x + i] = (status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | str[i];
+	}
+}
+
+void update_statusbar(void) {
+	memsetw(real_vmem, (uint16)((status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | ' '), 80);
+
+	puts_status(0, "[exscapeOS]");
+
+	// Show the VC number
+	char buf[32] = {0};
+	sprintf(buf, "VC%u", current_console_number + 1); // convert to 1-indexed
+	puts_status(12, buf);
+
+	// Show scrollback status
+	if (current_console->current_position != 0) {
+		sprintf(buf, "Scrollback: %u", current_console->current_position);
+		puts_status(16, buf);
+	}
+
+	// Show a clock
+	Time t;
+	get_time(&t);
+	t.hour++;
+	if (t.hour > 23)
+		t.hour = 0;
+	sprintf(buf, "[%02d:%02d]", t.hour, t.minute);
+	puts_status(73, buf);
 }
 
 // Copies the part of the screen that should be visible from the scrollback
@@ -330,16 +373,16 @@ static void redraw_screen(void) {
 	if (cur_vis + 80*24 >= current_console->buffer + CONSOLE_BUFFER_SIZE) {
 		// Copy part one
 		uint32 copied = (current_console->buffer + CONSOLE_BUFFER_SIZE) - cur_vis;
-		memcpy(vram_buffer + 80, cur_vis, copied * 2);
+		memcpy(vram_buffer, cur_vis, copied * 2);
 		// Part two
-		memcpy(((uint8 *)vram_buffer) + (copied*2) + 80*2, current_console->buffer, (80*24 - copied)*2);
+		memcpy(((uint8 *)vram_buffer) + (copied*2), current_console->buffer, (80*24 - copied)*2);
 	}
 	else {
-		memcpy(vram_buffer + 80, cur_vis, 80*24*2);
+		memcpy(vram_buffer, cur_vis, 80*24*2);
 	}
-	memcpy(videoram + 80, vram_buffer + 80, 80*24*2);
+	memcpy(videoram, vram_buffer, 80*24*2);
 
-	redraw_statusbar();
+	update_statusbar();
 }
 
 void scroll(void) {
@@ -378,18 +421,6 @@ void scroll(void) {
 	cursor->y = 23;
 }
 
-// Prints a string directly to VRAM.
-// Mostly useful for console development/debugging, since it will be easily
-// overwritten by stuff.
-int puts_xy(const char *str, int x, int y) {
-	assert(str != NULL && (x >= 0 && x <= 79) && (y >= 0 && y <= 24));
-	for (size_t i=0; i < strlen(str); i++) {
-		const unsigned int offset = y*80 + x + i;
-		videoram[offset] = ((unsigned char)str[i]) | (0x07 << 8);
-	}
-	return strlen(str);
-}
-
 int putchar(int c) {
 	Point *cursor = NULL;
 
@@ -412,7 +443,7 @@ int putchar(int c) {
 		// 0x20 is the lowest printable character (space)
 		// Write the character
 		assert(cursor->y <= 23 && cursor->x <= 79);
-		const unsigned int offset = cursor->y*80 + cursor->x + 80; /* + 80 due to the status bar */
+		const unsigned int offset = cursor->y*80 + cursor->x;
 		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
 		if (console_task->console != NULL) {
 			uint16 *addr = cur_screen(console_task->console) + offset;
@@ -485,7 +516,6 @@ void update_cursor(void) {
 /* Ugh, code duplication... */
 static void force_update_cursor(void) {
 	assert(current_console != NULL);
-
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);

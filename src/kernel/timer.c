@@ -26,6 +26,9 @@ uint32 timer_handler(uint32 esp) {
 	//uint16 *vram = (uint16 *)0xb8000;
 	//*vram = (*vram) + 1;
 
+	if ((timer_ticks & 15) == 0)
+		update_statusbar();
+
 	return esp;
 }
 

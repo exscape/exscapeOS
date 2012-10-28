@@ -68,6 +68,9 @@ void scrollback_pgup(void);
 void scrollback_pgdown(void);
 void scrollback_reset(void);
 
+// Called by the timer; would be static otherwise
+void update_statusbar(void);
+
 extern volatile console_t *current_console;
 extern console_t kernel_console;
 
@@ -84,7 +87,6 @@ void init_video(void);
 void clrscr(void);
 void update_cursor(void);
 void scroll(void);
-void print_time(const Time *t);
 size_t printc(int back_color, int text_color, const char *fmt, ...); // printk with colors
 size_t printk(const char *fmt, ...);
 int puts(const char *s);
