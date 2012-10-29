@@ -12,6 +12,8 @@ char *strcpy(char *restrict s1, const char *restrict s2);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, size_t n);
 
+int memcmp(const void *lhs, const void *rhs, size_t count);
+
 char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 

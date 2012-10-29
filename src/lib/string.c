@@ -84,6 +84,18 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 	return ((uc1 < uc2) ? -1 : (uc1 > uc2));
 }
 
+int memcmp(const void *lhs, const void *rhs, size_t count) {
+	const uint8 *us1 = (uint8 *)lhs;
+	const uint8 *us2 = (uint8 *)rhs;
+	while (count-- != 0) {
+		if (*us1 != *us2) 
+			return (*us1 < *us2) ? -1 : 1;
+		us1++, us2++;
+	}
+
+	return 0;
+}
+
 size_t strlen(const char *str) {
 	size_t len = 0;
 
