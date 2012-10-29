@@ -137,12 +137,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	//printk("test\n");
 	//}
 
-	printk("Initializing RTL8139 network adapter... ");
-	if (init_rtl8139())
-		printc(BLACK, GREEN, "done\n");
-	else
-		printc(BLACK, RED, "failed!\n");
-
 	/* Set up the syscall interface */
 	printk("Initializing syscalls... ");
 	init_syscalls();
@@ -218,6 +212,14 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	d *= 10;
 	printk("Writing 64000 sectors took %u ms\n", d);
 	*/
+#endif
+
+#if 1
+	printk("Initializing RTL8139 network adapter... ");
+	if (init_rtl8139())
+		printc(BLACK, GREEN, "done\n");
+	else
+		printc(BLACK, RED, "failed!\n");
 #endif
 
 	printk("All initialization complete!\n\n");
