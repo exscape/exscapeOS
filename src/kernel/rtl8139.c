@@ -63,17 +63,44 @@ typedef struct {
 	uint16 operation; // ARP_REQUEST or ARP_REPLY
 	uint8 src_mac[6]; // Sender MAC
 	uint8 src_ip[4];  // Sender IP
-	uint8 tgt_mac[6]; // Target MAC; ignored for requests
-	uint8 tgt_ip[4];  // Target IP
+	uint8 dst_mac[6]; // Target MAC; ignored for requests
+	uint8 dst_ip[4];  // Target IP
 } __attribute((packed)) arpheader_t;
 
 // A friend from ata.h
 #define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
-void arp_handle_request(uint8 *packet) {
+void send_arp_reply(const uint8 *packet) {
+	assert(packet != NULL);
 	arpheader_t *header = (arpheader_t *)packet;
-	assert(BSWAP16(header->htype) == 1);
-	assert(BSWAP16(header->ptype) == 0x0800);
+	uint8 buf[sizeof(arpheader_t)];
+	uint8 tmp[6]; // used for swapping fields
+
+	memcpy(buf, header, sizeof(arpheader_t));
+	header = (arpheader_t *)header;
+
+	/* Swap source and destination IPs */
+	memcpy(tmp, header->dst_ip, 4);
+	memcpy(header->dst_ip, header->src_ip, 4);
+	memcpy(header->src_ip, tmp, 4);
+
+	/* Set destination MAC to source MAC */
+	memcpy(header->dst_mac, header->src_mac, 6);
+	memcpy(header->src_mac, (rtl_mmio_base + 0), 6); // MAC is stored at 0x0 in MMIO
+
+	header->operation = BSWAP16(ARP_REPLY);
+
+	rtl8139_send_frame(header->dst_mac, ETHERTYPE_ARP, header, sizeof(arpheader_t));
+}
+
+void arp_handle_request(const uint8 *packet) {
+	assert(packet != NULL);
+	arpheader_t *header = (arpheader_t *)packet;
+	if (BSWAP16(header->htype) != 1 || BSWAP16(header->ptype) != 0x0800) {
+		printk("Ignoring non-Ethernet/IPv4 ARP request\n");
+		return;
+	}
+
 	assert(header->hlen == 6);
 	assert(header->plen == 4);
 	assert(BSWAP16(header->operation) == ARP_REQUEST || BSWAP16(header->operation) == ARP_REPLY);
@@ -81,23 +108,29 @@ void arp_handle_request(uint8 *packet) {
 			(BSWAP16(header->operation) == ARP_REQUEST ? "request" : "reply"),
 			header->src_mac[0], header->src_mac[1], header->src_mac[2], header->src_mac[3], header->src_mac[4], header->src_mac[5],
 			header->src_ip[0], header->src_ip[1], header->src_ip[2], header->src_ip[3],
-			header->tgt_mac[0], header->tgt_mac[1], header->tgt_mac[2], header->tgt_mac[3], header->tgt_mac[4], header->tgt_mac[5],
-			header->tgt_ip[0], header->tgt_ip[1], header->tgt_ip[2], header->tgt_ip[3]);
+			header->dst_mac[0], header->dst_mac[1], header->dst_mac[2], header->dst_mac[3], header->dst_mac[4], header->dst_mac[5],
+			header->dst_ip[0], header->dst_ip[1], header->dst_ip[2], header->dst_ip[3]);
 
-	if (memcmp(header->tgt_ip, ip_address, 4) == 0) {
+	if (BSWAP16(header->operation) == ARP_REPLY)
+		return;
+
+	if (memcmp(header->dst_ip, ip_address, 4) == 0) {
 		printk("This is for me!\n");
+		send_arp_reply(packet);
 	}
 	else
 		printk("ARP is for someone else\n");
 }
 
-void process_frame(uint16 packetLength) {
-	//printk("process_frame of length %u\n", packetLength);
+static void process_frame(uint16 packetLength) {
+	printk("process_frame of length %u\n", packetLength);
 
+	/*
 	printk("len=%u: ", packetLength);
 	for (uint16 i=0; i < packetLength; i++) {
 		printk("%02x ", rtl8139_packetBuffer[i]);
 	}
+	*/
 
 	ethheader_t *header = (ethheader_t *)(rtl8139_packetBuffer + 4);
 	header->ethertype = BSWAP16(header->ethertype);
@@ -171,6 +204,9 @@ uint32 rtl8139_interrupt_handler(uint32 esp) {
 
 		return esp;
 	} while (!(rtl_mmio_byte_r(RTL_CR) & RTL_BUFE));
+}
+
+void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size) {
 }
 
 bool init_rtl8139(void) {

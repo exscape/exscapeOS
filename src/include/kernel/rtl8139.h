@@ -50,5 +50,6 @@
 #define ARP_REPLY   2
 
 bool init_rtl8139(void);
+void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size);
 
 #endif
