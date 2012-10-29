@@ -24,6 +24,9 @@ uint16 internet_checksum(void *ptr, uint32 length);
 
 // TODO: rename these functions - rtl_r8/rtl_w8, rtlr16 ...? Surely something shorter than rtl_mmio_byte_r is possible.
 
+// TODO temporarily here (and with a temporary name?)
+void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 payload_size);
+
 static uint8 rtl_mmio_byte_r(uint8 reg) {
 	assert(rtl_mmio_base != 0);
 	return *(rtl_mmio_base + reg);
@@ -153,11 +156,48 @@ void arp_handle_request(const uint8 *packet) {
 		return;
 
 	if (memcmp(header->dst_ip, ip_address, 4) == 0) {
-		printk("This is for me!\n");
+		printk("This is for me! Creating and sending an ARP reply.\n");
 		send_arp_reply(packet);
 	}
 	else
-		printk("ARP is for someone else\n");
+		printk("ARP request is for someone else, ignoring\n");
+}
+
+static void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip) {
+	uint8 type = *packet;
+	uint8 code = *(packet + 1);
+	uint16 checksum = *((uint16 *)(packet + 2));
+	checksum=checksum; // sigh
+	code=code;
+
+	switch (type) {
+		case ICMP_ECHO_REQUEST: { // type 8
+			uint16 identifier = *((uint16 *)(packet + 4));
+			uint16 seq = *((uint16 *)(packet + 6));
+			printk("ICMP echo request: id=%u seq=%u\n", BSWAP16(identifier), BSWAP16(seq));
+
+			// Data length is the packet length, minus the 8 byte header
+			printk("Data length: %u\n", length - 8);
+
+			// TODO: don't alloc here...?
+			uint8 *buf = kmalloc(length);
+			memcpy(buf, packet, length);
+
+			// Set the type field
+			*buf = ICMP_ECHO_REPLY;
+
+			// Calculate and set checksum
+			*((uint16 *)(buf + 2)) = 0; // only zero to compute checksum
+			*((uint16 *)(buf + 2)) = internet_checksum(buf, length);
+
+			send_ipv4_packet(src_ip, IPV4_PROTO_ICMP, buf, length);
+
+			break;
+		}
+
+		default:
+			break;
+	}
 }
 
 static void process_frame(uint16 packetLength) {
@@ -172,7 +212,7 @@ static void process_frame(uint16 packetLength) {
 		printk("ARP packet\n");
 		arp_handle_request(rtl8139_packetBuffer + 4 + sizeof(ethheader_t)); // 4 bytes for the 8139 header
 	}
-	else if (header->ethertype == ETHERTYPE_IPv4) {
+	else if (header->ethertype == ETHERTYPE_IPV4) {
 		printk("IPv4 packet\n");
 		ipv4header_t *v4 = (ipv4header_t *)(rtl8139_packetBuffer + 4 + sizeof(ethheader_t));
 		printk("version=%u IHL=%u total_length=%u\n", v4->version, v4->IHL, BSWAP16(v4->total_length));
@@ -183,12 +223,19 @@ static void process_frame(uint16 packetLength) {
 		uint16 check = v4->header_checksum;
 		v4->header_checksum = 0;
 
+		// Number of additional bytes in the options field. If IHL == 5, there are none.
+		uint8 options_size = (v4->IHL - 5) * 4;
+
+		if (v4->protocol == IPV4_PROTO_ICMP) {
+			handle_icmp(rtl8139_packetBuffer + 4 + sizeof(ethheader_t) + sizeof(ipv4header_t) + options_size, packetLength - 4 - sizeof(ethheader_t) - sizeof(ipv4header_t) - options_size, v4->src_ip);
+		}
+
 		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
 
 		// TODO: this assumes packets will never be corrupt. Remove once the algorithm is tested!
 		assert(internet_checksum((void *)v4, sizeof(ipv4header_t)) == check);
 	}
-	else if (header->ethertype == ETHERTYPE_IPv6) {
+	else if (header->ethertype == ETHERTYPE_IPV6) {
 		printk("IPv6 packet\n");
 	}
 	else {
@@ -208,6 +255,11 @@ static uint32 rtl8139_rx_handler(uint32 esp) {
 		uint16 flags = *( (uint16 *)rxPointer );
 		uint16 packetLength = *( (uint16 *)(rxPointer + 2) );
 		printk("flags=[%04x] ", flags);
+
+		static uint32 total_recv = 0;
+
+		total_recv += packetLength;
+		printk("total_recv = %u\n", total_recv);
 
 		// Clear the interrupt
 		rtl_mmio_word_w(RTL_ISR, RTL_ROK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
@@ -288,6 +340,55 @@ uint32 rtl8139_interrupt_handler(uint32 esp) {
 		panic("Unhandled 8139 interrupt");
 		return esp; // Silly, but gcc insists
 	}
+}
+
+bool arp_lookup(uint8 *mac_buffer, uint8 *ip) {
+	// Look up the MAC adress for "ip" and store it in mac_buffer
+	mac_buffer=mac_buffer; ip=ip;
+	memset(mac_buffer, 0xab, 6);
+	return true;
+}
+
+void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 payload_size) {
+	assert(dst_ip != NULL);
+	assert(payload != NULL);
+	assert(payload_size <= (1500 - sizeof(ipv4header_t)));
+
+	// TODO: don't use kmalloc...?
+	uint8 *buffer = kmalloc(sizeof(ipv4header_t) + payload_size);
+	ipv4header_t *ip_hdr = (ipv4header_t *)buffer;
+	ip_hdr->IHL = 5; // no options field
+	ip_hdr->version = 4; // always 4 for IPv4
+	ip_hdr->DSCP = 0; // not used
+	ip_hdr->ECN = 0; // not used
+	ip_hdr->total_length = BSWAP16(sizeof(ipv4header_t) + payload_size);
+	ip_hdr->id = 0; // TODO: is this OK?
+	ip_hdr->ttl = 64;
+	ip_hdr->protocol = protocol;
+	memcpy(ip_hdr->src_ip, ip_address, 4);
+	memcpy(ip_hdr->dst_ip, dst_ip, 4);
+	ip_hdr->header_checksum = 0; // Zero only to calculate the actual checksum
+	ip_hdr->header_checksum = internet_checksum(ip_hdr, sizeof(ipv4header_t));
+
+	memcpy(buffer + sizeof(ipv4header_t), payload, payload_size);
+
+	uint8 dst_mac[6] = {0};
+	assert(arp_lookup(dst_mac, dst_ip));
+
+	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
+			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
+			dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3]);
+
+	dst_mac[0] = 0x10;
+	dst_mac[1] = 0x10;
+	dst_mac[2] = 0x10;
+	dst_mac[3] = 0x20;
+	dst_mac[4] = 0x20;
+	dst_mac[5] = 0x20;
+
+	//panic("Is that correct?");
+
+	rtl8139_send_frame(dst_mac, ETHERTYPE_IPV4, buffer, sizeof(ipv4header_t) + payload_size);
 }
 
 void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size) {

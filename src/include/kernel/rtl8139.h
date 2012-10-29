@@ -58,13 +58,21 @@
 #define RTL_TSD_NONE 0
 
 // Ethertypes we might encounter
-#define ETHERTYPE_IPv4	0x0800
+#define ETHERTYPE_IPV4	0x0800
 #define ETHERTYPE_ARP	0x0806
-#define ETHERTYPE_IPv6	0x86dd
+#define ETHERTYPE_IPV6	0x86dd
+
+#define IPV4_PROTO_ICMP	1
+#define IPV4_PROTO_TCP	6
+#define IPV4_PROTO_UDP	17
 
 // ARP stuff. TODO: move to separate source files
 #define ARP_REQUEST 1
 #define ARP_REPLY   2
+
+// ICMP stuff. TODO: move to separate source files...?
+#define ICMP_ECHO_REQUEST	8
+#define ICMP_ECHO_REPLY		0
 
 bool init_rtl8139(void);
 void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size);
