@@ -4,7 +4,7 @@
 #include <kernel/task.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */
-uint32 timer_ticks = 0;
+volatile uint32 timer_ticks = 0;
 const uint16 TIMER_DIVISOR = 11932;
 const uint16 TIMER_HZ = 100;
 

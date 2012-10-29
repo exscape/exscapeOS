@@ -51,6 +51,12 @@
 #define RTL_AB	 (1 << 3) /* Accept Broadcast Packets */
 #define RTL_WRAP (1 << 7)
 
+// TSDx (0 - 3) register bits
+#define RTL_TSD_TOK  (1 << 15)
+#define RTL_TSD_OWN  (1 << 13)
+#define RTL_TSD_BOTH ((1 << 15) | (1 << 13))
+#define RTL_TSD_NONE 0
+
 // Ethertypes we might encounter
 #define ETHERTYPE_IPv4	0x0800
 #define ETHERTYPE_ARP	0x0806

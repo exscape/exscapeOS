@@ -5,17 +5,24 @@
 #include <kernel/pci.h>
 #include <kernel/paging.h>
 #include <kernel/rtl8139.h>
+#include <kernel/timer.h>
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card
 static uint32 recv_buf_phys = NULL; // Physical address of the above
 static uint8 *rtl8139_packetBuffer; // Where we copy the packet after reception
-static uint8 *rtl8139_transmitBuffer; // Where we prepare packets to be sent
-static uint32 rtl8139_transmitBuffer_phys; // Physical address of the above
+//static uint8 *rtl8139_transmitBuffer; // Where we prepare packets to be sent
+//static uint32 rtl8139_transmitBuffer_phys; // Physical address of the above
+static uint8 current_descriptor = 0; // There are 4 TX descriptors (0-3)
+static uint8 finish_descriptor = 0; // TODO
+static sint8 free_descriptors = 4; // Should never go below 0, of course
 
 static uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
 
+// TODO: rename these functions - rtl_r8/rtl_w8, rtlr16 ...? Surely something shorter than rtl_mmio_byte_r is possible.
+
 static uint8 rtl_mmio_byte_r(uint8 reg) {
+	assert(rtl_mmio_base != 0);
 	return *(rtl_mmio_base + reg);
 }
 
@@ -25,6 +32,7 @@ static void rtl_mmio_byte_w(uint8 reg, uint8 val) {
 }
 
 static uint16 rtl_mmio_word_r(uint8 reg) {
+	assert(rtl_mmio_base != 0);
 	return *( (uint16 *)(rtl_mmio_base + reg));
 }
 
@@ -33,6 +41,7 @@ static void rtl_mmio_word_w(uint8 reg, uint16 val) {
 	*((uint16 *)(rtl_mmio_base + reg)) = val;
 }
 static uint32 rtl_mmio_dword_r(uint8 reg) {
+	assert(rtl_mmio_base != 0);
 	return *( (uint32 *)(rtl_mmio_base + reg));
 }
 
@@ -42,6 +51,7 @@ static void rtl_mmio_dword_w(uint8 reg, uint32 val) {
 }
 
 static void rtl8139_reset(void) {
+	assert(rtl_mmio_base != 0);
 	*(rtl_mmio_base + RTL_CR) |= RTL_RESET;
 	while (rtl_mmio_byte_r(RTL_CR) & RTL_RESET) { }
 }
@@ -69,6 +79,29 @@ typedef struct {
 	uint8 dst_ip[4];  // Target IP
 } __attribute((packed)) arpheader_t;
 
+// TODO: Should this stay or be moved?
+typedef struct {
+	uint8 *buffer;
+	uint32 buffer_phys;
+	uint16 packet_length;
+} txdesc_t;
+
+// TODO: move this
+typedef struct {
+	uint8 IHL : 4, version : 4;
+	uint8 DSCP : 6, ECN : 2;
+	uint16 total_length;
+	uint16 id;
+	uint16 flags : 3, fragment_offset : 13;
+	uint8 ttl;
+	uint8 protocol;
+	uint16 header_checksum;
+	uint8 src_ip[4]; // TODO: endianness?
+	uint8 dst_ip[4]; // TODO: endianness?
+} __attribute__((packed)) ipv4header_t;
+
+static txdesc_t TxDesc[4];
+
 // A friend from ata.h
 #define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
@@ -88,7 +121,7 @@ void send_arp_reply(const uint8 *packet) {
 
 	/* Set destination MAC to source MAC */
 	memcpy(header->dst_mac, header->src_mac, 6);
-	memcpy(header->src_mac, (rtl_mmio_base + 0), 6); // MAC is stored at 0x0 in MMIO
+	memcpy(header->src_mac, (rtl_mmio_base + 0), 6); // MAC is stored at offset 0x0 in MMIO
 
 	header->operation = BSWAP16(ARP_REPLY);
 
@@ -124,15 +157,10 @@ void arp_handle_request(const uint8 *packet) {
 		printk("ARP is for someone else\n");
 }
 
+uint16 internet_checksum(void *ptr, uint32 length); // 16-bit length is enough, but 32 makes for easier asm
+
 static void process_frame(uint16 packetLength) {
 	printk("process_frame of length %u\n", packetLength);
-
-	/*
-	printk("len=%u: ", packetLength);
-	for (uint16 i=0; i < packetLength; i++) {
-		printk("%02x ", rtl8139_packetBuffer[i]);
-	}
-	*/
 
 	ethheader_t *header = (ethheader_t *)(rtl8139_packetBuffer + 4);
 	header->ethertype = BSWAP16(header->ethertype);
@@ -140,29 +168,34 @@ static void process_frame(uint16 packetLength) {
 	if (header->ethertype == 0x8100) 
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
-		arp_handle_request(rtl8139_packetBuffer + 4 + 14); // 4 bytes for the 8139 header, 14 for the Ethernet frame header
-		printk("\nARP packet\n");
+		printk("ARP packet\n");
+		arp_handle_request(rtl8139_packetBuffer + 4 + sizeof(ethheader_t)); // 4 bytes for the 8139 header
 	}
 	else if (header->ethertype == ETHERTYPE_IPv4) {
-		printk("\nIPv4 packet\n");
+		printk("IPv4 packet\n");
+		ipv4header_t *v4 = (ipv4header_t *)(rtl8139_packetBuffer + 4 + sizeof(ethheader_t));
+		printk("version=%u IHL=%u total_length=%u\n", v4->version, v4->IHL, BSWAP16(v4->total_length));
+		printk("id=%u flags=%u fragment=%u ttl=%u proto=%u checksum=%04x src=%d.%d.%d.%d dst=%d.%d.%d.%d\n",
+				(uint32)v4->id, (uint32)v4->flags, (uint32)v4->fragment_offset, (uint32)v4->ttl, (uint32)v4->protocol, (uint32)BSWAP16(v4->header_checksum),
+				(uint32)v4->src_ip[0], (uint32)v4->src_ip[1], (uint32)v4->src_ip[2], (uint32)v4->src_ip[3],
+				(uint32)v4->dst_ip[0], (uint32)v4->dst_ip[1], (uint32)v4->dst_ip[2], (uint32)v4->dst_ip[3]);
+		uint16 check = v4->header_checksum;
+		v4->header_checksum = 0;
+
+		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
+		assert(internet_checksum((void *)v4, sizeof(ipv4header_t)) == check);
 	}
 	else if (header->ethertype == ETHERTYPE_IPv6) {
-		printk("\nIPv6 packet\n");
+		printk("IPv6 packet\n");
 	}
 	else {
-		printk("\nUnknown ethertype: 0x%04x\n", header->ethertype);
+		printk("Unknown ethertype: 0x%04x\n", header->ethertype);
 	}
-
-	/* Kom ihåg +4 */
-
-	printk("\n\n");
 }
 
 static uint16 rxOffset = 0; /* Used to set CAPR value */
 
-uint32 rtl8139_interrupt_handler(uint32 esp) {
-	//printk("*** RTL8139 INTERRUPT ***");
-
+static uint32 rtl8139_rx_handler(uint32 esp) {
 	// Exit if the RX buffer is empty
 	if (rtl_mmio_byte_r(RTL_CR) & RTL_BUFE)
 		return esp;
@@ -173,24 +206,8 @@ uint32 rtl8139_interrupt_handler(uint32 esp) {
 		uint16 packetLength = *( (uint16 *)(rxPointer + 2) );
 		printk("flags=[%04x] ", flags);
 
-		// Check the reason for this interrupt
-		uint16 isr = rtl_mmio_word_r(RTL_ISR);
-		if (!(isr & RTL_ROK)) {
-			// So far, we only recieve
-			panic("RTL8139 interrupt without ROK");
-		}
-
-		assert(flags & 1); // ROK
-
-		//printk("ISR = %04x (ROK = %u, RER = %u), ", isr, isr & RTL_ROK, isr & RTL_RER);
-		// Clear the interrupt by writing all non-reserved bits in ISR
-		rtl_mmio_word_w(RTL_ISR, 0xe07f); 
-
-		//uint16 capr = rtl_mmio_word_r(RTL_CAPR);
-		//printk(" CAPR = %04x ", capr);
-
-		//uint16 cbr = rtl_mmio_word_r(RTL_CBR);
-		//printk(" RTL_CBR = %04x ", cbr);
+		// Clear the interrupt
+		rtl_mmio_word_w(RTL_ISR, RTL_ROK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
 
 		// Copy this packet somewhere else
 		assert(packetLength <= 2048);
@@ -202,41 +219,122 @@ uint32 rtl8139_interrupt_handler(uint32 esp) {
 		rxOffset %= RTL8139_RXBUFFER_SIZE;
 		rtl_mmio_word_w(RTL_CAPR, rxOffset - 0x10);
 
+		// Do something with this frame, depending on what it is
 		process_frame(packetLength);
 
-		return esp;
+	// ... and loop this while there are packets, in case another has arrived
+	// since we began handling the one we were interrupted for
 	} while (!(rtl_mmio_byte_r(RTL_CR) & RTL_BUFE));
+
+	return esp;
+}
+
+static uint32 check_transmit_status(uint8 desc) {
+	return rtl_mmio_dword_r(RTL_TSD_BASE + (desc *4)) & (RTL_TSD_OWN | RTL_TSD_TOK);
+	/*
+	switch (rtl_mmio_dword_r(RTL_TSD_BASE + (desc * 4)) & (RTL_TSD_OWN | RTL_TSD_TOK)) {
+		case (RTL_TSD_OWN | RTL_TSD_TOK):
+			return RTL_TSD_BOTH;
+			break;
+		case RTL_TSD_TOK:
+			return RTL_TSD_TOK;
+			break;
+		case RTL_TSD_OWN:
+			return RTL_TSD_OWN;
+			break;
+		case 0:
+			return RTL_TSD_NONE;
+			break;
+
+	}
+	*/
+	return 0;
+}
+
+static uint32 rtl8139_tx_handler(uint32 esp) {
+	// Clear the interrupt
+	rtl_mmio_word_w(RTL_ISR, RTL_TOK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
+	printk("in rtl8139_tx_handler()\n");
+
+	while (check_transmit_status(finish_descriptor) == RTL_TSD_BOTH && free_descriptors < 4) {
+		// Release this buffer. Since this is barely documented this is mostly
+		// from the (poorly written) programming guide.
+		finish_descriptor = (finish_descriptor + 1) % 4;
+		free_descriptors++;
+		printk("increased free_descriptors\n");
+		assert(free_descriptors >= 1 && free_descriptors <= 4);
+	}
+
+	return esp;
+}
+
+uint32 rtl8139_interrupt_handler(uint32 esp) {
+	//printk("*** RTL8139 INTERRUPT ***");
+
+	// Check the reason for this interrupt
+	uint16 isr = rtl_mmio_word_r(RTL_ISR);
+	if (!(isr & RTL_ROK) && !(isr & RTL_TOK)) {
+		// TODO: handle errors and such (and sign up for those interrupts)
+		panic("RTL8139 interrupt without ROK/TOK");
+	}
+	if (isr & RTL_ROK)
+		return rtl8139_rx_handler(esp);
+	else if (isr & RTL_TOK)
+		return rtl8139_tx_handler(esp);
+	else {
+		panic("Unhandled 8139 interrupt");
+		return esp; // Silly, but gcc insists
+	}
 }
 
 void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size) {
 	assert(dst_mac != NULL);
-	assert(ethertype >= 0x0600);
+	assert(ethertype >= 0x0600); // Required for Ethernet II frames
 	assert(payload != NULL);
 	assert(payload_size > 0 && payload_size <= 1500);
 
-	ethheader_t *header = (ethheader_t *)rtl8139_transmitBuffer;
+	uint32 start = gettickcount();
+	while (free_descriptors == 0) {
+		// Wait! Or switch task? Sleep for 10 ms seems too long.
+		if (gettickcount() > start + 100) {
+			panic("no free descriptors for >1 second! Something's wrong somewhere.");
+		}
+	}
+
+	ethheader_t *header = (ethheader_t *)TxDesc[current_descriptor].buffer;
 	memcpy(header->mac_dst, dst_mac, 6);
-	memcpy(header->mac_src, rtl_mmio_base + 0, 6); // register 0 holds the MAC address
+	memcpy(header->mac_src, rtl_mmio_base + 0, 6); // register 0 holds our MAC address
 	header->ethertype = BSWAP16(ethertype);
 
-	memcpy(rtl8139_transmitBuffer + sizeof(ethheader_t), payload, payload_size);
+	// Copy the payload to the TX buffer
+	memcpy(TxDesc[current_descriptor].buffer + sizeof(ethheader_t), payload, payload_size);
 
+	// Calculate the packet size
 	uint16 packetSize = payload_size + sizeof(ethheader_t);
 	assert((packetSize & 0xfff) == packetSize);
+	if (packetSize < 60) { // 64 minus the 4 CRC bytes
+		memset(TxDesc[current_descriptor].buffer + packetSize, 0, 60 - packetSize); // Pad the rest with zeroes
+		packetSize = 60;
+	}
+
+	TxDesc[current_descriptor].packet_length = packetSize;
 
 	printk("to send: ");
 	for (size_t i=0; i < payload_size + sizeof(ethheader_t); i++) {
-		printk("%02x ", rtl8139_transmitBuffer[i]);
+		printk("%02x ", TxDesc[current_descriptor].buffer[i]);
 	}
 	printk("\n");
 
-	uint8 offset = 0; // TODO
+	// Set the physical address to the TX buffer
+	rtl_mmio_dword_w(RTL_TSAD_BASE + current_descriptor*4, TxDesc[current_descriptor].buffer_phys);
 
-	rtl_mmio_dword_w(RTL_TSAD_BASE + offset, (uint32)rtl8139_transmitBuffer_phys);
-	rtl_mmio_dword_w(RTL_TSD_BASE + offset, (packetSize & 0xfff));
+	// Clear OWN bit, set length, and "disable" the early TX threshold by setting it to 1536 bytes
+	// This will start the transmit process.
+	rtl_mmio_dword_w(RTL_TSD_BASE + current_descriptor*4, (packetSize & 0xfff) | (48 << 16));
 
-	/* Actually transmit */
-	//panic("TODO: transmit code");
+	// Move to the next TX descriptor (buffer etc.)
+	current_descriptor = (current_descriptor + 1) % 4;
+	free_descriptors--;
 }
 
 bool init_rtl8139(void) {
@@ -259,8 +357,14 @@ bool init_rtl8139(void) {
 		rtl8139_packetBuffer = kmalloc(2048);
 		memset(rtl8139_packetBuffer, 0, 2048);
 
-		rtl8139_transmitBuffer = kmalloc_ap(2048, &rtl8139_transmitBuffer_phys);
-		memset(rtl8139_transmitBuffer, 0, 2048);
+		//rtl8139_transmitBuffer = kmalloc_ap(2048, &rtl8139_transmitBuffer_phys);
+		//memset(rtl8139_transmitBuffer, 0, 2048);
+
+		// Initialize 4 transmit descriptors, each with a 2k buffer
+		for (int i=0; i < 4; i++) {
+			TxDesc[i].buffer = kmalloc_ap(2048, &TxDesc[i].buffer_phys);
+			TxDesc[i].packet_length = 0;
+		}
 
 		map_phys_to_virt((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, true /* kernel mode */, true /* writable */);
 
@@ -277,8 +381,7 @@ bool init_rtl8139(void) {
 		rtl_mmio_dword_w(RTL_RBSTART, (uint32)recv_buf_phys);
 
 		/* Set the Interrupt Mask Register to specify which interrupts we want */
-		//rtl_mmio_word_w(RTL_IMR, RTL_ROK | RTL_TOK); // TODO: add the rest of the useful ones, e.g. errors!
-		rtl_mmio_word_w(RTL_IMR, RTL_ROK);
+		rtl_mmio_word_w(RTL_IMR, RTL_ROK | RTL_TOK); // TODO: add the rest of the useful ones, e.g. errors!
 
 		/* Configure the receive buffer register */
 		/* 1 << 10 sets MXDMA to 100 (256 bytes, the maximum size DMA burst) */
