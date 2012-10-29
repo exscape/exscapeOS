@@ -21,6 +21,17 @@
 #define RTL_BMSR	0x64 /* Basic Mode Status Register */
 #define RTL_CONFIG5 0xd8 /* Configuration Register 5 */
 
+#define RTL_TSD0	0x10 /* Transmit Status of Descriptor 0 */
+#define RTL_TSD1	0x14 /* Transmit Status of Descriptor 1 */
+#define RTL_TSD2	0x18 /* Transmit Status of Descriptor 2 */
+#define RTL_TSD3	0x1c /* Transmit Status of Descriptor 3 */
+#define RTS_TSAD0	0x20 /* Transmit Start Address of Descriptor 0 (DWORD aligned) */
+#define RTS_TSAD1	0x24 /* Transmit Start Address of Descriptor 1 (DWORD aligned) */
+#define RTS_TSAD2	0x28 /* Transmit Start Address of Descriptor 2 (DWORD aligned) */
+#define RTS_TSAD3	0x2c /* Transmit Start Address of Descriptor 3 (DWORD aligned) */
+#define RTL_TSD_BASE  0x10 /* Used to calculate the register offset automatically */
+#define RTL_TSAD_BASE 0x20 /* As above */
+
 // Command register bits
 #define RTL_RESET (1 << 4) /* Software Reset */
 #define RTL_RE (1 << 3) /* Receiver Enable */

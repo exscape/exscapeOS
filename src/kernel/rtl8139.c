@@ -8,8 +8,10 @@
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card
-static uint32 recv_buf_phys = NULL; // Physical address the above
+static uint32 recv_buf_phys = NULL; // Physical address of the above
 static uint8 *rtl8139_packetBuffer; // Where we copy the packet after reception
+static uint8 *rtl8139_transmitBuffer; // Where we prepare packets to be sent
+static uint32 rtl8139_transmitBuffer_phys; // Physical address of the above
 
 static uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
 
@@ -46,7 +48,7 @@ static void rtl8139_reset(void) {
 
 /* TODO: move to header file */
 typedef struct {
-	uint8 mac_dest[6];
+	uint8 mac_dst[6];
 	uint8 mac_src[6];
 	/* uint32 vlan_tag; */
 	uint16 ethertype;
@@ -104,7 +106,7 @@ void arp_handle_request(const uint8 *packet) {
 	assert(header->hlen == 6);
 	assert(header->plen == 4);
 	assert(BSWAP16(header->operation) == ARP_REQUEST || BSWAP16(header->operation) == ARP_REPLY);
-	printk("ARP info: Ethernet/IP ARP %s; source = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d) dest = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n",
+	printk("ARP info: Ethernet/IP ARP %s; source = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d) dst = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n",
 			(BSWAP16(header->operation) == ARP_REQUEST ? "request" : "reply"),
 			header->src_mac[0], header->src_mac[1], header->src_mac[2], header->src_mac[3], header->src_mac[4], header->src_mac[5],
 			header->src_ip[0], header->src_ip[1], header->src_ip[2], header->src_ip[3],
@@ -207,6 +209,34 @@ uint32 rtl8139_interrupt_handler(uint32 esp) {
 }
 
 void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size) {
+	assert(dst_mac != NULL);
+	assert(ethertype >= 0x0600);
+	assert(payload != NULL);
+	assert(payload_size > 0 && payload_size <= 1500);
+
+	ethheader_t *header = (ethheader_t *)rtl8139_transmitBuffer;
+	memcpy(header->mac_dst, dst_mac, 6);
+	memcpy(header->mac_src, rtl_mmio_base + 0, 6); // register 0 holds the MAC address
+	header->ethertype = BSWAP16(ethertype);
+
+	memcpy(rtl8139_transmitBuffer + sizeof(ethheader_t), payload, payload_size);
+
+	uint16 packetSize = payload_size + sizeof(ethheader_t);
+	assert((packetSize & 0xfff) == packetSize);
+
+	printk("to send: ");
+	for (size_t i=0; i < payload_size + sizeof(ethheader_t); i++) {
+		printk("%02x ", rtl8139_transmitBuffer[i]);
+	}
+	printk("\n");
+
+	uint8 offset = 0; // TODO
+
+	rtl_mmio_dword_w(RTL_TSAD_BASE + offset, (uint32)rtl8139_transmitBuffer_phys);
+	rtl_mmio_dword_w(RTL_TSD_BASE + offset, (packetSize & 0xfff));
+
+	/* Actually transmit */
+	//panic("TODO: transmit code");
 }
 
 bool init_rtl8139(void) {
@@ -229,6 +259,9 @@ bool init_rtl8139(void) {
 		rtl8139_packetBuffer = kmalloc(2048);
 		memset(rtl8139_packetBuffer, 0, 2048);
 
+		rtl8139_transmitBuffer = kmalloc_ap(2048, &rtl8139_transmitBuffer_phys);
+		memset(rtl8139_transmitBuffer, 0, 2048);
+
 		map_phys_to_virt((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, true /* kernel mode */, true /* writable */);
 
 		/* "Turn on" the card (is this really necessary?) */
@@ -248,7 +281,16 @@ bool init_rtl8139(void) {
 		rtl_mmio_word_w(RTL_IMR, RTL_ROK);
 
 		/* Configure the receive buffer register */
-		rtl_mmio_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP);// | RTL_WRAP);
+		/* 1 << 10 sets MXDMA to 100 (256 bytes, the maximum size DMA burst) */
+		rtl_mmio_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP | (1 << 10));
+
+		/* Configure the Transmit configuration register */
+		uint32 tcr = rtl_mmio_dword_r(RTL_TCR);
+		tcr &= ~( (1 << 17) | (1 << 18) ); // Set loopback test mode bits to 00
+		tcr &= ~( (1 << 16) ); // Append CRC (yes, 0 means append CRC; this seems to be a disable bit)
+		tcr &= ~1; // Make sure the clear abort bit is not set
+		tcr |= (6 << 8); // Set MXDMA bits to 110 (1024 bytes)
+		rtl_mmio_dword_w(RTL_TCR, tcr);
 
 		/* Start receiving (and allow transmitting)! */
 		rtl_mmio_byte_w(RTL_CR, RTL_RE | RTL_TE);
