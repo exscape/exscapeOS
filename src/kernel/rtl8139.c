@@ -11,13 +11,16 @@ static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card
 static uint32 recv_buf_phys = NULL; // Physical address of the above
 static uint8 *rtl8139_packetBuffer; // Where we copy the packet after reception
-//static uint8 *rtl8139_transmitBuffer; // Where we prepare packets to be sent
-//static uint32 rtl8139_transmitBuffer_phys; // Physical address of the above
+
 static uint8 current_descriptor = 0; // There are 4 TX descriptors (0-3)
 static uint8 finish_descriptor = 0; // TODO
 static sint8 free_descriptors = 4; // Should never go below 0, of course
 
 static uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
+
+// internet_checksum.s - not sure where to put this... TODO: move this
+uint16 internet_checksum(void *ptr, uint32 length);
+// TODO: test internet_checksum with odd length data
 
 // TODO: rename these functions - rtl_r8/rtl_w8, rtlr16 ...? Surely something shorter than rtl_mmio_byte_r is possible.
 
@@ -157,8 +160,6 @@ void arp_handle_request(const uint8 *packet) {
 		printk("ARP is for someone else\n");
 }
 
-uint16 internet_checksum(void *ptr, uint32 length); // 16-bit length is enough, but 32 makes for easier asm
-
 static void process_frame(uint16 packetLength) {
 	printk("process_frame of length %u\n", packetLength);
 
@@ -183,6 +184,8 @@ static void process_frame(uint16 packetLength) {
 		v4->header_checksum = 0;
 
 		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
+
+		// TODO: this assumes packets will never be corrupt. Remove once the algorithm is tested!
 		assert(internet_checksum((void *)v4, sizeof(ipv4header_t)) == check);
 	}
 	else if (header->ethertype == ETHERTYPE_IPv6) {

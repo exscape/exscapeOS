@@ -15,12 +15,12 @@ internet_checksum:
 	xor ax, ax ; we store the sum here
 
 	.loop:
-		sub ecx, 2
-		cmp ecx, 1
-		je .lastbyte
+		sub ecx, 2 ; if len = 20, data[20] is an invalid access! start off at length-2
 		add ax, word [ebx + ecx]
 		jc .addone
 	.back:
+		cmp ecx, 1
+		je .lastbyte
 		cmp ecx, 0
 		jnz .loop
 		jmp .end
@@ -30,8 +30,10 @@ internet_checksum:
 		jmp .back
 
 	.lastbyte:
-		movzx dx, byte [ebx + ecx]
+		movzx dx, byte [ebx]
 		add ax, dx
+		jnc .end
+		inc ax
 
 	.end:
 	pop ebx ; restore ebx
