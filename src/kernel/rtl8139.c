@@ -318,14 +318,14 @@ static uint32 check_transmit_status(uint8 desc) {
 static uint32 rtl8139_tx_handler(uint32 esp) {
 	// Clear the interrupt
 	rtl_mmio_word_w(RTL_ISR, RTL_TOK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
-	printk("in rtl8139_tx_handler()\n");
+	//printk("in rtl8139_tx_handler()\n");
 
 	while (check_transmit_status(finish_descriptor) == RTL_TSD_BOTH && free_descriptors < 4) {
 		// Release this buffer. Since this is barely documented this is mostly
 		// from the (poorly written) programming guide.
 		finish_descriptor = (finish_descriptor + 1) % 4;
 		free_descriptors++;
-		printk("increased free_descriptors\n");
+		//printk("increased free_descriptors\n");
 		assert(free_descriptors >= 1 && free_descriptors <= 4);
 	}
 
@@ -430,11 +430,11 @@ void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 
 
 	TxDesc[current_descriptor].packet_length = packetSize;
 
-	printk("to send: ");
-	for (size_t i=0; i < payload_size + sizeof(ethheader_t); i++) {
-		printk("%02x ", TxDesc[current_descriptor].buffer[i]);
-	}
-	printk("\n");
+	//printk("to send: ");
+	//for (size_t i=0; i < payload_size + sizeof(ethheader_t); i++) {
+	//printk("%02x ", TxDesc[current_descriptor].buffer[i]);
+	//}
+	//printk("\n");
 
 	// Set the physical address to the TX buffer
 	rtl_mmio_dword_w(RTL_TSAD_BASE + current_descriptor*4, TxDesc[current_descriptor].buffer_phys);
