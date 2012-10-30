@@ -20,7 +20,6 @@ static uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
 
 // internet_checksum.s - not sure where to put this... TODO: move this
 uint16 internet_checksum(void *ptr, uint32 length);
-// TODO: test internet_checksum with odd length data
 
 // TODO: rename these functions - rtl_r8/rtl_w8, rtlr16 ...? Surely something shorter than rtl_mmio_byte_r is possible.
 
@@ -266,7 +265,17 @@ static uint32 rtl8139_rx_handler(uint32 esp) {
 
 		// Copy this packet somewhere else
 		assert(packetLength <= 2048);
-		memcpy(rtl8139_packetBuffer, rxPointer, packetLength);
+
+		if (rxPointer + packetLength >= recv_buf + RTL8139_RXBUFFER_SIZE) {
+			// This packet wraps around! Copy it in two parts.
+			uint32 first_run = (recv_buf + RTL8139_RXBUFFER_SIZE) - rxPointer;
+			memcpy(rtl8139_packetBuffer, rxPointer, first_run);
+			memcpy(rtl8139_packetBuffer + first_run, recv_buf, packetLength - first_run);
+		}
+		else {
+			// Easy.
+			memcpy(rtl8139_packetBuffer, rxPointer, packetLength);
+		}
 
 		// Update the read pointer (CAPR). Goodness knows the logic behind this - I can't find much
 		// usable information. The programming guide feels amateurish, but I assume their code works...
@@ -324,8 +333,6 @@ static uint32 rtl8139_tx_handler(uint32 esp) {
 }
 
 uint32 rtl8139_interrupt_handler(uint32 esp) {
-	//printk("*** RTL8139 INTERRUPT ***");
-
 	// Check the reason for this interrupt
 	uint16 isr = rtl_mmio_word_r(RTL_ISR);
 	if (!(isr & RTL_ROK) && !(isr & RTL_TOK)) {
@@ -455,8 +462,8 @@ bool init_rtl8139(void) {
 			return false;
 		}
 
-		recv_buf = kmalloc_ap(RTL8139_RXBUFFER_SIZE, &recv_buf_phys);
-		memset(recv_buf, 0, RTL8139_RXBUFFER_SIZE);
+		recv_buf = kmalloc_ap(RTL8139_RXBUFFER_SIZE + 16, &recv_buf_phys);
+		memset(recv_buf, 0, RTL8139_RXBUFFER_SIZE + 16);
 
 		rtl8139_packetBuffer = kmalloc(2048);
 		memset(rtl8139_packetBuffer, 0, 2048);
@@ -485,11 +492,12 @@ bool init_rtl8139(void) {
 		rtl_mmio_dword_w(RTL_RBSTART, (uint32)recv_buf_phys);
 
 		/* Set the Interrupt Mask Register to specify which interrupts we want */
-		rtl_mmio_word_w(RTL_IMR, RTL_ROK | RTL_TOK); // TODO: add the rest of the useful ones, e.g. errors!
+//		rtl_mmio_word_w(RTL_IMR, RTL_ROK | RTL_TOK); // TODO: add the rest of the useful ones, e.g. errors!
+		rtl_mmio_word_w(RTL_IMR, 0xffff);
 
 		/* Configure the receive buffer register */
 		/* 1 << 10 sets MXDMA to 100 (256 bytes, the maximum size DMA burst) */
-		rtl_mmio_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP | (1 << 10));
+		rtl_mmio_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP | (1 << 10));;// | RTL_WRAP);
 
 		/* Configure the Transmit configuration register */
 		uint32 tcr = rtl_mmio_dword_r(RTL_TCR);

@@ -1,7 +1,7 @@
 #ifndef _RTL8139_H
 #define _RTL8139_H
 
-#define RTL8139_RXBUFFER_SIZE	(8192 + 16)
+#define RTL8139_RXBUFFER_SIZE 8192 /* + 16 is allocated */
 
 // RTL8139C registers
 #define RTL_RBSTART 0x30 /* Receive Buffer Start Address (DWORD aligned) */
