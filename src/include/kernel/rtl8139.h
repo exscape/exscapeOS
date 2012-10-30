@@ -33,10 +33,10 @@
 #define RTL_TSAD_BASE 0x20 /* As above */
 
 // Command register bits
-#define RTL_RESET (1 << 4) /* Software Reset */
-#define RTL_RE (1 << 3) /* Receiver Enable */
-#define RTL_TE (1 << 2) /* Transmitter Enable */
-#define RTL_BUFE (1 << 0) /* Receive Buffer Empty */
+#define RTL_RESET	(1 << 4) /* Software Reset */
+#define RTL_RE		(1 << 3) /* Receiver Enable */
+#define RTL_TE		(1 << 2) /* Transmitter Enable */
+#define RTL_BUFE	(1 << 0) /* Receive Buffer Empty */
 
 // IMR register bits
 #define RTL_ROK (1 << 0)
@@ -49,7 +49,6 @@
 #define RTL_APM  (1 << 1) /* Accept Physical Match Packets */
 #define RTL_AM   (1 << 2) /* Accept Multicast Packets */
 #define RTL_AB	 (1 << 3) /* Accept Broadcast Packets */
-#define RTL_WRAP (1 << 7)
 
 // TSDx (0 - 3) register bits
 #define RTL_TSD_TOK  (1 << 15)
@@ -62,17 +61,23 @@
 #define ETHERTYPE_ARP	0x0806
 #define ETHERTYPE_IPV6	0x86dd
 
-#define IPV4_PROTO_ICMP	1
-#define IPV4_PROTO_TCP	6
-#define IPV4_PROTO_UDP	17
+// Ethernet II header (w/o VLAN 802.11Q tag)
+typedef struct {
+	uint8 mac_dst[6];
+	uint8 mac_src[6];
+	/* uint32 vlan_tag; */
+	uint16 ethertype;
+	/* payload 42-1500 octets */
+	/* uint32 crc; */
+} __attribute((packed)) ethheader_t;
 
-// ARP stuff. TODO: move to separate source files
-#define ARP_REQUEST 1
-#define ARP_REPLY   2
-
-// ICMP stuff. TODO: move to separate source files...?
-#define ICMP_ECHO_REQUEST	8
-#define ICMP_ECHO_REPLY		0
+// One of the four transmit descriptors, used to store info about the packet
+// we're sending and its location
+typedef struct {
+	    uint8 *buffer;
+		uint32 buffer_phys;
+		uint16 packet_length;
+} txdesc_t;
 
 bool init_rtl8139(void);
 void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 payload_size);
