@@ -4,6 +4,9 @@
 #define ARP_REQUEST 1
 #define ARP_REPLY   2
 
+// #define ARP_CACHE_TIME (5*60*1000) // 5 minutes
+#define ARP_CACHE_TIME 5000 // 5 SECONDS - for testing purposes. TODO
+
 typedef struct {
     uint16 htype; // 1 for Ethernet
     uint16 ptype; // 0x0800 for IPv4
@@ -16,8 +19,16 @@ typedef struct {
     uint8 dst_ip[4];  // Target IP
 } __attribute((packed)) arpheader_t;
 
+// An entry in the ARP cache
+typedef struct {
+    uint8 ip[4];
+    uint8 mac[6];
+    uint32 timestamp;
+} arpentry_t;
+
+void arp_init(void); // Sets up the ARP cache
 void send_arp_reply(const uint8 *packet);
 void arp_handle_request(const uint8 *packet);
-bool arp_lookup(uint8 *mac_buffer, uint8 *ip);
+bool arp_lookup(uint8 *ip, uint8 *mac_buffer);
 
 #endif

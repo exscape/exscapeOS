@@ -29,9 +29,6 @@ extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 extern void alloc_frame_to_page(page_t *, bool, bool);
 
-/* timer.c */
-extern const uint16 TIMER_HZ;
-
 volatile bool task_switching = false;
 
 /* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */

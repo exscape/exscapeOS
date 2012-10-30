@@ -2,11 +2,10 @@
 #include <kernel/interrupts.h>
 #include <kernel/console.h>
 #include <kernel/task.h>
+#include <kernel/timer.h>
 
-/* This is enough to not wrap for 497 days at 100 Hz. */
+/* Enough to not wrap in 497 days */
 volatile uint32 timer_ticks = 0;
-const uint16 TIMER_DIVISOR = 11932;
-const uint16 TIMER_HZ = 100;
 
 uint32 gettickcount(void) {
 	/* Returns the number of ticks that have passed since reboot. */
@@ -23,8 +22,8 @@ uint32 timer_handler(uint32 esp) {
 	timer_ticks++;
 
 	/* make sure the tick is visible somehow */
-	//uint16 *vram = (uint16 *)0xb8000;
-	//*vram = (*vram) + 1;
+	uint16 *vram = (uint16 *)0xb8000;
+	*vram = (*vram) + 1;
 
 	if ((timer_ticks & 15) == 0)
 		update_statusbar();
@@ -34,7 +33,8 @@ uint32 timer_handler(uint32 esp) {
 
 // Like sleep, but works on any process/thread. Wastes CPU cycles, of course, but it can still be handy at times.
 void delay(uint32 ms) {
-	if (timer_ticks == 0) return; // ugly safeguard: return if the timer isn't installed yet
+	if (timer_ticks == 0)
+		return; // ugly safeguard: return if the timer isn't installed yet
 	uint32 ticks = ms / 10;
 	if (ticks == 0)
 		ticks = 1;
@@ -46,11 +46,10 @@ void delay(uint32 ms) {
  * I *think* the error from timer drift comes to ~1.3 seconds per 24 hours, but
  * I don't feel too certain about the calculations...
  * Those 1.3 seconds (if correct) come from the fact that we assume the timer frequency to be 100.00 Hz, but
- * it in realy is sliightly less at something about 99.9985 Hz.
+ * it in reality is sliightly less at something about 99.9985 Hz.
  * Additional error will of course be added due to PIT inaccurary - or, if we're lucky, they cancel out
  * so that the accuracy in in fact improved! Needless to say, we can't know or rely on either of these, though.
  */
-
 void timer_install(void) {
 	/*
      * Set the timer frequency

@@ -267,6 +267,10 @@ bool init_rtl8139(void) {
 			TxDesc[i].packet_length = 0;
 		}
 
+		// Create the ARP cache
+		arp_init();
+
+		// Map the MMIO address to the virtual address space
 		map_phys_to_virt((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, true /* kernel mode */, true /* writable */);
 
 		/* "Turn on" the card (is this really necessary?) */

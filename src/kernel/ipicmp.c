@@ -75,7 +75,7 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	memcpy(buffer + sizeof(ipv4header_t), payload, payload_size);
 
 	uint8 dst_mac[6] = {0};
-	assert(arp_lookup(dst_mac, dst_ip));
+	assert(arp_lookup(dst_ip, dst_mac));
 
 	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
 			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
