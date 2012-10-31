@@ -8,6 +8,7 @@
 #include <kernel/rtl8139.h>
 #include <kernel/timer.h>
 #include <kernel/list.h>
+#include <kernel/kworker.h>
 
 extern uint8 ip_address[4];
 
@@ -50,9 +51,11 @@ void send_arp_reply(const uint8 *packet) {
 	rtl8139_send_frame(header->dst_mac, ETHERTYPE_ARP, header, sizeof(arpheader_t));
 }
 
-void arp_handle_request(const uint8 *packet) {
-	assert(packet != NULL);
-	arpheader_t *header = (arpheader_t *)packet;
+void arp_handle_request(void *data, uint32 length) {
+	arpheader_t *header = (arpheader_t *)data;
+	length = length; // make GCC shut up
+	assert(data != NULL);
+	assert(length >= sizeof(arpheader_t));
 	if (BSWAP16(header->htype) != 1 || BSWAP16(header->ptype) != 0x0800) {
 		printk("Ignoring non-Ethernet/IPv4 ARP request\n");
 		return;
@@ -61,6 +64,7 @@ void arp_handle_request(const uint8 *packet) {
 	assert(header->hlen == 6);
 	assert(header->plen == 4);
 	assert(BSWAP16(header->operation) == ARP_REQUEST || BSWAP16(header->operation) == ARP_REPLY);
+
 	printk("ARP info: Ethernet/IP ARP %s; source = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d) dst = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n",
 			(BSWAP16(header->operation) == ARP_REQUEST ? "request" : "reply"),
 			header->src_mac[0], header->src_mac[1], header->src_mac[2], header->src_mac[3], header->src_mac[4], header->src_mac[5],
@@ -97,7 +101,7 @@ void arp_handle_request(const uint8 *packet) {
 
 		if (memcmp(header->dst_ip, ip_address, 4) == 0) {
 			printk("This is for me! Creating and sending an ARP reply.\n");
-			send_arp_reply(packet);
+			send_arp_reply((uint8 *)data);
 		}
 		else
 			printk("ARP request is for someone else, ignoring\n");

@@ -21,6 +21,7 @@
 #include <kernel/fat.h>
 #include <kernel/pci.h>
 #include <kernel/rtl8139.h>
+#include <kernel/kworker.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -30,6 +31,8 @@ extern const uint16 blank;
 
 /* fat.c */
 extern list_t *fat32_partitions;
+
+task_t *kworker = NULL;
 
 void test_task(void) {
 	for (;;) {
@@ -145,6 +148,15 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("Initializing multitasking and setting up the kernel task... ");
 	init_tasking(init_esp0);
 	printc(BLACK, GREEN, "done\n");
+
+	printk("Starting the kernel worker... ");
+	kworker_init();
+	kworker = create_task(kworker_task, "[kworker]", &kernel_console); // TODO: console?
+	if (kworker)
+		printc(BLACK, GREEN, "done\n");
+	else
+		printc(BLACK, RED, "failed!\n");
+
 
 	//printk("Starting idle_task... ");
 	//create_task(idle_task, "idle_task", /*console = */ false);

@@ -5,9 +5,10 @@
 #include <kernel/pci.h>
 #include <kernel/paging.h>
 #include <kernel/rtl8139.h>
-#include <kernel/arp.h>
 #include <kernel/ipicmp.h>
 #include <kernel/timer.h>
+#include <kernel/kworker.h>
+#include <kernel/arp.h>
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card
@@ -72,7 +73,8 @@ static void process_frame(uint16 packetLength) {
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
 		printk("ARP packet\n");
-		arp_handle_request(rtl8139_packetBuffer + 4 + sizeof(ethheader_t)); // 4 bytes for the 8139 header
+		kworker_add(arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		//arp_handle_request(rtl8139_packetBuffer + 4 + sizeof(ethheader_t)); // 4 bytes for the 8139 header
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
 		printk("IPv4 packet\n");

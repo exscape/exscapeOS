@@ -75,11 +75,8 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	memcpy(buffer + sizeof(ipv4header_t), payload, payload_size);
 
 	uint8 dst_mac[6] = {0};
-	assert(arp_lookup(dst_ip, dst_mac));
+	//assert(arp_lookup(dst_ip, dst_mac));
 
-	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
-			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
-			dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3]);
 
 	// TODO: arp_lookup() needs writing!
 	dst_mac[0] = 0x10;
@@ -89,6 +86,9 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	dst_mac[4] = 0x20;
 	dst_mac[5] = 0x20;
 
+	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
+			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
+			dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3]);
 	//panic("Is that correct?");
 
 	rtl8139_send_frame(dst_mac, ETHERTYPE_IPV4, buffer, sizeof(ipv4header_t) + payload_size);

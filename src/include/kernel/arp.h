@@ -28,7 +28,7 @@ typedef struct {
 
 void arp_init(void); // Sets up the ARP cache
 void send_arp_reply(const uint8 *packet);
-void arp_handle_request(const uint8 *packet);
+void arp_handle_request(void *data, uint32 length);
 bool arp_lookup(uint8 *ip, uint8 *mac_buffer);
 
 #endif
