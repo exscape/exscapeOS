@@ -209,6 +209,7 @@ void rtl8139_send_frame(uint8 *dst_mac, uint16 ethertype, void *payload, uint16 
 		}
 	}
 
+	// Set up the Ethernet header
 	ethheader_t *header = (ethheader_t *)TxDesc[current_descriptor].buffer;
 	memcpy(header->mac_dst, dst_mac, 6);
 	memcpy(header->mac_src, rtl_mmio_base + 0, 6); // register 0 holds our MAC address
