@@ -10,16 +10,41 @@
 #include <kernel/timer.h>
 
 uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
+uint8 gateway[]    = {192, 168, 10, 1};  // My default gw
+uint8 netmask[]    = {255, 255, 255, 0}; // My netmask
 
 // A friend from ata.h
 #define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
-void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip) {
+// Are these two IPs on the same subnet?
+// Uses the netmask global.
+static bool same_subnet(uint8 *ip1, uint8 *ip2) {
+	assert(ip1 != NULL);
+	assert(ip2 != NULL);
+
+	char buf1[4], buf2[4];
+	memcpy(buf1, ip1, 4);
+	memcpy(buf2, ip2, 4);
+
+	for (int i=0; i<4; i++) {
+		buf1[i] &= netmask[i];
+		buf2[i] &= netmask[i];
+	}
+
+	return memcmp(buf1, buf2, 4) == 0;
+}
+
+//void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip) {
+void handle_icmp(void *data, uint32 length) {
+	uint8 *packet = (uint8 *)data + sizeof(ipv4header_t) + (((ipv4header_t *)data)->IHL - 5) * 4;
 	uint8 type = *packet;
 	uint8 code = *(packet + 1);
 	uint16 checksum = *((uint16 *)(packet + 2));
 	checksum=checksum; // sigh
 	code=code;
+
+	// We don't want to transmit 20 (usually) bytes too much!
+	length -= sizeof(ipv4header_t);
 
 	switch (type) {
 		case ICMP_ECHO_REQUEST: { // type 8
@@ -31,7 +56,8 @@ void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip) {
 			printk("Data length: %u\n", length - 8);
 
 			// TODO: don't alloc here...?
-			uint8 *buf = kmalloc(length);
+			uint8 buf[1500];
+			//uint8 *buf = kmalloc(length);
 			memcpy(buf, packet, length);
 
 			// Set the type field
@@ -41,7 +67,10 @@ void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip) {
 			*((uint16 *)(buf + 2)) = 0; // only zero to compute checksum
 			*((uint16 *)(buf + 2)) = internet_checksum(buf, length);
 
+			uint8 *src_ip = (uint8 *) (((ipv4header_t *)data)->src_ip);
 			send_ipv4_packet(src_ip, IPV4_PROTO_ICMP, buf, length);
+
+			//kfree(buf);
 
 			break;
 		}
@@ -56,8 +85,7 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	assert(payload != NULL);
 	assert(payload_size <= (1500 - sizeof(ipv4header_t)));
 
-	// TODO: don't use kmalloc...?
-	uint8 *buffer = kmalloc(sizeof(ipv4header_t) + payload_size);
+	uint8 buffer[1500];
 	ipv4header_t *ip_hdr = (ipv4header_t *)buffer;
 	ip_hdr->IHL = 5; // no options field
 	ip_hdr->version = 4; // always 4 for IPv4
@@ -75,16 +103,24 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	memcpy(buffer + sizeof(ipv4header_t), payload, payload_size);
 
 	uint8 dst_mac[6] = {0};
-	//assert(arp_lookup(dst_ip, dst_mac));
 
+	// Is the target IP on the same subnet as we are?
+	if (same_subnet(dst_ip, ip_address)) {
+		// Yep - go ahead as usual
+		assert(arp_lookup(dst_ip, dst_mac));
+	}
+	else {
+		// No - send this packet to the gateway's MAC address instead
+		assert(arp_lookup(gateway, dst_mac));
+	}
 
 	// TODO: arp_lookup() needs writing!
-	dst_mac[0] = 0x10;
-	dst_mac[1] = 0x10;
-	dst_mac[2] = 0x10;
-	dst_mac[3] = 0x20;
-	dst_mac[4] = 0x20;
-	dst_mac[5] = 0x20;
+	//dst_mac[0] = 0x10;
+	//dst_mac[1] = 0x10;
+	//dst_mac[2] = 0x10;
+	//dst_mac[3] = 0x20;
+	//dst_mac[4] = 0x20;
+	//dst_mac[5] = 0x20;
 
 	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
 			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],

@@ -25,6 +25,6 @@ typedef struct {
 uint16 internet_checksum(void *ptr, uint32 length);
 
 void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 payload_size);
-void handle_icmp(uint8 *packet, uint16 length, uint8 *src_ip);
+void handle_icmp(void *data, uint32 length);
 
 #endif

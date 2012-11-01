@@ -72,8 +72,9 @@ static void process_frame(uint16 packetLength) {
 	if (header->ethertype == 0x8100) 
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
-		printk("ARP packet\n");
+		printk("\n*** ARP packet***\n");
 		kworker_add(arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		printk("added arp_handler_request to kworker\n");
 		//arp_handle_request(rtl8139_packetBuffer + 4 + sizeof(ethheader_t)); // 4 bytes for the 8139 header
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
@@ -88,10 +89,13 @@ static void process_frame(uint16 packetLength) {
 		v4->header_checksum = 0;
 
 		// Number of additional bytes in the options field. If IHL == 5, there are none.
-		uint8 options_size = (v4->IHL - 5) * 4;
+		//uint8 options_size = (v4->IHL - 5) * 4;
 
 		if (v4->protocol == IPV4_PROTO_ICMP) {
-			handle_icmp(rtl8139_packetBuffer + 4 + sizeof(ethheader_t) + sizeof(ipv4header_t) + options_size, packetLength - 4 - sizeof(ethheader_t) - sizeof(ipv4header_t) - options_size, v4->src_ip);
+			uint32 offset = 4 + sizeof(ethheader_t);// + sizeof(ipv4header_t) + options_size;
+			// Pass the IPv4 packet(!), not just the ICMP bit
+			kworker_add(handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
+			//handle_icmp(rtl8139_packetBuffer + 4 + sizeof(ethheader_t) + sizeof(ipv4header_t) + options_size, packetLength - 4 - sizeof(ethheader_t) - sizeof(ipv4header_t) - options_size, v4->src_ip);
 		}
 
 		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
@@ -119,11 +123,6 @@ static uint32 rtl8139_rx_handler(uint32 esp) {
 		uint16 flags = *( (uint16 *)rxPointer );
 		uint16 packetLength = *( (uint16 *)(rxPointer + 2) );
 		printk("flags=[%04x] ", flags);
-
-		static uint32 total_recv = 0;
-
-		total_recv += packetLength;
-		printk("total_recv = %u\n", total_recv);
 
 		// Clear the interrupt
 		rtl_word_w(RTL_ISR, RTL_ROK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?

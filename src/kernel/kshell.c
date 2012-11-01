@@ -133,6 +133,7 @@ static void permaidle(void) {
 
 static void free(void) {
 	printk("Free RAM: %u bytes\n", free_bytes());
+	printk("kheap used: %u bytes\n", kheap_used_bytes());
 }
 
 static void sleep_test(void) {

@@ -51,7 +51,29 @@ void send_arp_reply(const uint8 *packet) {
 	rtl8139_send_frame(header->dst_mac, ETHERTYPE_ARP, header, sizeof(arpheader_t));
 }
 
+void arp_cache_add(uint8 *ip, uint8 *mac) {
+	// Is this IP in the ARP cache?
+	for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
+		arpentry_t *entry = (arpentry_t *)it->data;
+		if (memcmp(entry->ip, ip, 4) == 0) {
+			// Yes - update this entry
+			memcpy(entry->mac, mac, 6);
+			entry->timestamp = gettickcount();
+			return;
+		}
+	}
+
+	// If we got here, the IP was NOT in the ARP cache. Add it.
+	arpentry_t *entry = kmalloc(sizeof(arpentry_t));
+	memcpy(entry->ip, ip, 4);
+	memcpy(entry->mac, mac, 6);
+	entry->timestamp = gettickcount();
+
+	list_append(arp_cache, entry);
+}
+
 void arp_handle_request(void *data, uint32 length) {
+	printk("*** arp_handle_request ***\n");
 	arpheader_t *header = (arpheader_t *)data;
 	length = length; // make GCC shut up
 	assert(data != NULL);
@@ -74,30 +96,14 @@ void arp_handle_request(void *data, uint32 length) {
 
 	if (BSWAP16(header->operation) == ARP_REPLY) {
 		// TODO: ARP spoofing and all that - is there a more secure solution to this?
-
-		// Is this IP in the ARP cache?
-		for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
-			arpentry_t *entry = (arpentry_t *)it->data;
-			if (memcmp(entry->ip, header->src_ip, 4) == 0) {
-				// Yes - update this entry
-				memcpy(entry->mac, header->src_mac, 6);
-				entry->timestamp = gettickcount();
-				return;
-			}
-		}
-
-		// If we got here, the IP was NOT in the ARP cache. Add it.
-		arpentry_t *entry = kmalloc(sizeof(arpentry_t));
-		memcpy(entry->ip, header->src_ip, 4);
-		memcpy(entry->mac, header->src_mac, 6);
-		entry->timestamp = gettickcount();
-
-		list_append(arp_cache, entry);
-
+		arp_cache_add(header->src_ip, header->src_mac);
 		return;
 	}
 	else {
 		// This is an ARP request
+
+		// Add the sender to the cache (or update it) before we reply
+		arp_cache_add(header->src_ip, header->src_mac);
 
 		if (memcmp(header->dst_ip, ip_address, 4) == 0) {
 			printk("This is for me! Creating and sending an ARP reply.\n");
@@ -126,6 +132,7 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 			if ((gettickcount() - entry->timestamp) * (1000/TIMER_HZ) >= ARP_CACHE_TIME) {
 				// This entry is too old! Let's dump it. Sorry, requester, you're out of luck.
 				list_remove(arp_cache, it);
+				kfree(entry);
 				return false;
 			}
 
@@ -139,18 +146,24 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 }
 
 bool arp_lookup(uint8 *ip, uint8 *mac_buffer) {
+	// Check the ARP cache, and try to lookup an entry.
+	// If not present, send an ARP request on the network.
 	// Look up the MAC adress for "ip" and store it in mac_buffer
 	assert(ip != NULL);
 	assert(mac_buffer != NULL);
 
+	// Try the cache first
+	if (arp_cache_lookup(ip, mac_buffer) == true)
+		return true;
+
 	// Fill out the ARP request
 	uint8 buf[sizeof(arpheader_t)];
 	arpheader_t *header = (arpheader_t *)buf;
-	header->htype = 1; // Ethernet
-	header->ptype = 0x0800; // IP
+	header->htype = BSWAP16(1); // Ethernet
+	header->ptype = BSWAP16(0x0800); // IP
 	header->hlen = 6; // MAC address length
 	header->plen = 4; // IP address length
-	header->operation = ARP_REQUEST;
+	header->operation = BSWAP16(ARP_REQUEST);
 	memcpy(header->src_mac, my_mac, 6);
 	memcpy(header->src_ip, ip_address, 4);
 	memset(header->dst_mac, 0, 6);
@@ -166,7 +179,7 @@ bool arp_lookup(uint8 *ip, uint8 *mac_buffer) {
 	// OR for a timeout to occur.
 	uint32 start = gettickcount();
 	while (arp_cache_lookup(ip, mac_buffer) == false && gettickcount() < start + 200) {
-		// TODO: sleep? kernel thread can't sleep at the moment
+		// TODO: sleep?
 	}
 
 	if (memcmp(mac_buffer, broadcast_mac, 6) == 0) {

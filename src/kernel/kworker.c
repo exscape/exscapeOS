@@ -5,6 +5,8 @@
 #include <kernel/kheap.h>
 #include <kernel/kworker.h>
 
+#include <kernel/arp.h> // XXX TODO FIXME: remove this when arp debugging is done
+
 /*
  * This file implements a task that does miscellaneous kernel-mode tasks,
  * such as handle received network packets, which would otherwise be
@@ -46,13 +48,15 @@ void kworker_add(void (*func)(void *, uint32), void *data, uint32 length, uint8 
 	task->priority = priority;
 
 	list_append(kworker_tasks, task);
+	if (task->function == arp_handle_request)
+		printk("kworker_add: added arp_handle_request\n");
 }
 
 // The *process* that does all the work. I'll try to come up with better naming
 // than to have "task" mean two different things...
 void kworker_task(void) {
 	while (true) {
-		while (kworker_tasks->count == 0) {
+		while (list_size(kworker_tasks) == 0) {
 			// Nothing to do; switch to some other task, that can actually do something
 			asm volatile("int $0x7e");
 		}
@@ -63,8 +67,13 @@ void kworker_task(void) {
 			kworker_task_t *task = (kworker_task_t *)node->data;
 
 			assert(task->function != NULL);
+			if (task->function == arp_handle_request)
+				printk("kworker_task: executing arp_handle_request (lone task)\n");
 			task->function(task->data, task->length);
+			if (task->data)
+				kfree(task->data);
 			list_remove(kworker_tasks, node);
+			kfree(task);
 		}
 		else {
 			// Run the task with the highest priority first. Priority is a simple integer
@@ -80,8 +89,13 @@ void kworker_task(void) {
 			assert(max_task != NULL);
 			assert(max_task->function != NULL);
 
+			if (max_task->function == arp_handle_request)
+				printk("kworker_task: executing arp_handle_request (highest priority)\n");
 			max_task->function(max_task->data, max_task->length);
+			if (max_task->data)
+				kfree(max_task->data);
 			list_remove(kworker_tasks, max);
+			kfree(max_task);
 		}
 	}
 }
