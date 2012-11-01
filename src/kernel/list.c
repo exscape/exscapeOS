@@ -43,6 +43,15 @@ static void list_validate(list_t *list) {
 	assert(list->count == actual_count);
 }
 
+uint32 list_size(list_t *list) {
+	assert(list != NULL);
+#if LIST_DEBUG > 0
+	list_validate(list);
+#endif
+
+	return list->count;
+}
+
 node_t *list_prepend(list_t *list, void *data) {
 	assert(list != NULL);
 

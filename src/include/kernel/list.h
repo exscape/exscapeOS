@@ -17,6 +17,7 @@ typedef struct list {
 	uint32 count; /* number of items in the list */
 } list_t;
 
+uint32 list_size(list_t *list);
 list_t *list_create(void);
 node_t *list_prepend(list_t *list, void *data);
 node_t *list_append(list_t *list, void *data);
