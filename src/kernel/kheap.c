@@ -31,6 +31,21 @@ static sint8 area_header_t_less_than(void *a, void*b) {
 	return ( ((area_header_t *)a)->size < ((area_header_t *)b)->size ) ? 1 : 0;
 }
 
+uint32 kheap_used_bytes(void) {
+	if (kheap == NULL)
+		return 0;
+
+	uint32 used = 0;
+
+	ordered_array_t *index = &kheap->used_index;
+	for (uint32 i = 0; i < index->size; i++) {
+		area_header_t *header = lookup_ordered_array(i, index);
+		used += header->size;
+	}
+
+	return used;
+}
+
 void validate_heap_index(bool print_areas) {
 	/* Since there are two indexes, we need to loop through them both! */
 	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };

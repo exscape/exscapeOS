@@ -66,6 +66,7 @@ void print_heap_index(void);
 
 void kfree(void *p);
 
+uint32 kheap_used_bytes(void);
 
 /*********************************
  **** PRE-HEAP/HEAP FUNCTIONS ****
