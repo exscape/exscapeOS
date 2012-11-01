@@ -21,26 +21,26 @@
 extern volatile task_t *current_task;
 extern task_t kernel_task;
 
-void heaptest(void);
-void ls_initrd(void);
+void heaptest(void *data, uint32 length);
+void ls_initrd(void *data, uint32 length);
 
 extern volatile list_t ready_queue;
 
-static void infinite_loop(void) {
+static void infinite_loop(void *data, uint32 length) {
 	for(;;);
 }
 
-static void create_pagefault(void) {
+static void create_pagefault(void *data, uint32 length) {
 	uint32 *pf = (uint32 *)0xffff0000;
 	*pf = 10;
 }
 
-static void create_pagefault_delay(void) {
+static void create_pagefault_delay(void *data, uint32 length) {
 	sleep(2000);
-	create_pagefault();
+	create_pagefault(NULL, 0);
 }
 
-static void print_1_sec(void) {
+static void print_1_sec(void *data, uint32 length) {
 	for (int i=0; i < 10; i++) {
 		printk("print_1_sec: loop %d of 10\n", i+1);
 		sleep(1000);
@@ -48,7 +48,7 @@ static void print_1_sec(void) {
 	printk("print_1_sec exiting\n");
 }
 
-static void fill_scrollback(void) {
+static void fill_scrollback(void *data, uint32 length) {
 	for (int i=1; i <= MAX_SCROLLBACK * 2; i++) {
 		printk("%d\n", i);
 		if (i > 300)
@@ -56,11 +56,11 @@ static void fill_scrollback(void) {
 	}
 }
 
-static void fpu_task(void) {
+static void fpu_task(void *data, uint32 length) {
 	asm volatile("fldpi");
 }
 
-static void guess_num(void) {
+static void guess_num(void *data, uint32 length) {
 	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
 	 * for keyboard input. */
 
@@ -87,24 +87,28 @@ static void guess_num(void) {
 	}
 }
 
-static void user_test(void) {
+static void paramtest(void *data, uint32 length) {
+	printk("data=0x%08x length=0x%08x\n", data, length);
+}
+
+static void user_test(void *data, uint32 length) {
 	/* A task that runs in user mode */
 	syscall_puts("Hellooooooo, USER MODE WORLD!");
 }
 
 
-static void divzero(void) {
+static void divzero(void *data, uint32 length) {
 	printk("in divzero; dividing now\n");
 	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
 	printk("divzero: after dividing\n");
 }
 
-static void delaypanic(void) {
+static void delaypanic(void *data, uint32 length) {
 	sleep(5000);
 	panic("delaypanic()");
 }
 
-static void delaymput(void) {
+static void delaymput(void *data, uint32 length) {
 	sleep(5000);
 	Point p = get_cursor();
 	set_cursor((80-4)/2, 12);
@@ -112,7 +116,7 @@ static void delaymput(void) {
 	set_cursor(p.x, p.y);
 }
 
-static void testbench(void) {
+static void testbench(void *data, uint32 length) {
 	/* An extremely simple "benchmark" to test approx. how much CPU time a task is getting */
 	uint32 start_tick = gettickcount();
 	printk("start testbench at tick %u...\n", start_tick);
@@ -124,25 +128,25 @@ static void testbench(void) {
 	printk("finish testbench at tick %u; time taken: %u ticks (%u ms)\n", end_tick, (end_tick - start_tick), (end_tick - start_tick)*10);
 }
 
-static void permaidle(void) {
+static void permaidle(void *data, uint32 length) {
 	printk("permaidle task launched. no further output will be generated\n");
 	for(;;) {
 		sleep(100000);
 	}
 }
 
-static void free(void) {
+static void free(void *data, uint32 length) {
 	printk("Free RAM: %u bytes\n", free_bytes());
 	printk("kheap used: %u bytes\n", kheap_used_bytes());
 }
 
-static void sleep_test(void) {
+static void sleep_test(void *data, uint32 length) {
 	printk("sleep_test: sleeping for 20 seconds\n");
 	sleep(20000);
 	printk("sleep test done\n");
 }
 
-void kshell(void) {
+void kshell(void *data, uint32 length) {
 	unsigned char *buf = kmalloc(1024);
 	memset(buf, 0, 1024);
 	char *last_cmd = kmalloc(1024);
@@ -208,19 +212,19 @@ void kshell(void) {
 		}
 
 		if (strcmp(p, "heaptest") == 0) {
-			task = create_task(&heaptest, "heaptest", con);
+			task = create_task(&heaptest, "heaptest", con, NULL, 0);
 		}
 		if (strcmp(p, "free") == 0) {
-			task = create_task(&free, "free", con);
+			task = create_task(&free, "free", con, NULL, 0);
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
-			task = create_task(&delaypanic, "delaypanic", con);
+			task = create_task(&delaypanic, "delaypanic", con, NULL, 0);
 		}
 		else if (strcmp(p, "fill_scrollback") == 0) {
-			task = create_task(&fill_scrollback, "fill_scrollback", con);
+			task = create_task(&fill_scrollback, "fill_scrollback", con, NULL, 0);
 		}
 		else if (strcmp(p, "ls") == 0) {
-			ls_initrd();
+			ls_initrd(NULL, 0);
 		}
 		else if (strcmp(p, "print_heap") == 0) {
 			validate_heap_index(true);
@@ -231,26 +235,29 @@ void kshell(void) {
 		else if (strcmp(p, "reboot") == 0) {
 			reboot();
 		}
+		else if (strcmp(p, "paramtest") == 0) {
+			task = create_task(&paramtest, "paramtest", con, (void *)0xDEADBEEF, 0x456);
+		}
 		else if (strcmp(p, "exit") == 0) {
 			break;
 		}
 		else if (strcmp(p, "print_1_sec") == 0) {
-			task = create_task(&print_1_sec, "print_1_sec", con);
+			task = create_task(&print_1_sec, "print_1_sec", con, NULL, 0);
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
-			task = create_task(&sleep_test, "sleeptest", con);
+			task = create_task(&sleep_test, "sleeptest", con, NULL, 0);
 		}
 		else if (strcmp(p, "fpu_task") == 0) {
-			task = create_task(&fpu_task, "fpu_task", con);
+			task = create_task(&fpu_task, "fpu_task", con, NULL, 0);
 		}
 		else if (strcmp(p, "permaidle") == 0) {
-			task = create_task(&permaidle, "permaidle", con);
+			task = create_task(&permaidle, "permaidle", con, NULL, 0);
 		}
 		else if (strcmp(p, "pagefault") == 0) {
-			task = create_task(&create_pagefault, "create_pagefault", con);
+			task = create_task(&create_pagefault, "create_pagefault", con, NULL, 0);
 		}
 		else if (strcmp(p, "pagefault_delay") == 0) {
-			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con);
+			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con, NULL, 0);
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
@@ -258,7 +265,7 @@ void kshell(void) {
 			printk("Uptime: %u seconds (%u ticks)\n", up, ticks);
 		}
 		else if (strcmp(p, "infloop_task") == 0) {
-			task = create_task(&infinite_loop, "infinite_loop", con);
+			task = create_task(&infinite_loop, "infinite_loop", con, NULL, 0);
 		}
 		else if (strcmp(p, "reset") == 0) {
 			reset();
@@ -294,16 +301,16 @@ void kshell(void) {
 			printk("%d tasks running\n", n);
 		}
 		else if(strcmp(p, "divzero") == 0) {
-			divzero();
+			divzero(NULL, 0);
 		}
 		else if (strcmp(p, "guess") == 0) {
-			task = create_task(&guess_num, "guess_num", con);
+			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
 		else if(strcmp(p, "divzero_task") == 0) {
-			task = create_task(&divzero, "divzero", con);
+			task = create_task(&divzero, "divzero", con, NULL, 0);
 		}
 		else if (strcmp(p, "delaymput") == 0) {
-			task = create_task(&delaymput, "delaymput", con);
+			task = create_task(&delaymput, "delaymput", con, NULL, 0);
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
@@ -319,18 +326,18 @@ void kshell(void) {
 			}
 		}
 		else if (strcmp(p, "testbench") == 0) {
-			testbench();
+			testbench(NULL, 0);
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
-			task = create_task(&testbench, "testbench", con);
+			task = create_task(&testbench, "testbench", con, NULL, 0);
 		}
 		else if (strcmp(p, "user_test") == 0) {
 			/* launch a user mode test task */
-			task = create_task_user(&user_test, "user_test", con);
+			task = create_task_user(&user_test, "user_test", con, NULL, 0);
 		}
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
-			task = create_task(&kshell, "kshell (nested)", con);
+			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else if (strcmp(p, "") == 0) {
 			/* do nothing */
@@ -374,7 +381,7 @@ static void verify_area(void *in_p, uint32 size) {
 	}
 }
 
-void heaptest(void) {
+void heaptest(void *data, uint32 length) {
 	/**********************************
 	 *** HEAP DEBUGGING AND TESTING ***
 	 **********************************/
@@ -609,7 +616,7 @@ printk("\n");
 #endif
 }
 
-void ls_initrd(void) {
+void ls_initrd(void *data, uint32 length) {
 	int ctr = 0;
 	struct dirent *node = NULL;
 	while ( (node = readdir_fs(fs_root, ctr)) != 0) {

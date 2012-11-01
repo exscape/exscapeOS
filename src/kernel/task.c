@@ -149,10 +149,10 @@ void init_tasking(uint32 kerntask_esp0) {
 	enable_interrupts();
 }
 
-static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege);
+static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length);
 
-task_t *create_task( void (*entry_point)(void), const char *name, console_t *con) {
-	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */);
+task_t *create_task( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length) {
+	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */, data, length);
 	assert(task != NULL);
 
 	assert(task->console == con);
@@ -162,8 +162,8 @@ task_t *create_task( void (*entry_point)(void), const char *name, console_t *con
 	return task;
 }
 
-task_t *create_task_user( void (*entry_point)(void), const char *name, console_t *con) {
-	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */);
+task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length) {
+	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */, data, length);
 	assert(task != NULL);
 
 	assert(task->console == con);
@@ -173,7 +173,7 @@ task_t *create_task_user( void (*entry_point)(void), const char *name, console_t
 	return task;
 }
 
-static task_t *create_task_int( void (*entry_point)(void), const char *name, console_t *console, uint8 privilege) {
+static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length) {
 	disable_interrupts(); /* not sure if this is needed */
 	task_switching = false;
 
@@ -235,6 +235,10 @@ static task_t *create_task_int( void (*entry_point)(void), const char *name, con
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
 	uint32 code_segment = 0x08;
+
+	/* data and data length parameters (in opposite order) */
+	*(--kernelStack) = length;
+	*(--kernelStack) = (uint32)data;
 
 	/* Functions will call this automatically when they attempt to return */
 	*(--kernelStack) = (uint32)&exit_proc;

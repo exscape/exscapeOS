@@ -54,7 +54,7 @@ void kworker_add(void (*func)(void *, uint32), void *data, uint32 length, uint8 
 
 // The *process* that does all the work. I'll try to come up with better naming
 // than to have "task" mean two different things...
-void kworker_task(void) {
+void kworker_task(void *data, uint32 length) {
 	while (true) {
 		while (list_size(kworker_tasks) == 0) {
 			// Nothing to do; switch to some other task, that can actually do something

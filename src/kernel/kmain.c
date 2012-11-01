@@ -34,21 +34,13 @@ extern list_t *fat32_partitions;
 
 task_t *kworker = NULL;
 
-void test_task(void) {
-	for (;;) {
-		printk("In test_task()\n");
-		sleep(1000);
-		//loopsleep();
-	}
-}
+//void idle_task(void) {
+	//for (;;) {
+		//asm volatile("hlt");
+	//}
+//}
 
-void idle_task(void) {
-	for (;;) {
-		asm volatile("hlt");
-	}
-}
-
-void force_switch_task(void) {
+void force_switch_task(void *data, uint32 length) {
 	for (;;) {
 		asm volatile("int $0x7e");
 	}
@@ -151,7 +143,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	printk("Starting the kernel worker... ");
 	kworker_init();
-	kworker = create_task(kworker_task, "[kworker]", &kernel_console); // TODO: console?
+	kworker = create_task(kworker_task, "[kworker]", &kernel_console, NULL, 0); // TODO: console?
 	if (kworker)
 		printc(BLACK, GREEN, "done\n");
 	else
@@ -159,10 +151,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 
 	//printk("Starting idle_task... ");
-	//create_task(idle_task, "idle_task", /*console = */ false);
+	//create_task(idle_task, "idle_task", /*console = */ false, NULL, 0);
 	//printc(BLACK, GREEN, "done\n");
 
-	create_task(force_switch_task, "force_switch_task", false);
+	create_task(force_switch_task, "force_switch_task", false, NULL, 0);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
@@ -245,7 +237,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	assert(NUM_VIRTUAL_CONSOLES >= 2); /* otherwise this loop will cause incorrect array access */
 	for (int i=1 /* sic! */; i < NUM_VIRTUAL_CONSOLES; i++) {
 		virtual_consoles[i] = console_create();
-		/* node_t *new_node = */list_append(virtual_consoles[i]->tasks, create_task(&kshell, "kshell", virtual_consoles[i]));
+		/* node_t *new_node = */list_append(virtual_consoles[i]->tasks, create_task(&kshell, "kshell", virtual_consoles[i], NULL, 0));
 		//((task_t *)new_node->data)->console = &virtual_consoles[i];
 		assert(virtual_consoles[i]->active == false);
 	}
@@ -255,7 +247,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	/* Hack-setup a kernel shell on the kernel console */
 	assert(virtual_consoles[0] == &kernel_console);
-	/*task_t *kernel_shell =*/ create_task(&kshell, "kshell", virtual_consoles[0]);
+	/*task_t *kernel_shell =*/ create_task(&kshell, "kshell", virtual_consoles[0], NULL, 0);
 
 	while (true) {
 		//asm volatile("sti; hlt");

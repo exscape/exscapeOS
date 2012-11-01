@@ -7,6 +7,6 @@
 
 void kworker_init(void);
 void kworker_add(void (*func)(void *, uint32), void *data, uint32 length, uint8 priority);
-void kworker_task(void);
+void kworker_task(void *data, uint32 length);
 
 #endif
