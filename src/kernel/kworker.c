@@ -29,7 +29,7 @@ kworker_t *kworker_create(const char *name) {
 	kworker_t *worker = kmalloc(sizeof(kworker_t));
 	strlcpy(worker->name, name, KWORKER_NAME_SIZE);
 	worker->tasks = list_create();
-	worker->task = create_task(kworker_task, name, &kernel_console, worker->tasks, sizeof(list_t));
+	worker->task = create_task(kworker_task, name, &kernel_console, worker, sizeof(kworker_t));
 
 	return worker;
 }
@@ -55,35 +55,48 @@ void kworker_add(kworker_t *worker, void (*func)(void *, uint32), void *data, ui
 	list_append(worker->tasks, task);
 }
 
+static void kworker_remove(kworker_t *worker, node_t *node) {
+	assert(worker != NULL);
+	assert(worker->tasks != NULL);
+	assert(node != NULL);
+
+	// It would be less ugly to pass the task as a parameter instead,
+	// but that would mean we would have to use list_find_first() to
+	// find the node again, and pass that to list_remove().
+	// Efficiency wins over beauty here.
+	kworker_task_t *task = node->data;
+
+	if (task->data)
+		kfree(task->data);
+	list_remove(worker->tasks, node);
+	kfree(task);
+}
+
 // The *process* that does all the work. I'll try to come up with better naming
 // than to have "task" mean two different things...
 void kworker_task(void *data, uint32 length) {
-	//kworker_t *worker = (kworker_t *)data;
-	list_t *tasks = (list_t *)data;
+	kworker_t *worker = (kworker_t *)data;
 
 	while (true) {
-		while (list_size(tasks) == 0) {
+		while (list_size(worker->tasks) == 0) {
 			// Nothing to do; switch to some other task, that can actually do something
 			asm volatile("int $0x7e");
 		}
 
-		if (tasks->count == 1) {
+		if (list_size(worker->tasks) == 1) {
 			// No point in checking priority if there's only one task! Take care of this one.
-			node_t *node = tasks->head;
+			node_t *node = worker->tasks->head;
 			kworker_task_t *task = (kworker_task_t *)node->data;
 
 			assert(task->function != NULL);
 			task->function(task->data, task->length);
-			if (task->data)
-				kfree(task->data);
-			list_remove(tasks, node);
-			kfree(task);
+			kworker_remove(worker, node);
 		}
 		else {
 			// Run the task with the highest priority first. Priority is a simple integer
 			// level, so 255 is the maximum, while 0 is the minimum.
-			node_t *max = tasks->head;
-			for (node_t *it = tasks->head; it != NULL; it = it->next) {
+			node_t *max = worker->tasks->head;
+			for (node_t *it = worker->tasks->head; it != NULL; it = it->next) {
 				kworker_task_t *task = (kworker_task_t *)it->data;
 				if (task->priority > ((kworker_task_t *)it->data)->priority) {
 					max = it;
@@ -94,10 +107,7 @@ void kworker_task(void *data, uint32 length) {
 			assert(max_task->function != NULL);
 
 			max_task->function(max_task->data, max_task->length);
-			if (max_task->data)
-				kfree(max_task->data);
-			list_remove(tasks, max);
-			kfree(max_task);
+			kworker_remove(worker, max);
 		}
 	}
 }
