@@ -31,6 +31,8 @@ extern void alloc_frame_to_page(page_t *, bool, bool);
 
 volatile bool task_switching = false;
 
+task_t *next_task = NULL;
+
 /* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
 #define KERNEL_STACK_SIZE 8192
 
@@ -380,10 +382,23 @@ static bool task_not_sleeping_predicate(node_t *node) {
 	return (t->state != TASK_SLEEPING && t->state != TASK_IOWAIT);
 }
 
+void set_next_task(task_t *task) {
+	next_task = task;
+}
+
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
 	if (task_switching == false || (current_task == &kernel_task && ready_queue.count == 1))
 		return esp;
+
+	// If next_task is set, use it.
+	// Set by e.g. the network handler to speed things up.
+	// Not very good for security, but that's irrelevant at the moment.
+	if (next_task) {
+		task_t *tmp = next_task;
+		next_task = NULL;
+		return switch_task(tmp, esp);
+	}
 
 	/* Look through the list of tasks to find sleeping tasks; if
 	 * any are found, check whether they should be woken up now.

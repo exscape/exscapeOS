@@ -77,6 +77,7 @@ static void process_frame(uint16 packetLength) {
 	else if (header->ethertype == ETHERTYPE_ARP) {
 		printk("\n*** ARP packet***\n");
 		kworker_add(kworker_arp, arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		set_next_task(kworker_arp->task);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
 		printk("IPv4 packet\n");
@@ -95,8 +96,8 @@ static void process_frame(uint16 packetLength) {
 		if (v4->protocol == IPV4_PROTO_ICMP) {
 			uint32 offset = 4 + sizeof(ethheader_t);// + sizeof(ipv4header_t) + options_size;
 			// Pass the IPv4 packet(!), not just the ICMP bit
-			//kworker_add(handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
 			kworker_add(kworker_icmp, handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
+			set_next_task(kworker_icmp->task);
 		}
 
 		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
