@@ -5,8 +5,6 @@
 #include <kernel/kheap.h>
 #include <kernel/kworker.h>
 
-#include <kernel/arp.h> // XXX TODO FIXME: remove this when arp debugging is done
-
 /*
  * This file implements a task that does miscellaneous kernel-mode tasks,
  * such as handle received network packets, which would otherwise be
@@ -16,7 +14,8 @@
  * to take care of it.
  */
 
-list_t *kworker_tasks = NULL; /* Not task as in process; task as in "thing to do" */
+kworker_t *kworker_arp = NULL;
+kworker_t *kworker_icmp = NULL;
 
 typedef struct {
 	void (*function)(void *, uint32);
@@ -25,12 +24,18 @@ typedef struct {
 	uint8 priority;
 } kworker_task_t;
 
-void kworker_init(void) {
-	kworker_tasks = list_create();
+kworker_t *kworker_create(const char *name) {
+	assert(strlen(name) + 1 <= KWORKER_NAME_SIZE);
+	kworker_t *worker = kmalloc(sizeof(kworker_t));
+	strlcpy(worker->name, name, KWORKER_NAME_SIZE);
+	worker->tasks = list_create();
+	worker->task = create_task(kworker_task, name, &kernel_console, worker->tasks, sizeof(list_t));
+
+	return worker;
 }
 
-void kworker_add(void (*func)(void *, uint32), void *data, uint32 length, uint8 priority) {
-	assert(kworker_tasks != NULL);
+void kworker_add(kworker_t *worker, void (*func)(void *, uint32), void *data, uint32 length, uint8 priority) {
+	assert(worker != NULL);
 	assert(data != NULL);
 	assert(length > 0);
 
@@ -47,39 +52,38 @@ void kworker_add(void (*func)(void *, uint32), void *data, uint32 length, uint8 
 	task->length = length;
 	task->priority = priority;
 
-	list_append(kworker_tasks, task);
-	if (task->function == arp_handle_request)
-		printk("kworker_add: added arp_handle_request\n");
+	list_append(worker->tasks, task);
 }
 
 // The *process* that does all the work. I'll try to come up with better naming
 // than to have "task" mean two different things...
 void kworker_task(void *data, uint32 length) {
+	//kworker_t *worker = (kworker_t *)data;
+	list_t *tasks = (list_t *)data;
+
 	while (true) {
-		while (list_size(kworker_tasks) == 0) {
+		while (list_size(tasks) == 0) {
 			// Nothing to do; switch to some other task, that can actually do something
 			asm volatile("int $0x7e");
 		}
 
-		if (kworker_tasks->count == 1) {
+		if (tasks->count == 1) {
 			// No point in checking priority if there's only one task! Take care of this one.
-			node_t *node = kworker_tasks->head;
+			node_t *node = tasks->head;
 			kworker_task_t *task = (kworker_task_t *)node->data;
 
 			assert(task->function != NULL);
-			if (task->function == arp_handle_request)
-				printk("kworker_task: executing arp_handle_request (lone task)\n");
 			task->function(task->data, task->length);
 			if (task->data)
 				kfree(task->data);
-			list_remove(kworker_tasks, node);
+			list_remove(tasks, node);
 			kfree(task);
 		}
 		else {
 			// Run the task with the highest priority first. Priority is a simple integer
 			// level, so 255 is the maximum, while 0 is the minimum.
-			node_t *max = kworker_tasks->head;
-			for (node_t *it = kworker_tasks->head; it != NULL; it = it->next) {
+			node_t *max = tasks->head;
+			for (node_t *it = tasks->head; it != NULL; it = it->next) {
 				kworker_task_t *task = (kworker_task_t *)it->data;
 				if (task->priority > ((kworker_task_t *)it->data)->priority) {
 					max = it;
@@ -89,12 +93,10 @@ void kworker_task(void *data, uint32 length) {
 			assert(max_task != NULL);
 			assert(max_task->function != NULL);
 
-			if (max_task->function == arp_handle_request)
-				printk("kworker_task: executing arp_handle_request (highest priority)\n");
 			max_task->function(max_task->data, max_task->length);
 			if (max_task->data)
 				kfree(max_task->data);
-			list_remove(kworker_tasks, max);
+			list_remove(tasks, max);
 			kfree(max_task);
 		}
 	}
