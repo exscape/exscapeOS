@@ -48,12 +48,12 @@ void handle_icmp(void *data, uint32 length) {
 
 	switch (type) {
 		case ICMP_ECHO_REQUEST: { // type 8
-			uint16 identifier = *((uint16 *)(packet + 4));
-			uint16 seq = *((uint16 *)(packet + 6));
-			printk("ICMP echo request: id=%u seq=%u\n", BSWAP16(identifier), BSWAP16(seq));
+			//uint16 identifier = *((uint16 *)(packet + 4));
+			//uint16 seq = *((uint16 *)(packet + 6));
+			//printk("ICMP echo request: id=%u seq=%u\n", BSWAP16(identifier), BSWAP16(seq));
 
 			// Data length is the packet length, minus the 8 byte header
-			printk("Data length: %u\n", length - 8);
+			//printk("Data length: %u\n", length - 8);
 
 			// TODO: don't alloc here...?
 			uint8 buf[1500];
@@ -122,9 +122,9 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	//dst_mac[4] = 0x20;
 	//dst_mac[5] = 0x20;
 
-	printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
-			dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
-			dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3]);
+	//printk("dst mac = %02x:%02x:%02x:%02x:%02x:%02x, dst ip = %d.%d.%d.%d\n",
+	//dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
+	//dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3]);
 	//panic("Is that correct?");
 
 	rtl8139_send_frame(dst_mac, ETHERTYPE_IPV4, buffer, sizeof(ipv4header_t) + payload_size);

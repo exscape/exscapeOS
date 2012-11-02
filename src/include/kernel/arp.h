@@ -4,8 +4,7 @@
 #define ARP_REQUEST 1
 #define ARP_REPLY   2
 
-// #define ARP_CACHE_TIME (5*60*1000) // 5 minutes
-#define ARP_CACHE_TIME 5000 // 5 SECONDS - for testing purposes. TODO
+#define ARP_CACHE_TIME (5*60*1000) // 5 minutes
 
 typedef struct {
     uint16 htype; // 1 for Ethernet

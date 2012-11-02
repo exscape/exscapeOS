@@ -73,7 +73,7 @@ void arp_cache_add(uint8 *ip, uint8 *mac) {
 }
 
 void arp_handle_request(void *data, uint32 length) {
-	printk("*** arp_handle_request ***\n");
+	//printk("*** arp_handle_request ***\n");
 	arpheader_t *header = (arpheader_t *)data;
 	length = length; // make GCC shut up
 	assert(data != NULL);
@@ -87,12 +87,12 @@ void arp_handle_request(void *data, uint32 length) {
 	assert(header->plen == 4);
 	assert(BSWAP16(header->operation) == ARP_REQUEST || BSWAP16(header->operation) == ARP_REPLY);
 
-	printk("ARP info: Ethernet/IP ARP %s; source = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d) dst = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n",
-			(BSWAP16(header->operation) == ARP_REQUEST ? "request" : "reply"),
-			header->src_mac[0], header->src_mac[1], header->src_mac[2], header->src_mac[3], header->src_mac[4], header->src_mac[5],
-			header->src_ip[0], header->src_ip[1], header->src_ip[2], header->src_ip[3],
-			header->dst_mac[0], header->dst_mac[1], header->dst_mac[2], header->dst_mac[3], header->dst_mac[4], header->dst_mac[5],
-			header->dst_ip[0], header->dst_ip[1], header->dst_ip[2], header->dst_ip[3]);
+	//printk("ARP info: Ethernet/IP ARP %s; source = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d) dst = %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n",
+	//(BSWAP16(header->operation) == ARP_REQUEST ? "request" : "reply"),
+	//header->src_mac[0], header->src_mac[1], header->src_mac[2], header->src_mac[3], header->src_mac[4], header->src_mac[5],
+	//header->src_ip[0], header->src_ip[1], header->src_ip[2], header->src_ip[3],
+	//header->dst_mac[0], header->dst_mac[1], header->dst_mac[2], header->dst_mac[3], header->dst_mac[4], header->dst_mac[5],
+	//header->dst_ip[0], header->dst_ip[1], header->dst_ip[2], header->dst_ip[3]);
 
 	if (BSWAP16(header->operation) == ARP_REPLY) {
 		// TODO: ARP spoofing and all that - is there a more secure solution to this?
@@ -106,11 +106,11 @@ void arp_handle_request(void *data, uint32 length) {
 		arp_cache_add(header->src_ip, header->src_mac);
 
 		if (memcmp(header->dst_ip, ip_address, 4) == 0) {
-			printk("This is for me! Creating and sending an ARP reply.\n");
+			//printk("This is for me! Creating and sending an ARP reply.\n");
 			send_arp_reply((uint8 *)data);
 		}
-		else
-			printk("ARP request is for someone else, ignoring\n");
+		//else
+			//printk("ARP request is for someone else, ignoring\n");
 	}
 }
 

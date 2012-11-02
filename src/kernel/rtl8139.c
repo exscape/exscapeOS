@@ -67,7 +67,7 @@ static txdesc_t TxDesc[4];
 #define BSWAP16(x) ( (((x) & 0xff) << 8) | (((x) & 0xff00) >> 8) )
 
 static void process_frame(uint16 packetLength) {
-	printk("process_frame of length %u\n", packetLength);
+	//printk("process_frame of length %u\n", packetLength);
 
 	ethheader_t *header = (ethheader_t *)(rtl8139_packetBuffer + 4);
 	header->ethertype = BSWAP16(header->ethertype);
@@ -75,18 +75,18 @@ static void process_frame(uint16 packetLength) {
 	if (header->ethertype == 0x8100) 
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
-		printk("\n*** ARP packet***\n");
+		//printk("\n*** ARP packet***\n");
 		kworker_add(kworker_arp, arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
 		set_next_task(kworker_arp->task);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
-		printk("IPv4 packet\n");
+		//printk("IPv4 packet\n");
 		ipv4header_t *v4 = (ipv4header_t *)(rtl8139_packetBuffer + 4 + sizeof(ethheader_t));
-		printk("version=%u IHL=%u total_length=%u\n", v4->version, v4->IHL, BSWAP16(v4->total_length));
-		printk("id=%u flags=%u fragment=%u ttl=%u proto=%u checksum=%04x src=%d.%d.%d.%d dst=%d.%d.%d.%d\n",
-				(uint32)v4->id, (uint32)v4->flags, (uint32)v4->fragment_offset, (uint32)v4->ttl, (uint32)v4->protocol, (uint32)BSWAP16(v4->header_checksum),
-				(uint32)v4->src_ip[0], (uint32)v4->src_ip[1], (uint32)v4->src_ip[2], (uint32)v4->src_ip[3],
-				(uint32)v4->dst_ip[0], (uint32)v4->dst_ip[1], (uint32)v4->dst_ip[2], (uint32)v4->dst_ip[3]);
+		//printk("version=%u IHL=%u total_length=%u\n", v4->version, v4->IHL, BSWAP16(v4->total_length));
+		//printk("id=%u flags=%u fragment=%u ttl=%u proto=%u checksum=%04x src=%d.%d.%d.%d dst=%d.%d.%d.%d\n",
+		//(uint32)v4->id, (uint32)v4->flags, (uint32)v4->fragment_offset, (uint32)v4->ttl, (uint32)v4->protocol, (uint32)BSWAP16(v4->header_checksum),
+		//(uint32)v4->src_ip[0], (uint32)v4->src_ip[1], (uint32)v4->src_ip[2], (uint32)v4->src_ip[3],
+		//(uint32)v4->dst_ip[0], (uint32)v4->dst_ip[1], (uint32)v4->dst_ip[2], (uint32)v4->dst_ip[3]);
 		uint16 check = v4->header_checksum;
 		v4->header_checksum = 0;
 
@@ -100,16 +100,16 @@ static void process_frame(uint16 packetLength) {
 			set_next_task(kworker_icmp->task);
 		}
 
-		printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
+		//printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
 
 		// TODO: this assumes packets will never be corrupt. Remove once the algorithm is tested!
 		assert(internet_checksum((void *)v4, sizeof(ipv4header_t)) == check);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV6) {
-		printk("IPv6 packet\n");
+		//printk("IPv6 packet\n");
 	}
 	else {
-		printk("Unknown ethertype: 0x%04x\n", header->ethertype);
+		//printk("Unknown ethertype: 0x%04x\n", header->ethertype);
 	}
 }
 
@@ -122,9 +122,9 @@ static uint32 rtl8139_rx_handler(uint32 esp) {
 
 	do {
 		uint8 *rxPointer = recv_buf + rxOffset;
-		uint16 flags = *( (uint16 *)rxPointer );
+		//uint16 flags = *( (uint16 *)rxPointer );
 		uint16 packetLength = *( (uint16 *)(rxPointer + 2) );
-		printk("flags=[%04x] ", flags);
+		//printk("flags=[%04x] ", flags);
 
 		// Clear the interrupt
 		rtl_word_w(RTL_ISR, RTL_ROK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
