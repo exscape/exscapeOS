@@ -700,7 +700,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	/* Keep track of the rightmost area - since this is the ONLY area, it's also the rightmost area! */
 	heap->rightmost_area = header_to_create;
 
-	//mutex_unlock(heap->mutex);
+	mutex_unlock(heap->mutex);
 
 	return heap;
 }
