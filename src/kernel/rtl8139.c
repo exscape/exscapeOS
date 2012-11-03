@@ -76,7 +76,7 @@ static void process_frame(uint16 packetLength) {
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
 		//printk("\n*** ARP packet***\n");
-		nethandler_add(nethandler_arp, arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		nethandler_add(nethandler_arp, arp_handle_packet, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
 		set_next_task(nethandler_arp->task);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {

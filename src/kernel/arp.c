@@ -72,8 +72,8 @@ void arp_cache_add(uint8 *ip, uint8 *mac) {
 	list_append(arp_cache, entry);
 }
 
-void arp_handle_request(void *data, uint32 length) {
-	//printk("*** arp_handle_request ***\n");
+void arp_handle_packet(void *data, uint32 length) {
+	//printk("*** arp_handle_packet ***\n");
 	arpheader_t *header = (arpheader_t *)data;
 	length = length; // make GCC shut up
 	assert(data != NULL);
