@@ -1,6 +1,7 @@
 #include <kernel/kheap.h>
 #include <kernel/task.h>
 #include <kernel/mutex.h>
+#include <kernel/kernutil.h>
 #include <kernel/console.h> // TODO: debugging only!
 
 mutex_t *mutex_create(void) {
@@ -12,13 +13,12 @@ mutex_t *mutex_create(void) {
 }
 
 void mutex_lock(mutex_t *mutex) {
-	// LOCK BTS, SETC byte [success]
 	printk("mutex_lock(%p)\n", mutex);
 	uint8 success = 0;
 
 	while (success == 0) {
 		asm volatile("LOCK BTSL $0, %[mutex];"
-					 "SETCB %[success];"
+					 "SETNCB %[success];"
 					 :
 					  [mutex]"=m"(mutex->mutex),
 					  [success]"=m"(success)
@@ -38,4 +38,9 @@ void mutex_lock(mutex_t *mutex) {
 
 void mutex_unlock(mutex_t *mutex) {
 	printk("mutex_unlock(%p)\n", mutex);
+	assert(mutex->mutex != 0);
+	assert(mutex->owner == current_task);
+	mutex->mutex = 0;
+	mutex->owner = NULL;
+	printk("Mutex unlocked\n");
 }

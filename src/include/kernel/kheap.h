@@ -1,4 +1,5 @@
 #include <types.h>
+#include <kernel/mutex.h>
 #include <kernel/ordered_array.h>
 
 /************************
@@ -39,6 +40,8 @@ typedef struct {
 	ordered_array_t used_index; /* Stores an array of area_header_t pointers */
 
 	area_header_t *rightmost_area; /* A pointer to the rightmost area, free or used. Used in both alloc() and free(). */
+
+	mutex_t *mutex;
 } heap_t;
 
 /* 65536 areas (per array; one for free areas, one for used areas) */
