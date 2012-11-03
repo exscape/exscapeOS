@@ -492,14 +492,14 @@ void heap_free(void *p, heap_t *heap) {
 	if (p == NULL)
 		return;
 
-	//mutex_lock(heap->mutex);
+	mutex_lock(heap->mutex);
 
 	/* Don't try to free memory that is clearly not from the heap.
 	 * Note that max_address is NOT the current highest address (as determined by heap size),
 	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
 	 */
 	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address ) {
-		//mutex_unlock(heap->mutex);
+		mutex_unlock(heap->mutex);
 		return;
 	}
 
@@ -644,6 +644,8 @@ void heap_free(void *p, heap_t *heap) {
 
 		/* Since the header address hasn't changed, we don't need to modify the index. We're done! */
 	}
+
+	mutex_unlock(heap->mutex);
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
@@ -651,7 +653,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	assert (heap != NULL);
 
 	heap->mutex = mutex_create();
-	mutex_lock(heap->mutex); // TODO: hmm
+	mutex_lock(heap->mutex);
 
 	/* Start and end addresses need to be page aligned; the end address is calculated and checked below */
 	assert(IS_PAGE_ALIGNED(start_address));
@@ -717,15 +719,16 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			panic("heap kmalloc called from ISR!");
 		}
 
-		//mutex_lock(kheap->mutex);
+		mutex_lock(kheap->mutex);
 
 		void *addr = heap_alloc(size, align, kheap);
+
 		if (phys != 0) {
 			page_t *page = get_page((uint32)addr, true, kernel_directory);
 			*phys = (page->frame * PAGE_SIZE) + ((uint32)addr & 0xfff);
 		}
 
-		//mutex_unlock(kheap->mutex);
+		mutex_unlock(kheap->mutex);
 
 		if (align)
 			assert(IS_PAGE_ALIGNED(addr));

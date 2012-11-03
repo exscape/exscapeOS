@@ -26,6 +26,13 @@ static void infinite_loop(void *data, uint32 length) {
 	for(;;);
 }
 
+static void mutex_test(void *data, uint32 length) {
+	while (true) {
+		void *p = kmalloc(RAND_RANGE(1, 65535));
+		kfree(p);
+	}
+}
+
 static void create_pagefault(void *data, uint32 length) {
 	uint32 *pf = (uint32 *)0xffff0000;
 	*pf = 10;
@@ -251,6 +258,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "pagefault") == 0) {
 			task = create_task(&create_pagefault, "create_pagefault", con, NULL, 0);
+		}
+		else if (strcmp(p, "mutex_test") == 0) {
+			task = create_task(&mutex_test, "mutex_test", con, NULL, 0);
 		}
 		else if (strcmp(p, "pagefault_delay") == 0) {
 			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con, NULL, 0);
