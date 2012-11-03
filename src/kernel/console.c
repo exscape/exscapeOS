@@ -26,11 +26,6 @@ static const uint8 status_fgcolor = WHITE;
 static uint8 current_console_number = 0;
 bool kernel_paniced = false;
 
-/* task.c */
-extern volatile task_t *current_task;
-extern volatile task_t *console_task;
-extern task_t kernel_task;
-
 /* TODO: mutexes! */
 
 volatile console_t *current_console;

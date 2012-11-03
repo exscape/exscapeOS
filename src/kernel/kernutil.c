@@ -5,8 +5,6 @@
 #include <string.h>
 #include <kernel/task.h>
 
-extern task_t *current_task;
-
 // Write a byte to the specified port
 void outb(uint16 port, uint8 value)
 {

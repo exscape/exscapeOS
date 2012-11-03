@@ -17,10 +17,6 @@
 /* for ls_initrd() */
 #include <kernel/initrd.h>
 
-/* for ps */
-extern volatile task_t *current_task;
-extern task_t kernel_task;
-
 void heaptest(void *data, uint32 length);
 void ls_initrd(void *data, uint32 length);
 
@@ -387,7 +383,7 @@ void heaptest(void *data, uint32 length) {
 	 **********************************/
 
 #define TEST_1_LOOPS 1
-#define TEST_2_LOOPS 1
+#define TEST_2_LOOPS 50
 
 	print_heap_index();
 

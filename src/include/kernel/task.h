@@ -22,6 +22,10 @@ typedef struct task
 	console_t *console;
 } task_t;
 
+extern volatile task_t *current_task;
+extern volatile task_t *console_task;
+extern task_t kernel_task;
+
 #define TASK_RUNNING (1 << 0)
 #define TASK_SLEEPING (1 << 1)
 #define TASK_IOWAIT (1 << 2)
