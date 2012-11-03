@@ -12,6 +12,8 @@ extern volatile task_t *console_task;
 extern task_t kernel_task;
 volatile bool interrupts_enabled = false;
 
+volatile bool in_isr = false; // True if the code that runs was called from an ISR
+
 void disable_interrupts(void) {
 	/* disable NMI */
 	outb(0x70, inb(0x70) & 0x7f);

@@ -1,5 +1,6 @@
-extern isr_handler     ; defined in kernel/idt.c
-extern irq_handler     ; defined in kernel/idt.c
+extern isr_handler     ; defined in kernel/interrupts.c
+extern irq_handler     ; defined in kernel/interrupts.c
+extern in_isr          ; kernel/interrupts.c (bool)
 
 section .text
 align 4
@@ -63,6 +64,7 @@ ISR_NOERRCODE 128
 ; Our ISR stub. It saves the processor state, sets up for kernel mode segments,
 ; calls the C-level fault handler, and restores the stack frame.
 isr_common_stub:
+	mov byte [in_isr], 1
 	push eax
     push ecx
     push edx
@@ -100,6 +102,7 @@ isr_common_stub:
     pop eax
 
     add esp, 8
+	mov byte [in_isr], 0
 	sti
     iret
 
@@ -139,6 +142,7 @@ IRQ 126,    126 ; the task switch vector
 ; This is called/jumped to by the handlers created by the macros above.
 irq_common_stub:
 	; interrupts are already off
+	mov byte [in_isr], 1
 	push eax
     push ecx
     push edx
@@ -176,5 +180,6 @@ irq_common_stub:
     pop eax
 
     add esp, 8
+	mov byte [in_isr], 0
 	sti
     iret

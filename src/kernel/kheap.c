@@ -25,6 +25,9 @@ extern page_directory_t *kernel_directory;
 /* Defined in linker.ld */
 extern uint32 end;
 
+// Set in isr.s, defined in interrupts.c
+extern bool in_isr;
+
 uint32 placement_address = (uint32)&end;
 
 static sint8 area_header_t_less_than(void *a, void*b) {
@@ -700,6 +703,9 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
  */
 void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
+		if (in_isr) {
+			printk("WARNING: heap kmalloc called from ISR!\n");
+		}
 		void *addr = heap_alloc(size, align, kheap);
 		if (phys != 0) {
 			page_t *page = get_page((uint32)addr, true, kernel_directory);
