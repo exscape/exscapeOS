@@ -44,3 +44,7 @@ void mutex_unlock(mutex_t *mutex) {
 	mutex->owner = NULL;
 	printk("Mutex unlocked\n");
 }
+
+bool mutex_is_locked(mutex_t *mutex) {
+	return mutex->mutex != 0;
+}
