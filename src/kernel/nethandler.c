@@ -6,70 +6,62 @@
 #include <kernel/nethandler.h>
 
 /*
- * This file implements a task that does miscellaneous kernel-mode tasks,
- * such as handle received network packets, which would otherwise be
- * handled in code called from ISRs, where interrupts would be disabled
- * and the OS "frozen". Since having the OS "stopped" like that for longer
- * periods of time is unacceptable, the ISR instead tells the kernel worker
- * to take care of it.
+ * This "class" (collection functions and structs, rather) handles incoming network packets.
+ * Previously, this was done in the ISR itself, which is a bad idea for several reasons.
+ * After that, I used a similar approach to this one, except that it copied the data to a 
+ * malloc'ed buffer, and added a task to a linked list to be processed - list_append ALSO uses
+ * malloc.
+ * This appears only uses malloc on startup, which is 100% OK, and never at runtime.
+ *
+ * Each "nethandler" (currently one for ARP, one for ICMP - which will likely be expanded to IP)
+ * holds a number of buffers, of which only one is used at a time.
  */
 
 nethandler_t *nethandler_arp = NULL;
 nethandler_t *nethandler_icmp = NULL;
 
-typedef struct {
-	void (*function)(void *, uint32);
-	void *data;
-	uint32 length; // data size in bytes
-	uint8 priority;
-} nethandler_task_t;
-
-nethandler_t *nethandler_create(const char *name) {
-	assert(strlen(name) + 1 <= NETHANDLER_NAME_SIZE);
+// Create a new nethandler, and start a task.
+nethandler_t *nethandler_create(const char *name, void (*func)(void *, uint32)) {
 	nethandler_t *worker = kmalloc(sizeof(nethandler_t));
+
+	assert(strlen(name) + 1 <= NETHANDLER_NAME_SIZE);
 	strlcpy(worker->name, name, NETHANDLER_NAME_SIZE);
-	worker->tasks = list_create();
+
+	worker->function = func;
+
+	// Allocate memory for the buffers, and set them to a known state
+	for (int i=0; i < NETHANDLER_NUM_BUFFERS; i++) {
+		worker->buffers[i] = kmalloc(sizeof(nethandler_buffer_t));
+		memset(worker->buffers[i], 0, sizeof(nethandler_buffer_t)); // Also sets length and state
+	}
+
+	// Create a process to do all this
 	worker->task = create_task(nethandler_task, name, &kernel_console, worker, sizeof(nethandler_t));
 
 	return worker;
 }
 
-void nethandler_add(nethandler_t *worker, void (*func)(void *, uint32), void *data, uint32 length, uint8 priority) {
+// Called by the network card ISR to process a packet
+void nethandler_add_packet(nethandler_t *worker, void *data, uint32 length) {
 	assert(worker != NULL);
 	assert(data != NULL);
 	assert(length > 0);
 
-	nethandler_task_t *task = kmalloc(sizeof(nethandler_task_t));
-	task->function = func;
-
-	if (length > 0) {
-		task->data = kmalloc(length);
-		memcpy(task->data, data, length);
+	// Find the first free buffer
+	nethandler_buffer_t *buffer = NULL;
+	for (int i = 0; i < NETHANDLER_NUM_BUFFERS; i++) {
+		if (worker->buffers[i]->state == EMPTY) {
+			buffer = worker->buffers[i];
+			break;
+		}
 	}
-	else
-		task->data = NULL;
+	assert(buffer != NULL); // Later on: return and drop this packet
 
-	task->length = length;
-	task->priority = priority;
+	memcpy(buffer->buffer, data, length);
+	buffer->length = length;
 
-	list_append(worker->tasks, task);
-}
-
-static void nethandler_remove(nethandler_t *worker, node_t *node) {
-	assert(worker != NULL);
-	assert(worker->tasks != NULL);
-	assert(node != NULL);
-
-	// It would be less ugly to pass the task as a parameter instead,
-	// but that would mean we would have to use list_find_first() to
-	// find the node again, and pass that to list_remove().
-	// Efficiency wins over beauty here.
-	nethandler_task_t *task = node->data;
-
-	if (task->data)
-		kfree(task->data);
-	list_remove(worker->tasks, node);
-	kfree(task);
+	// This MUST be last, since the task may start work at any time after this is set
+	buffer->state = NEEDS_PROCESSING;
 }
 
 // The *process* that does all the work. I'll try to come up with better naming
@@ -78,36 +70,27 @@ void nethandler_task(void *data, uint32 length) {
 	nethandler_t *worker = (nethandler_t *)data;
 
 	while (true) {
-		while (list_size(worker->tasks) == 0) {
-			// Nothing to do; switch to some other task, that can actually do something
-			asm volatile("int $0x7e");
-		}
-
-		if (list_size(worker->tasks) == 1) {
-			// No point in checking priority if there's only one task! Take care of this one.
-			node_t *node = worker->tasks->head;
-			nethandler_task_t *task = (nethandler_task_t *)node->data;
-
-			assert(task->function != NULL);
-			task->function(task->data, task->length);
-			nethandler_remove(worker, node);
-		}
-		else {
-			// Run the task with the highest priority first. Priority is a simple integer
-			// level, so 255 is the maximum, while 0 is the minimum.
-			node_t *max = worker->tasks->head;
-			for (node_t *it = worker->tasks->head; it != NULL; it = it->next) {
-				nethandler_task_t *task = (nethandler_task_t *)it->data;
-				if (task->priority > ((nethandler_task_t *)it->data)->priority) {
-					max = it;
+		nethandler_buffer_t *buffer = NULL;
+		while (buffer == NULL) {
+			buffer = NULL;
+			for (int i=0; i < NETHANDLER_NUM_BUFFERS; i++) {
+				if (worker->buffers[i]->state == NEEDS_PROCESSING) {
+					buffer = worker->buffers[i];
+					buffer->state = CURRENTLY_PROCESSING;
+					break;
 				}
 			}
-			nethandler_task_t *max_task = (nethandler_task_t *)max->data;
-			assert(max_task != NULL);
-			assert(max_task->function != NULL);
 
-			max_task->function(max_task->data, max_task->length);
-			nethandler_remove(worker, max);
+			if (buffer == NULL) {
+				// Nothing to do; switch to some other task, that can actually do something
+				asm volatile("int $0x7e");
+			}
 		}
+
+		worker->function(buffer->buffer, buffer->length);
+		memset(buffer->buffer, 0, NETHANDLER_BUFFER_SIZE);
+
+		// Must be the very LAST thing we do, since the ISR may start filling this up any time when this is set
+		buffer->state = EMPTY;
 	}
 }

@@ -76,7 +76,7 @@ static void process_frame(uint16 packetLength) {
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
 		//printk("\n*** ARP packet***\n");
-		nethandler_add(nethandler_arp, arp_handle_packet, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		nethandler_add_packet(nethandler_arp, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t));
 		set_next_task(nethandler_arp->task);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
@@ -96,7 +96,7 @@ static void process_frame(uint16 packetLength) {
 		if (v4->protocol == IPV4_PROTO_ICMP) {
 			uint32 offset = 4 + sizeof(ethheader_t);// + sizeof(ipv4header_t) + options_size;
 			// Pass the IPv4 packet(!), not just the ICMP bit
-			nethandler_add(nethandler_icmp, handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
+			nethandler_add_packet(nethandler_icmp, rtl8139_packetBuffer + offset, packetLength - offset);
 			set_next_task(nethandler_icmp->task);
 		}
 

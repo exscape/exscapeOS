@@ -22,6 +22,8 @@
 #include <kernel/pci.h>
 #include <kernel/rtl8139.h>
 #include <kernel/nethandler.h>
+#include <kernel/arp.h>
+#include <kernel/ipicmp.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -142,9 +144,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_tasking(init_esp0);
 	printc(BLACK, GREEN, "done\n");
 
-	printk("Starting kernel workers... ");
-	nethandler_arp = nethandler_create("[nethandler_arp]");
-	nethandler_icmp = nethandler_create("[nethandler_icmp]");
+	printk("Starting network data handlers... ");
+	nethandler_arp = nethandler_create("[nethandler_arp]", arp_handle_packet);
+	nethandler_icmp = nethandler_create("[nethandler_icmp]", handle_icmp);
 	if (nethandler_arp && nethandler_icmp)
 		printc(BLACK, GREEN, "done\n");
 	else
