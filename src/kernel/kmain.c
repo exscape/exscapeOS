@@ -21,7 +21,7 @@
 #include <kernel/fat.h>
 #include <kernel/pci.h>
 #include <kernel/rtl8139.h>
-#include <kernel/kworker.h>
+#include <kernel/nethandler.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -32,8 +32,8 @@ extern const uint16 blank;
 /* fat.c */
 extern list_t *fat32_partitions;
 
-extern kworker_t *kworker_arp;
-extern kworker_t *kworker_icmp;
+extern nethandler_t *nethandler_arp;
+extern nethandler_t *nethandler_icmp;
 
 //void idle_task(void) {
 	//for (;;) {
@@ -143,9 +143,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printc(BLACK, GREEN, "done\n");
 
 	printk("Starting kernel workers... ");
-	kworker_arp = kworker_create("[kworker_arp]");
-	kworker_icmp = kworker_create("[kworker_icmp]");
-	if (kworker_arp && kworker_icmp)
+	nethandler_arp = nethandler_create("[nethandler_arp]");
+	nethandler_icmp = nethandler_create("[nethandler_icmp]");
+	if (nethandler_arp && nethandler_icmp)
 		printc(BLACK, GREEN, "done\n");
 	else
 		printc(BLACK, RED, "failed!\n");

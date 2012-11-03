@@ -7,7 +7,7 @@
 #include <kernel/rtl8139.h>
 #include <kernel/ipicmp.h>
 #include <kernel/timer.h>
-#include <kernel/kworker.h>
+#include <kernel/nethandler.h>
 #include <kernel/arp.h>
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
@@ -19,8 +19,8 @@ static uint8 current_descriptor = 0; // There are 4 TX descriptors (0-3)
 static uint8 finish_descriptor = 0; // TODO
 static sint8 free_descriptors = 4; // Should never go below 0, of course
 
-extern kworker_t *kworker_arp;
-extern kworker_t *kworker_icmp;
+extern nethandler_t *nethandler_arp;
+extern nethandler_t *nethandler_icmp;
 
 uint8 *my_mac = NULL; // set up in init
 
@@ -76,8 +76,8 @@ static void process_frame(uint16 packetLength) {
 		panic("VLAN tag; fix this");
 	else if (header->ethertype == ETHERTYPE_ARP) {
 		//printk("\n*** ARP packet***\n");
-		kworker_add(kworker_arp, arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
-		set_next_task(kworker_arp->task);
+		nethandler_add(nethandler_arp, arp_handle_request, rtl8139_packetBuffer + 4 + sizeof(ethheader_t), packetLength - 8 /* header+CRC */ - sizeof(ethheader_t), 100 /* prio */);
+		set_next_task(nethandler_arp->task);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV4) {
 		//printk("IPv4 packet\n");
@@ -96,8 +96,8 @@ static void process_frame(uint16 packetLength) {
 		if (v4->protocol == IPV4_PROTO_ICMP) {
 			uint32 offset = 4 + sizeof(ethheader_t);// + sizeof(ipv4header_t) + options_size;
 			// Pass the IPv4 packet(!), not just the ICMP bit
-			kworker_add(kworker_icmp, handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
-			set_next_task(kworker_icmp->task);
+			nethandler_add(nethandler_icmp, handle_icmp, rtl8139_packetBuffer + offset, packetLength - offset, 255 /* priority. TODO: extremely vulnerable to DoS attacks! */);
+			set_next_task(nethandler_icmp->task);
 		}
 
 		//printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);

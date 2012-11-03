@@ -8,7 +8,7 @@
 #include <kernel/rtl8139.h>
 #include <kernel/timer.h>
 #include <kernel/list.h>
-#include <kernel/kworker.h>
+#include <kernel/nethandler.h>
 
 extern uint8 ip_address[4];
 
