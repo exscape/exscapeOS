@@ -20,6 +20,8 @@ static uint8 serial_reg_r(uint8 reg) {
 	return inb(SERIAL_PORT + reg);
 }
 
+static bool serial_set_up = false;
+
 static void serial_reg_w(uint8 reg, uint8 value) {
 	assert(reg <= 7);
 	outb(SERIAL_PORT + reg, value);
@@ -33,19 +35,26 @@ void init_serial(void) {
 	serial_reg_w(SERIAL_BAUD_LOW, (baud_divisor & 0xff));
 	serial_reg_w(SERIAL_BAUD_HIGH, (baud_divisor & 0xff00) >> 8);
 	serial_reg_w(SERIAL_LCR, 0x03); // 8N1
-	serial_reg_w(SERIAL_INT_ID_FIFO, 0xC7); // Enable FIFO, clear them, with 14-yte threshold (TODO: look this up)
+	serial_reg_w(SERIAL_INT_ID_FIFO, 0xC7); // Enable FIFO, clear them, with 14-byte threshold (TODO: look this up)
 	serial_reg_w(SERIAL_MCR, 0x0b); // Hmm
+
+	serial_set_up = true;
 }
 
 void serial_send_byte(char c) {
+	if (!serial_set_up)
+		return;
+
 	while ((serial_reg_r(SERIAL_LINE_STATUS) & 0x20) == 0) { }
 	serial_reg_w(SERIAL_DATA, c);
 }
 
 void serial_send(const char *str) {
 	assert(str != NULL);
+	if (!serial_set_up)
+		return;
 	const char *p = str;
-	while (*p != NULL) {
+	while (*p != 0) {
 		serial_send_byte(*p++);
 	}
 }
