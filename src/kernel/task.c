@@ -401,11 +401,10 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		return switch_task(tmp, esp);
 	}
 
-	/* Look through the list of tasks to find sleeping tasks; if
+	/*
+	 * Look through the list of tasks to find sleeping tasks; if
 	 * any are found, check whether they should be woken up now.
-	 * In the event that we find multiple tasks that should be woken this
-	 * very instant, wake the first one, and let the next be woken on the
-	 * next call to the scheduler. */
+	 */
 	const uint32 ticks = gettickcount(); /* fetch just the once; interrupts are disabled, so the tick count can't change */
 	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
 		task_t *p = (task_t *)it->data;
@@ -413,11 +412,10 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 			/* Wake this task! */
 			p->wakeup_time = 0;
 			p->state = TASK_RUNNING;
-			return switch_task(p, esp);
+			//return switch_task(p, esp); // It turns out that this will cause some tasks to never run...
 		}
 	}
 
-	/* We didn't find any sleeping tasks to wake right now; let's focus on switching tasks as usual instead */
 	node_t *old_task_node = list_find_first((list_t *)&ready_queue, (void *)current_task);
 
 	task_t *old_task = (task_t *)current_task;
