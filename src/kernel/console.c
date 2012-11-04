@@ -26,7 +26,8 @@ static const uint8 status_fgcolor = WHITE;
 static uint8 current_console_number = 0;
 bool kernel_paniced = false;
 
-/* TODO: mutexes! */
+/* TODO: MORE mutexes! */
+mutex_t *printk_mutex;
 
 volatile console_t *current_console;
 
@@ -191,6 +192,7 @@ int puts(const char *s) {
 
 /* Called by kmain() on boot. Creates the VRAM buffer (used in scroll() and maybe others). */
 void init_video(void) {
+	printk_mutex = mutex_create();
 	kernel_task.console = &kernel_console;
 	current_console = &kernel_console;
 
@@ -560,6 +562,9 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	assert(console_task->console != NULL);
 	int orig_text = console_task->console->text_color;
 	int orig_back = console_task->console->back_color;
+
+	//mutex_lock(printk_mutex);
+
 	set_text_color(text_color);
 	set_back_color(back_color);
 
@@ -581,12 +586,16 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	set_text_color(orig_text);
 	set_back_color(orig_back);
 
+	//mutex_unlock(printk_mutex);
+
 	return i;
 }
 
 size_t printk(const char *fmt, ...) {
 	va_list args;
 	int i;
+
+	//mutex_lock(printk_mutex);
 
 	va_start(args, fmt);
 	i = vsprintf(buf, fmt, args);
@@ -599,6 +608,8 @@ size_t printk(const char *fmt, ...) {
 		}
 	}
 	update_cursor();
+
+	//mutex_unlock(printk_mutex);
 
 	return i;
 }

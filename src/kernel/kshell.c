@@ -27,9 +27,15 @@ static void infinite_loop(void *data, uint32 length) {
 }
 
 static void mutex_test(void *data, uint32 length) {
+	int pid = getpid();
 	while (true) {
-		void *p = kmalloc(RAND_RANGE(1, 65535));
-		kfree(p);
+		//sleep(100);
+		assert(pid == getpid());
+		//printk("calling malloc()...\n");
+		//void *p = kmalloc(RAND_RANGE(1, 65535));
+		//printk("malloc() done; calling free()...\n");
+		//kfree(p);
+		printk("PID %u ticks %u\n", pid, gettickcount());
 	}
 }
 
