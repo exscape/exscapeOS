@@ -564,7 +564,7 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	int orig_text = console_task->console->text_color;
 	int orig_back = console_task->console->back_color;
 
-	//mutex_lock(printk_mutex);
+	mutex_lock(printk_mutex);
 
 	set_text_color(text_color);
 	set_back_color(back_color);
@@ -587,7 +587,7 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	set_text_color(orig_text);
 	set_back_color(orig_back);
 
-	//mutex_unlock(printk_mutex);
+	mutex_unlock(printk_mutex);
 
 	return i;
 }
@@ -596,7 +596,7 @@ size_t printk(const char *fmt, ...) {
 	va_list args;
 	int i;
 
-	//mutex_lock(printk_mutex);
+	mutex_lock(printk_mutex);
 
 	va_start(args, fmt);
 	i = vsprintf(buf, fmt, args);
@@ -610,7 +610,7 @@ size_t printk(const char *fmt, ...) {
 	}
 	update_cursor();
 
-	//mutex_unlock(printk_mutex);
+	mutex_unlock(printk_mutex);
 
 	return i;
 }
