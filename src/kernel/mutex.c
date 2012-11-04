@@ -12,6 +12,12 @@ mutex_t *mutex_create(void) {
 	return mutex;
 }
 
+void mutex_destroy(mutex_t *mutex) {
+	assert(mutex->mutex == 0); // Must not be locked
+	assert(mutex->owner == NULL); // Set during unlock
+	kfree(mutex);
+}
+
 void mutex_lock(mutex_t *mutex) {
 	//printk("mutex_lock(%p)\n", mutex);
 	uint8 success = 0;
