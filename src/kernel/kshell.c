@@ -268,6 +268,9 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "mutex_test") == 0) {
 			task = create_task(&mutex_test, "mutex_test", con, NULL, 0);
 		}
+		else if (strcmp(p, "spamtest") == 0) {
+			task = create_task(&spamtest, "spamtest", con, NULL, 0);
+		}
 		else if (strcmp(p, "pagefault_delay") == 0) {
 			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con, NULL, 0);
 		}
@@ -644,3 +647,11 @@ void ls_initrd(void *data, uint32 length) {
 		ctr++;
 	}
 }
+static void spamtest(void *data, uint32 length) {
+	int pid = getpid();
+	while (true) {
+		assert(pid == getpid());
+		printk("spamtest: PID %u ticks %u\n", pid, gettickcount());
+	}
+}
+
