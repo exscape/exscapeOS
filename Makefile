@@ -53,7 +53,7 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 run: all
-	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh
+	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output
 
 debug: all
-	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -s -S -monitor stdio -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh
+	@sudo qemu -cdrom bootable.iso -hda hdd.img -hdb fat32.img -s -S -monitor stdio -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output

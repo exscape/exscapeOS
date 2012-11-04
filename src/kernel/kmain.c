@@ -24,6 +24,7 @@
 #include <kernel/nethandler.h>
 #include <kernel/arp.h>
 #include <kernel/ipicmp.h>
+#include <kernel/serial.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -85,13 +86,18 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		panic("initrd.img not loaded! Make sure the GRUB config contains a \"module\" line.\nSystem halted.");
 	}
 
-
 	printc(BLACK, RED, "exscapeOS starting up...\n");
 	if (mbd->flags & 1) {
 		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n", mbd->mem_lower, mbd->mem_upper);
 	}
 	else
 		panic("mbd->flags bit 0 is unset!");
+
+	printk("Initializing serial port... ");
+	init_serial();
+	printc(BLACK, GREEN, "done\n");
+
+	serial_send("Hello world!\n");
 
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");
