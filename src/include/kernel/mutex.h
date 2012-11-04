@@ -1,10 +1,12 @@
 #ifndef _MUTEX_H
 #define _MUTEX_H
 
-#include <kernel/task.h> /* task_t */
+struct task; // Forward declare instead of including task.h
+			 // since that causes problems
 
 typedef struct _mutex {
-	task_t *owner;
+	/*task_t *owner;*/
+	struct task *owner;
 	uint32 mutex;
 } mutex_t;
 

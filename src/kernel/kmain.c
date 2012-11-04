@@ -50,12 +50,17 @@ void force_switch_task(void *data, uint32 length) {
 	}
 }
 
+extern list_t ready_queue;
+
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
 	uint32 initrd_location = *((uint32 *)mbd->mods_addr);
 	uint32 initrd_end = *((uint32 *)(mbd->mods_addr + 4));
 	if (initrd_end > placement_address)
 		placement_address = initrd_end;
+
+	kernel_console.tasks->mutex = mutex_create();
+	ready_queue.mutex = mutex_create();
 
 	/* Set up the kernel console keybuffer, to prevent panics on keyboard input.
 	 * The kernel console isn't dynamically allocated, so this can be done

@@ -12,6 +12,9 @@ mutex_t *mutex_create(void) {
 	return mutex;
 }
 
+extern volatile bool in_isr;
+extern volatile bool task_switching;
+
 void mutex_destroy(mutex_t *mutex) {
 	assert(mutex->mutex == 0); // Must not be locked
 	assert(mutex->owner == NULL); // Set during unlock
@@ -19,7 +22,10 @@ void mutex_destroy(mutex_t *mutex) {
 }
 
 void mutex_lock(mutex_t *mutex) {
+	assert(mutex != NULL);
 	//printk("mutex_lock(%p)\n", mutex);
+	//if (in_isr)
+	//panic("mutex_lock from ISR!");
 	uint8 success = 0;
 
 	while (success == 0) {
@@ -37,14 +43,18 @@ void mutex_lock(mutex_t *mutex) {
 		}
 		else {
 			//printk("Mutex not locked!");
-			asm volatile("int $0x7e");
+			if (task_switching)
+				asm volatile("int $0x7e");
 		}
 	}
 }
 
 void mutex_unlock(mutex_t *mutex) {
+	assert(mutex != NULL);
+	assert(mutex->mutex != 0); // mutex is locked
 	//printk("mutex_unlock(%p)\n", mutex);
-	assert(mutex->mutex != 0);
+	//if (in_isr)
+	//panic("mutex_unlock from ISR!");
 	assert(mutex->owner == current_task);
 	mutex->mutex = 0;
 	mutex->owner = NULL;

@@ -72,6 +72,7 @@ volatile list_t ready_queue = {
 	.head = (node_t *)&kernel_task_node,
 	.tail = (node_t *)&kernel_task_node,
 	.count = 1,
+	.mutex =  NULL, // Set up ASAP in kmain
 };
 
 /* true if the task exists and is running/sleeping; false if it has exited (or never even existed) */

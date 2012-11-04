@@ -1,6 +1,8 @@
 #ifndef _LIST_H
 #define _LIST_H
 
+#include <kernel/mutex.h>
+
 struct list; /* forward declaration due to its use in the node struct */
 
 /* A single node in the list */
@@ -11,10 +13,13 @@ typedef struct node {
 	struct list *list; /* the list that this node belongs to */
 } node_t;
 
+struct _mutex;
+
 typedef struct list {
 	node_t *head;
 	node_t *tail;
 	uint32 count; /* number of items in the list */
+	struct _mutex *mutex;
 } list_t;
 
 uint32 list_size(list_t *list);

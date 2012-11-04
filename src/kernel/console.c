@@ -54,7 +54,8 @@ static node_t tmp = {
 list_t kernel_console_tasks = {
 	.head = &tmp,
 	.tail = &tmp,
-	.count = 1
+	.count = 1,
+	.mutex = NULL // set up ASAP in kmain
 };
 console_t kernel_console = {
 	.tasks = &kernel_console_tasks,
