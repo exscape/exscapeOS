@@ -177,8 +177,8 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 }
 
 static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length) {
-	disable_interrupts(); /* not sure if this is needed */
-	task_switching = false;
+	//disable_interrupts(); /* not sure if this is needed */
+	//task_switching = false;
 
 	assert(privilege == 0 || privilege == 3);
 
@@ -286,8 +286,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	//if (console)
 		//console_switch(task->console);
 
-	task_switching = true;
-	enable_interrupts(); /* not sure if this is needed */
+		//task_switching = true;
+		//enable_interrupts(); /* not sure if this is needed */
 	return task;
 }
 
