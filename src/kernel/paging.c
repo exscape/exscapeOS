@@ -384,9 +384,13 @@ page_directory_t *create_user_page_dir(void) {
 	uint32 new_dir_phys;
 	page_directory_t *dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
 
+	disable_interrupts();
+
 	/* Since we want the kernel mapping to be the same in all address spaces, and the kernel (+ kernel heap, etc.) is
 	 * all that exists in the kernel directory, copy it! */
 	memcpy(dir, kernel_directory, sizeof(page_directory_t));
+
+	enable_interrupts();
 
 	/*
 	 * We need the physical address of the /tables_physical/ struct member. /dir/ points to the beginning of the structure, of course.
