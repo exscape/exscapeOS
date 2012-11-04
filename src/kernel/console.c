@@ -27,7 +27,7 @@ static uint8 current_console_number = 0;
 bool kernel_paniced = false;
 
 /* TODO: MORE mutexes! */
-mutex_t *printk_mutex;
+//mutex_t *printk_mutex;
 
 volatile console_t *current_console;
 
@@ -193,7 +193,7 @@ int puts(const char *s) {
 
 /* Called by kmain() on boot. Creates the VRAM buffer (used in scroll() and maybe others). */
 void init_video(void) {
-	printk_mutex = mutex_create();
+	//printk_mutex = mutex_create();
 	kernel_task.console = &kernel_console;
 	current_console = &kernel_console;
 
@@ -341,6 +341,7 @@ static void puts_status(int x, const char *str) {
 	size_t len = strlen(str);
 	assert(x + len <= 80);
 	for (size_t i = 0; i < len; i++) {
+		if(x + i == 79) break; // TODO: allow timer spinner
 		real_vmem[x + i] = (status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | str[i];
 	}
 }
@@ -352,7 +353,7 @@ void update_statusbar(void) {
 	}
 
 	// Clear everything
-	memsetw(real_vmem, (uint16)((status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | ' '), 80);
+	memsetw(real_vmem, (uint16)((status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | ' '), 80 - 1 /* TODO: allow timer spinner */);
 
 	if (kernel_paniced) {
 		puts_status(0, "  KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC    KERNEL PANIC  ");
@@ -522,7 +523,7 @@ void update_cursor(void) {
 		return; 
 	}
 
-	assert(console_task->console == current_console);
+	//assert(console_task->console == current_console);
 
 	Point *cursor = & ((console_t *)current_console)->cursor;
 	assert(cursor != NULL);
@@ -564,7 +565,7 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	int orig_text = console_task->console->text_color;
 	int orig_back = console_task->console->back_color;
 
-	mutex_lock(printk_mutex);
+	//mutex_lock(printk_mutex);
 
 	set_text_color(text_color);
 	set_back_color(back_color);
@@ -587,7 +588,7 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	set_text_color(orig_text);
 	set_back_color(orig_back);
 
-	mutex_unlock(printk_mutex);
+	//mutex_unlock(printk_mutex);
 
 	return i;
 }
@@ -596,7 +597,7 @@ size_t printk(const char *fmt, ...) {
 	va_list args;
 	int i;
 
-	mutex_lock(printk_mutex);
+	//mutex_lock(printk_mutex);
 
 	va_start(args, fmt);
 	i = vsprintf(buf, fmt, args);
@@ -610,7 +611,7 @@ size_t printk(const char *fmt, ...) {
 	}
 	update_cursor();
 
-	mutex_unlock(printk_mutex);
+	//mutex_unlock(printk_mutex);
 
 	return i;
 }
