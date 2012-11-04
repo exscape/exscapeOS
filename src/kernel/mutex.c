@@ -2,7 +2,6 @@
 #include <kernel/task.h>
 #include <kernel/mutex.h>
 #include <kernel/kernutil.h>
-#include <kernel/console.h> // TODO: debugging only!
 
 mutex_t *mutex_create(void) {
 	mutex_t *mutex = kmalloc(sizeof(mutex_t));
@@ -21,11 +20,12 @@ void mutex_destroy(mutex_t *mutex) {
 	kfree(mutex);
 }
 
+
+#define DISABLE_MUTEXES 0
+
 void mutex_lock(mutex_t *mutex) {
 	assert(mutex != NULL);
-	//printk("mutex_lock(%p)\n", mutex);
-	//if (in_isr)
-	//panic("mutex_lock from ISR!");
+#if (!DISABLE_MUTEXES)
 	uint8 success = 0;
 
 	while (success == 0) {
@@ -39,28 +39,29 @@ void mutex_lock(mutex_t *mutex) {
 
 		if (success) {
 			mutex->owner = (task_t *)current_task;
-			//printk("Mutex locked\n");
 		}
 		else {
-			//printk("Mutex not locked!");
 			if (task_switching)
 				asm volatile("int $0x7e");
 		}
 	}
+#endif
 }
 
 void mutex_unlock(mutex_t *mutex) {
 	assert(mutex != NULL);
+#if (!DISABLE_MUTEXES)
 	assert(mutex->mutex != 0); // mutex is locked
-	//printk("mutex_unlock(%p)\n", mutex);
-	//if (in_isr)
-	//panic("mutex_unlock from ISR!");
 	assert(mutex->owner == current_task);
 	mutex->mutex = 0;
 	mutex->owner = NULL;
-	//printk("Mutex unlocked\n");
+#endif
 }
 
 bool mutex_is_locked(mutex_t *mutex) {
+#if DISABLE_MUTEXES
+	return false;
+#else
 	return mutex->mutex != 0;
+#endif
 }
