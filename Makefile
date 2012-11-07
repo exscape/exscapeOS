@@ -1,7 +1,7 @@
 #all:
 #	i586-elf-gcc -o kernel.o -c kernel.c -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -ggdb3 -std=gnu99 && i586-elf-ld -T linker.ld -o kernel.bin loader.o kernel.o
 
-CC = i586-elf-gcc
+CC = clang # i586-elf-gcc should work too
 LD = i586-elf-ld
 
 AUXFILES := # FIXME: isofiles osv
@@ -18,15 +18,12 @@ DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 # All files to end up in a distribution tarball
 ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
-WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -fmax-errors=0 \
-                -Wwrite-strings \
-                -Wredundant-decls -Wnested-externs -Winline -Wno-long-long \
-                -Wuninitialized -Wstrict-prototypes -Werror -Wno-unused-function -Wno-unused-parameter
-#WARNINGS := -Wall -Werror
+WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
+                -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
+				-Wuninitialized -Wstrict-prototypes -Wno-unused-function \
+				-Wno-unused-parameter -Wno-cast-align -Wno-self-assign -Werror
 
-CFLAGS := -O0 -ggdb3 -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
-# Optimized CFLAGS
-#CFLAGS := -O3 -march=pentium -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./src/include -std=gnu99 $(WARNINGS)
+CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS)
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
