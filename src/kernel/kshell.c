@@ -535,7 +535,7 @@ void heaptest(void *data, uint32 length) {
 	 * it doesn't get overwritten.
 	 */
 
-	memset(p, 0, sizeof(p));
+	memset(p, 0, sizeof(void *) * NUM);
 	uint32 mem_in_use = 0;
 	for (uint32 i = 0; i < NUM; i++) {
 
