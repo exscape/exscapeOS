@@ -31,11 +31,19 @@ static void mutex_test(void *data, uint32 length) {
 	while (true) {
 		//sleep(100);
 		assert(pid == getpid());
-		//printk("calling malloc()...\n");
-		//void *p = kmalloc(RAND_RANGE(1, 65535));
-		//printk("malloc() done; calling free()...\n");
-		//kfree(p);
+		printk("calling malloc()...\n");
+		void *p = kmalloc(RAND_RANGE(1, 65535));
+		printk("malloc() done; calling free()...\n");
+		kfree(p);
 		printk("PID %u ticks %u\n", pid, gettickcount());
+	}
+}
+
+static void spamtest(void *data, uint32 length) {
+	int pid = getpid();
+	while (true) {
+		assert(pid == getpid());
+		printk("spamtest: PID %u ticks %u\n", pid, gettickcount());
 	}
 }
 
@@ -647,11 +655,3 @@ void ls_initrd(void *data, uint32 length) {
 		ctr++;
 	}
 }
-static void spamtest(void *data, uint32 length) {
-	int pid = getpid();
-	while (true) {
-		assert(pid == getpid());
-		printk("spamtest: PID %u ticks %u\n", pid, gettickcount());
-	}
-}
-
