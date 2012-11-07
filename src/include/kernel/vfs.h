@@ -17,18 +17,18 @@ typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 
 /* forward declaration */
-typedef struct fat32_partition fat32_partition_t;
+struct fat32_partition;
 
 typedef struct mountpoint {
 	char path[512];
 
 	/* Will be changed to a FS-neutral type when needed */
-	fat32_partition_t *partition;
+	struct fat32_partition *partition;
 } mountpoint_t;
 
 typedef struct dir {
 	/* TODO: proper per-process file descriptors */
-	fat32_partition_t *partition;
+	struct fat32_partition *partition;
 	uint32 dir_cluster;
 
 	list_t *entries; /* used by readdir() */

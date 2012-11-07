@@ -3,7 +3,7 @@
 
 #include <types.h>
 
-typedef struct ata_device ata_device_t;
+struct ata_device;
 #include <kernel/part.h> /* partition_t */
 
 typedef struct ata_channel {

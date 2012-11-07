@@ -23,7 +23,7 @@ typedef struct partition {
 
 #include <kernel/ata.h>
 
-void parse_mbr(ata_device_t *dev);
+void parse_mbr(struct ata_device *dev);
 
 /* System ID byte values */
 #define PART_EXTENDED_8GB 0x05

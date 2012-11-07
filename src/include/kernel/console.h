@@ -12,7 +12,6 @@ typedef struct ringbuffer {
 	volatile uint32 counter; /* how much unread data is stored? */
 } ringbuffer_t;
 
-typedef struct task task_t;
 /* Defines a single virtual console */
 typedef struct console {
 	list_t *tasks;
