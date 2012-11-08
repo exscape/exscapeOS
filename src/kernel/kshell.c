@@ -26,17 +26,18 @@ static void infinite_loop(void *data, uint32 length) {
 	for(;;);
 }
 
+static mutex_t *test_mutex = NULL;
 static void mutex_test(void *data, uint32 length) {
-	int pid = getpid();
-	while (true) {
-		//sleep(100);
-		assert(pid == getpid());
-		printk("calling malloc()...\n");
-		void *p = kmalloc(RAND_RANGE(1, 65535));
-		printk("malloc() done; calling free()...\n");
-		kfree(p);
-		printk("PID %u ticks %u\n", pid, gettickcount());
-	}
+   if (test_mutex == NULL)
+		   test_mutex = mutex_create();
+
+   while (true) {
+		   mutex_lock(test_mutex);
+		   printk("locked mutex in pid %d @ %u\n", getpid(), gettickcount());
+		   sleep(500);
+		   mutex_unlock(test_mutex);
+		   printk("unlocked mutex in pid %d @ %u\n", getpid(), gettickcount());
+   }
 }
 
 static void spamtest(void *data, uint32 length) {
