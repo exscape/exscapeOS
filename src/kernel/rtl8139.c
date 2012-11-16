@@ -275,7 +275,8 @@ bool init_rtl8139(void) {
 		// Map the MMIO address to the virtual address space
 		map_phys_to_virt((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, true /* kernel mode */, true /* writable */);
 
-		/* "Turn on" the card (is this really necessary?) */
+		/* "Turn on" the card (is this really necessary? QEMU works either way) */
+
 		rtl_byte_w(RTL_CONFIG1, 0);
 
 		/* Software reset to get started */
