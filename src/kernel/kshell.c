@@ -17,6 +17,9 @@
 /* for ls_initrd() */
 #include <kernel/initrd.h>
 
+/* for lspci() */
+#include <kernel/pci.h>
+
 void heaptest(void *data, uint32 length);
 void ls_initrd(void *data, uint32 length);
 
@@ -38,6 +41,19 @@ static void mutex_test(void *data, uint32 length) {
 		   mutex_unlock(test_mutex);
 		   printk("unlocked mutex in pid %d @ %u\n", getpid(), gettickcount());
    }
+}
+
+extern list_t *pci_devices;
+static void lspci(void *data, uint32 length) {
+	assert(pci_devices != NULL);
+
+	printk("VENDOR DEVICE IRQ BAR0     BAR1     BAR2     BAR3     BAR4     BAR5\n");
+	for (node_t *it = pci_devices->head; it != NULL; it = it->next) {
+		pci_device_t *dev = (pci_device_t *)it->data;
+		printk("0x%04x 0x%04x %02d  %08x %08x %08x %08x %08x %08x\n",
+				dev->vendor_id, dev->device_id, dev->irq,
+				dev->bar[0], dev->bar[1], dev->bar[2], dev->bar[3], dev->bar[4], dev->bar[5]);
+	}
 }
 
 static void spamtest(void *data, uint32 length) {
@@ -261,6 +277,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "print_1_sec") == 0) {
 			task = create_task(&print_1_sec, "print_1_sec", con, NULL, 0);
+		}
+		else if (strcmp(p, "lspci") == 0) {
+			task = create_task(&lspci, "lspci", con, NULL, 0);
 		}
 		else if (strcmp(p, "sleeptest") == 0) {
 			task = create_task(&sleep_test, "sleeptest", con, NULL, 0);
