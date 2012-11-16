@@ -64,7 +64,7 @@ console_t kernel_console = {
 };
 
 /* Returns a key from the keyboard buffer, if possible. */
-unsigned char getchar(void) {
+int getchar(void) {
 	/* If no characters are available, loop until there's something. */
 	assert(current_task->console != NULL);
 

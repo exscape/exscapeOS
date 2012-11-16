@@ -141,7 +141,6 @@ void exit_proc(void) {
 }
 
 void user_exit(void) {
-	syscall_puts("***** in user_exit() *****\n");
 	syscall_exit_proc();
 }
 

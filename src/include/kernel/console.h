@@ -59,7 +59,7 @@ void set_back_color(int color);
 /* If true, all output will be on the current console, no matter who's writing */
 extern volatile bool force_current_console;
 
-unsigned char getchar(void);
+int getchar(void);
 
 void scrollback_up(void);
 void scrollback_down(void);

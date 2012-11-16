@@ -94,6 +94,35 @@ static void fpu_task(void *data, uint32 length) {
 	asm volatile("fldpi");
 }
 
+static void guess_num_user(void *data, uint32 length) {
+	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
+	 * for keyboard input. */
+
+	int num = RAND_RANGE(0, 9);
+	int guess = -1;
+	int num_guesses = 0;
+
+	while (guess != num) {
+		num_guesses++;
+		syscall_puts("Guess the number, from user mode (0-9): ");
+		guess = syscall_getchar();
+		syscall_putchar(guess);
+		syscall_puts("  ");
+		guess -= 0x30; /* ASCII to num */
+		if (guess == num) {
+			syscall_puts("You got it!\n");
+			//printk("You got it! I was looking for %d.\nIt took you %d guesses to find it.\n", num, num_guesses);
+			break;
+		}
+		else if (guess > num) {
+			syscall_puts("Nope. Try lower.\n");
+		}
+		else if (guess < num) {
+			syscall_puts("Nope. Try higher.\n");
+		}
+	}
+}
+
 static void guess_num(void *data, uint32 length) {
 	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
 	 * for keyboard input. */
@@ -352,6 +381,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
+		}
+		else if (strcmp(p, "guess_user") == 0) {
+			task = create_task_user(&guess_num_user, "guess_num_user", con, NULL, 0);
 		}
 		else if(strcmp(p, "divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con, NULL, 0);

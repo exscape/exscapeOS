@@ -64,4 +64,6 @@ DECL_SYSCALL1(puts, const char *);
 DECL_SYSCALL0(exit_proc);
 DECL_SYSCALL1(sleep, uint32);
 
+DECL_SYSCALL0(getchar);
+DECL_SYSCALL1(putchar, int);
 #endif

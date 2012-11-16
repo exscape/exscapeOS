@@ -121,8 +121,6 @@ void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode
 	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
 
 	assert(mem_end_page != 0); // This needs to be set up first!
-
-	//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
 	assert(page != NULL);
 
 	page->present = 1;
@@ -161,7 +159,6 @@ void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kern
 		}
 	}
 	else {
-		//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
 		assert(page != NULL);
 
 		page->present = 1;
@@ -231,10 +228,9 @@ void init_paging(unsigned long upper_mem) {
 	/* upper_mem is provided by GRUB; it's the number of *continuous* kilobytes of memory starting at 1MB (0x100000). */
 	mem_end_page = 0x100000 + (uint32)upper_mem*1024;
 	//printk("init_paging: mem_end_page = %08x (upper_mem = %u kiB)\n", mem_end_page, upper_mem);
-	if (!IS_PAGE_ALIGNED(mem_end_page)) {
-		/* Ignore the last few bytes of RAM to align */
-		mem_end_page &= 0xfffff000;
-	}
+
+	/* Ignore the last few bytes of RAM to align, if necessary */
+	mem_end_page &= 0xfffff000;
 
 	/* The size of the bitmap is one bit per page */
 	nframes = mem_end_page / PAGE_SIZE;
@@ -287,7 +283,6 @@ void init_paging(unsigned long upper_mem) {
 
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
 		map_phys_to_virt_alloc(addr, addr, false, true);
 		addr += PAGE_SIZE;
 	}
@@ -301,7 +296,7 @@ void init_paging(unsigned long upper_mem) {
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
 	 * enough for the initial size. */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE); // TODO  FIXME: PAGE_KERNEL for these!
+		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
 	}
 
 	/* Register the page fault handler */
