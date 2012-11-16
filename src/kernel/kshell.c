@@ -127,7 +127,11 @@ static void paramtest(void *data, uint32 length) {
 
 static void user_test(void *data, uint32 length) {
 	/* A task that runs in user mode */
-	syscall_puts("Hellooooooo, USER MODE WORLD!");
+	for (int i=0; i < 5; i++) {
+		syscall_puts("User mode puts()!");
+		syscall_puts("\n");
+		syscall_sleep(500);
+	}
 }
 
 

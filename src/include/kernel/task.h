@@ -30,6 +30,9 @@ extern task_t kernel_task;
 #define TASK_SLEEPING (1 << 1)
 #define TASK_IOWAIT (1 << 2)
 
+
+void user_exit(void); // called from user mode
+
 void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);

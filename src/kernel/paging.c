@@ -112,7 +112,26 @@ uint32 free_bytes(void) {
  **** END BITMAP HANDLING CODE ****
  **********************************/
 
+// JUST MAPS, without checking if the frame is used or anything.
+// Use with caution!
 void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
+	assert((physical_addr & 0xfff) == 0);
+	assert((virtual_addr  & 0xfff) == 0);
+
+	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
+
+	assert(mem_end_page != 0); // This needs to be set up first!
+
+	//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
+	assert(page != NULL);
+
+	page->present = 1;
+	page->rw = (writable ? 1 : 0);
+	page->user = (kernelmode ? 0 : 1);
+	page->frame = (physical_addr / PAGE_SIZE);
+}
+
+void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
 	assert((physical_addr & 0xfff) == 0);
 	assert((virtual_addr  & 0xfff) == 0);
 
@@ -123,7 +142,7 @@ void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode
 	if (physical_addr < mem_end_page) {
 		// This is a regular memory address, as opposed to MMIO and stuff
 		if (page->frame != 0) {
-			/* This frame is already allocated! */
+			/* This frame is already allocated */
 			return;
 		}
 		else {
@@ -269,7 +288,7 @@ void init_paging(unsigned long upper_mem) {
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		//alloc_frame(addr, kernel_directory, PAGE_USER, PAGE_WRITABLE); /* TODO: FIXME: USE PAGE_KERNEL HERE! */
-		map_phys_to_virt(addr, addr, false, true);
+		map_phys_to_virt_alloc(addr, addr, false, true);
 		addr += PAGE_SIZE;
 	}
 
@@ -282,7 +301,7 @@ void init_paging(unsigned long upper_mem) {
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
 	 * enough for the initial size. */
 	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
+		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE); // TODO  FIXME: PAGE_KERNEL for these!
 	}
 
 	/* Register the page fault handler */
@@ -354,12 +373,12 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 	}
 }
 
-uint32 virtual_to_physical(uint32 virt_addr) {
+uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir) {
 	/* Converts a virtual address (in the current address space) to a physical address, if possible. */
 
 	assert(virt_addr >= 0x1000); /* addresses below 0x1000 are unmapped, and nobody should ask for them */
 
-	page_t *page = get_page(virt_addr, false, current_directory);
+	page_t *page = get_page(virt_addr, false, page_dir);
 	if (page == NULL) {
 		panic("virtual_to_physical on non-created page");
 	}

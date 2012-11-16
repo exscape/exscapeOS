@@ -1,13 +1,18 @@
 #include <kernel/syscall.h>
 #include <kernel/console.h> /* puts */
 #include <kernel/interrupts.h>
+#include <kernel/task.h>
 
 static uint32 syscall_handler(uint32);
 
+void exit_proc(void); // task.c
+
 static void *syscalls[] = {
 	&puts,
+	&exit_proc,
+	&sleep,
 };
-uint32 num_syscalls = 1;
+uint32 num_syscalls = 3;
 
 void init_syscalls(void) {
 	register_interrupt_handler(0x80, &syscall_handler);
@@ -45,3 +50,5 @@ uint32 syscall_handler(uint32 esp) {
 }
 
 DEFN_SYSCALL1(puts, 0, const char *);
+DEFN_SYSCALL0(exit_proc, 1);
+DEFN_SYSCALL1(sleep, 2, uint32);

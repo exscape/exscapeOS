@@ -8,6 +8,7 @@
 #include <kernel/gdt.h>
 #include <kernel/timer.h>
 #include <kernel/list.h>
+#include <kernel/syscall.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -125,8 +126,6 @@ bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
 	assert(pid != 1); /* kernel_task has PID 1 */
 
-	/* TODO: add a list_find function that uses a user-supplied comparison function? */
-
 	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
 		if ( ((task_t *)it->data)->id == pid) {
 			kill((task_t *)it->data);
@@ -139,6 +138,11 @@ bool kill_pid(int pid) {
 
 void exit_proc(void) {
 	kill((task_t *)current_task);
+}
+
+void user_exit(void) {
+	syscall_puts("***** in user_exit() *****\n");
+	syscall_exit_proc();
 }
 
 void init_tasking(uint32 kerntask_esp0) {
@@ -212,8 +216,15 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
+
 		/* allocate a guard page - is this really necessary? */
 		alloc_frame(addr, task->page_directory, true, false);
+
+		/* Make sure this task exits if it RETs at the end of the stack */
+		/* Writing to memory in another address space isn't pretty. */
+		uint32 physical_stack = virtual_to_physical(USER_STACK_START - 4, task->page_directory);
+		map_phys_to_virt(physical_stack & 0xfffff000, 0xb0000000, false, true);
+		*( (uint32 *) (0xb0000000 + (physical_stack & 0xfff) )) = (uint32)&user_exit;
 	}
 
 	/* All tasks are running by default */
@@ -248,7 +259,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	if (task->privilege == 3) {
 		*(--kernelStack) = 0x23; /* SS */
-		*(--kernelStack) = USER_STACK_START; /* ESP */
+		*(--kernelStack) = (USER_STACK_START - 4); /* ESP */
 		code_segment = 0x1b; /* 0x18 | 3 */
 	}
 

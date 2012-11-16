@@ -60,7 +60,12 @@ uint32 page_fault_handler(uint32);
 void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable);
 void free_frame(uint32 virtual_addr, page_directory_t *page_dir);
 
+// JUST MAPS a physical address to a virtual one. If it's not already allocated (see below),
+// it can't really be used safely.
 void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
+
+// As above, but actually allocates the physical memory etc.
+void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
 
 bool addr_is_mapped(uint32 addr);
 
@@ -77,7 +82,7 @@ page_directory_t *clone_directory(page_directory_t *src);
 uint32 free_bytes(void);
 
 /* Converts a virtual address to a physical one (within the current address space, i.e. current_directory is used) */
-uint32 virtual_to_physical(uint32 virt_addr);
+uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir);
 
 page_directory_t *create_user_page_dir(void);
 

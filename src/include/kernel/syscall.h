@@ -1,6 +1,8 @@
 #ifndef _SYSCALL_H
 #define _SYSCALL_H
 
+#include <types.h>
+
 void init_syscalls(void);
 
 #define DECL_SYSCALL0(fn) int syscall_##fn();
@@ -58,6 +60,8 @@ int syscall_##fn(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) \
   return a; \
 }
 
-DECL_SYSCALL1(puts, const char *)
+DECL_SYSCALL1(puts, const char *);
+DECL_SYSCALL0(exit_proc);
+DECL_SYSCALL1(sleep, uint32);
 
 #endif
