@@ -283,6 +283,27 @@ uint32 irq_handler(uint32 esp) {
 	console_task = &kernel_task;
 
 	registers_t *regs = (registers_t *)esp;
+
+	if (regs->int_no == IRQ7) {
+		// This might be a spurious interrupt.
+		outb(0x20, 0x0b); // READ_ISR to master PIC
+		if ((inb(0x20) & (1 << 7)) == 0) {
+			// Spurious interrupt!
+			return esp;
+		}
+	}
+	else if (regs->int_no == IRQ15) {
+		// This might be a spurious interrupt.
+		outb(0xa0, 0x0b); // READ_ISR to slave PIC
+		if ((inb(0xa0) & (1 << 7)) == 0) {
+			// Spurious interrupt!
+
+			// Send EOI to the master PIC, but not to the slave!
+			outb(0x20, 0x20);
+			return esp;
+		}
+	}
+
 	/* Call the interrupt handler, if there is one. */
 	if (interrupt_handlers[regs->int_no] != 0 || regs->int_no == 0x7e) {
 		isr_t handler = interrupt_handlers[regs->int_no];
