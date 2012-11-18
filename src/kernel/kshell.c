@@ -156,6 +156,34 @@ static void test_dfault(void *data, uint32 length) {
 	//asm volatile("int $8");
 }
 
+static void user_test(void *data, uint32 length) {
+	/* A task that runs in user mode */
+	syscall_puts("User mode puts()!\n");
+}
+
+static void kernel_test(void *data, uint32 length) {
+	printk("Kernel mode printk(), ticks = %u\n", gettickcount());
+}
+
+static void user_stress(void *data, uint32 length) {
+	// User mode task creation stress test -- the 7th task used to crash
+	task_t *t;
+	for (int i=0; i < 300; i++) {
+		t = create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
+		sleep(10);
+		//asm volatile("int $0x7e");
+	}
+}
+
+static void kernel_stress(void *data, uint32 length) {
+	task_t *t;
+	for (int i=0; i < 300; i++) {
+		t = create_task(kernel_test, "kernel_test", (console_t *)data, NULL, 0);
+		sleep(10);
+		//asm volatile("int $0x7e");
+	}
+}
+
 static void flushtlb(void *data, uint32 length) {
 	flush_all_tlb();
 	printk("All TLBs flushed (CR3 reloaded)\n");
@@ -164,16 +192,6 @@ static void flushtlb(void *data, uint32 length) {
 static void paramtest(void *data, uint32 length) {
 	printk("data=0x%08x length=0x%08x\n", data, length);
 }
-
-static void user_test(void *data, uint32 length) {
-	/* A task that runs in user mode */
-	for (int i=0; i < 5; i++) {
-		syscall_puts("User mode puts()!");
-		syscall_puts("\n");
-		syscall_sleep(500);
-	}
-}
-
 
 static void divzero(void *data, uint32 length) {
 	printk("in divzero; dividing now\n");
@@ -430,6 +448,14 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "user_test") == 0) {
 			/* launch a user mode test task */
 			task = create_task_user(&user_test, "user_test", con, NULL, 0);
+		}
+		else if (strcmp(p, "user_stress") == 0) {
+			/* launch a user mode test task */
+			task = create_task(&user_stress, "user_stress", con, con, 0);
+		}
+		else if (strcmp(p, "kernel_stress") == 0) {
+			/* launch a kernel mode test task */
+			task = create_task(&kernel_stress, "kernel_stress", con, con, 0);
 		}
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
