@@ -2,9 +2,11 @@
 #include <kernel/gdt.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* assert */
+#include <kernel/paging.h>
+#include <kernel/kheap.h>
 
 /* Create three kernel-global instances of GDT entries, and a pointer */
-#define NUM_GDT_ENTRIES 6
+#define NUM_GDT_ENTRIES 7
 struct gdt_entry gdt[NUM_GDT_ENTRIES];
 struct gdt_ptr *gp = (struct gdt_ptr *)&gdt[0]; /* store the GDT pointer in the null descriptor */
 
@@ -15,6 +17,7 @@ extern void tss_flush(void);
 static void write_tss(sint32, uint16, uint32);
 
 tss_entry_t tss_entry;
+tss_entry_t tss_double_fault;
 
 /* Set up a GDT descriptor */
 void gdt_set_gate(sint32 num, uint32 base, uint32 limit, uint8 access, uint8 gran) {
@@ -34,6 +37,14 @@ void gdt_set_gate(sint32 num, uint32 base, uint32 limit, uint8 access, uint8 gra
 	gdt[num].access = access;
 }
 
+#include <kernel/console.h>
+void double_fault_handler(void) {
+	panic("Double fault!");
+}
+
+uint8 *stack = NULL;
+extern page_directory_t *kernel_directory;
+
 /*
  * This is the "main" GDT setup function, i.e. the one kmain() should call.
  * It sets up the GDT pointer, the first three entries, and then calls 
@@ -46,7 +57,7 @@ void gdt_install(void) {
 	gdt_set_gate(0, 0, 0, 0, 0);
 
 	/* Set up the GDT pointer - which is now stored in the NULL descriptor */
-	gp->limit = (sizeof(struct gdt_entry)  * 6) - 1;
+	gp->limit = (sizeof(struct gdt_entry)  * NUM_GDT_ENTRIES) - 1;
 	gp->base = (uint32)&gdt;
 
 	/*
@@ -70,9 +81,36 @@ void gdt_install(void) {
 	/* Set up our one TSS */
 	write_tss(5, 0x10, 0);
 
+	// Clear out the space we'll set up soon (AFTER paging), for
+	// the double fault handler.
+	memset(&gdt[6], 0, 8);
+
 	/* Install the new GDT! */
 	gdt_flush();
 	tss_flush();
+}
+
+void init_double_fault_handler(page_directory_t *pagedir) {
+	/* Set up a double fault handler */
+	gdt_set_gate(6, (uint32)&tss_double_fault, sizeof(tss_entry_t), 0xe9, 0xcf);
+	memset(&tss_double_fault, 0, sizeof(tss_entry_t));
+
+	tss_double_fault.eip = (uint32)double_fault_handler;
+	tss_double_fault.cr3 = (uint32)(pagedir->physical_address);
+	tss_double_fault.cs = 0x08;
+	tss_double_fault.ds = 0x10;
+	tss_double_fault.es = 0x10;
+	tss_double_fault.fs = 0x10;
+	tss_double_fault.gs = 0x10;
+	tss_double_fault.ss = 0x10;
+	tss_double_fault.ss0 = 0x10;
+
+	stack = kmalloc_a(4096);
+	tss_double_fault.esp = (uint32)stack + 0x1000;
+	tss_double_fault.esp0 = (uint32)stack + 0x1000;
+	tss_double_fault.eflags = 0x2;
+
+	tss_double_fault.iomap_base = sizeof(tss_entry_t);
 }
 
 static void write_tss(sint32 num, uint16 ss0, uint32 esp0) {

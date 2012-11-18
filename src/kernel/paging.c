@@ -221,6 +221,8 @@ void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
 	invalidate_tlb((void *)virtual_addr);
 }
 
+void init_double_fault_handler(page_directory_t *pagedir_addr);
+
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);
@@ -317,7 +319,11 @@ void init_paging(unsigned long upper_mem) {
 	printk("init_paging() just finished; here's the current heap index\n");
 	print_heap_index();
 #endif
+	init_double_fault_handler(kernel_directory);
 }
+
+extern struct idt_entry idt[256];
+bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir);
 
 /* Loads the page directory at /dir/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
@@ -326,6 +332,7 @@ void switch_page_directory(page_directory_t *dir) {
 	/* bit 3 and 4 (i.e. with values 8 and 16) are used to control write-through and cache, but we don't want either set.
 	 * the rest of the low bits are ignored, according to Intel docs. Still, I prefer them to be 0, just in case. */
 	assert((new_cr3_contents & 0xfff) == 0);
+
 	asm volatile("mov %0, %%cr3;" /* set the page directory register */
 			     "mov %%cr0, %%eax;"
 				 "or $0x80000000, %%eax;" /* PG = 1! */
@@ -337,6 +344,14 @@ void switch_page_directory(page_directory_t *dir) {
 
 bool addr_is_mapped(uint32 addr) {
 	page_t *page = get_page(addr, /*create = */ false, current_directory);
+	if (page == NULL)
+		return false;
+
+	return (page->present == 1 && page->frame != 0);
+}
+
+bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir) {
+	page_t *page = get_page(addr, /*create = */ false, dir);
 	if (page == NULL)
 		return false;
 

@@ -135,7 +135,10 @@ void idt_install(void) {
 	idt_set_gate(5, (uint32)isr5, 0x08, 0x8e);
 	idt_set_gate(6, (uint32)isr6, 0x08, 0x8e);
 	idt_set_gate(7, (uint32)isr7, 0x08, 0x8e);
-	idt_set_gate(8, (uint32)isr8, 0x08, 0x8e);
+
+	/* Double fault handler, set up in gdt.c */
+	idt_set_gate(8, 0, 0x30, 0x85);
+
 	idt_set_gate(9, (uint32)isr9, 0x08, 0x8e);
 	idt_set_gate(10, (uint32)isr10, 0x08, 0x8e);
 	idt_set_gate(11, (uint32)isr11, 0x08, 0x8e);

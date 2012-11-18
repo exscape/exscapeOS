@@ -150,6 +150,17 @@ static void guess_num(void *data, uint32 length) {
 	}
 }
 
+static void test_dfault(void *data, uint32 length) {
+	asm volatile("movl $0xfabcabcd, %esp;"
+	"popl %eax;");
+	//asm volatile("int $8");
+}
+
+static void flushtlb(void *data, uint32 length) {
+	flush_all_tlb();
+	printk("All TLBs flushed (CR3 reloaded)\n");
+}
+
 static void paramtest(void *data, uint32 length) {
 	printk("data=0x%08x length=0x%08x\n", data, length);
 }
@@ -323,11 +334,17 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "permaidle") == 0) {
 			task = create_task(&permaidle, "permaidle", con, NULL, 0);
 		}
+		else if (strcmp(p, "flushtlb") == 0) {
+			task = create_task(&flushtlb, "flushtlb", con, NULL, 0);
+		}
 		else if (strcmp(p, "pagefault") == 0) {
 			task = create_task(&create_pagefault, "create_pagefault", con, NULL, 0);
 		}
 		else if (strcmp(p, "mutex_test") == 0) {
 			task = create_task(&mutex_test, "mutex_test", con, NULL, 0);
+		}
+		else if (strcmp(p, "test_dfault") == 0) {
+			task = create_task(&test_dfault, "test_dfault", con, NULL, 0);
 		}
 		else if (strcmp(p, "spamtest") == 0) {
 			task = create_task(&spamtest, "spamtest", con, NULL, 0);
