@@ -34,11 +34,11 @@ typedef struct page_table {
 
 /* Represents a page directory in memory */
 typedef struct page_directory {
+	/* Physical positions of the page tables */
+	uint32 tables_physical[1024];
+
 	/* An array of pointers to page tables */
 	page_table_t *tables[1024];
-
-	/* Physical positions of the above page tables */
-	uint32 tables_physical[1024];
 
 	/* The physical address *of* the variable tables_physical */
 	uint32 physical_address;
