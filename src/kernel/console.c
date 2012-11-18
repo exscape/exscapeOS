@@ -471,7 +471,11 @@ int putchar(int c) {
 	}
 	else if (c >= 0x20) {
 		// 0x20 is the lowest printable character (space)
-		assert(cursor->y <= 23 && cursor->x <= 79);
+		//assert(cursor->y <= 23 && cursor->x <= 79);
+		if (cursor->y > 23)
+			cursor->y = 23;
+		if (cursor->x > 79)
+			cursor->x = 79;
 		const unsigned int offset = cursor->y*80 + cursor->x;
 		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
 
