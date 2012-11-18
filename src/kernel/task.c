@@ -83,6 +83,9 @@ bool does_task_exist(task_t *task) {
 
 void kill(task_t *task) {
 	assert(task != &kernel_task);
+	assert(task != current_task);
+	assert(task->state == TASK_EXITING);
+
 	task_switching = false;
 
 	if (task->console != NULL) {
@@ -115,11 +118,6 @@ void kill(task_t *task) {
 
 	/* If the task being killed is currently active, force a switch from it.
 	 * The pointer is still valid, even though the memory it's pointing to is not, so we can still use it for a comparison. */
-	if (task == current_task) {
-		/* Force a task switch */
-		asm volatile("int $0x7E");
-		panic("Should not be reached (kill() after forcing a task switch from the killed task)");
-	}
 }
 
 bool kill_pid(int pid) {
@@ -127,8 +125,9 @@ bool kill_pid(int pid) {
 	assert(pid != 1); /* kernel_task has PID 1 */
 
 	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
-		if ( ((task_t *)it->data)->id == pid) {
-			kill((task_t *)it->data);
+		task_t *t = (task_t *)it->data;
+		if (t->id == pid) {
+			t->state = TASK_EXITING;
 			return true;
 		}
 	}
@@ -137,7 +136,10 @@ bool kill_pid(int pid) {
 }
 
 void exit_proc(void) {
-	kill((task_t *)current_task);
+	//kill((task_t *)current_task);
+	current_task->state = TASK_EXITING; // set task to terminate
+	asm volatile("int $0x7e");
+	panic("this should never be reached (in exit_proc after switching tasks)");
 }
 
 void user_exit(void) {
@@ -386,11 +388,11 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	return current_task->esp;
 }
 
-static bool task_not_sleeping_predicate(node_t *node) {
+static bool task_running_predicate(node_t *node) {
 	assert(node != NULL);
 	assert(node->data != NULL);
 	task_t *t = (task_t *)node->data;
-	return (t->state != TASK_SLEEPING && t->state != TASK_IOWAIT);
+	return (t->state == TASK_RUNNING);
 }
 
 void set_next_task(task_t *task) {
@@ -438,8 +440,8 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		new_task = (task_t *)(ready_queue.head->data);
 	}
 	else {
-		/* Find the next task to run (exclude sleeping tasks) */
-		node_t *new_task_node = list_node_find_next_predicate(old_task_node, task_not_sleeping_predicate);
+		/* Find the next task to run (exclude tasks that are sleeping, in IOWAIT, exiting, etc.) */
+		node_t *new_task_node = list_node_find_next_predicate(old_task_node, task_running_predicate);
 
 		if (new_task_node == NULL) {
 			/* all tasks are asleep, possibly except for the current one! */

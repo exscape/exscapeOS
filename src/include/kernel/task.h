@@ -29,7 +29,7 @@ extern task_t kernel_task;
 #define TASK_RUNNING (1 << 0)
 #define TASK_SLEEPING (1 << 1)
 #define TASK_IOWAIT (1 << 2)
-
+#define TASK_EXITING (1 << 3)
 
 void user_exit(void); // called from user mode
 

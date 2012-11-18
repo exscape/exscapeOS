@@ -44,13 +44,20 @@ extern nethandler_t *nethandler_icmp;
 	//}
 //}
 
-void force_switch_task(void *data, uint32 length) {
-	for (;;) {
-		asm volatile("int $0x7e");
+volatile extern list_t ready_queue;
+
+void cleanup_tasks(void *data, uint32 length) {
+	while(true) {
+		for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+			task_t *p = (task_t *)it->data;
+			if (p->state == TASK_EXITING) {
+				kill(p);
+			}
+		}
+		sleep(10);
+		//asm volatile("int $0x7e");
 	}
 }
-
-extern list_t ready_queue;
 
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
@@ -167,7 +174,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	//create_task(idle_task, "idle_task", /*console = */ false, NULL, 0);
 	//printc(BLACK, GREEN, "done\n");
 
-	create_task(force_switch_task, "force_switch_task", false, NULL, 0);
+	create_task(cleanup_tasks, "cleanup_tasks", false, NULL, 0);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");

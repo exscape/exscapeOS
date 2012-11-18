@@ -370,7 +370,7 @@ void kshell(void *data, uint32 length) {
 			while (cur_task_node != NULL) {
 				task_t *cur_task = (task_t *)cur_task_node->data;
 				n++;
-				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, (cur_task->state == TASK_RUNNING ? "RUN" : (cur_task->state == TASK_SLEEPING ? "SLEEP" : (cur_task->state == TASK_IOWAIT ? "IOWAIT" : "UNKN."))), cur_task->name);
+				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, (cur_task->state == TASK_RUNNING ? "RUN" : (cur_task->state == TASK_SLEEPING ? "SLEEP" : (cur_task->state == TASK_IOWAIT ? "IOWAIT" : (cur_task->state == TASK_EXITING ? "EXIT" : "UNKN.")))), cur_task->name);
 /*				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
 						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
 
