@@ -21,7 +21,7 @@ void mutex_destroy(mutex_t *mutex) {
 }
 
 
-#define DISABLE_MUTEXES 0
+#define DISABLE_MUTEXES 0 // for bochs, temporarily
 
 void mutex_lock(mutex_t *mutex) {
 	assert(mutex != NULL);
@@ -45,6 +45,8 @@ void mutex_lock(mutex_t *mutex) {
 				asm volatile("int $0x7e");
 		}
 	}
+#else
+	disable_interrupts();
 #endif
 }
 
@@ -55,6 +57,8 @@ void mutex_unlock(mutex_t *mutex) {
 	assert(mutex->owner == current_task);
 	mutex->mutex = 0;
 	mutex->owner = NULL;
+#else
+	enable_interrupts();
 #endif
 }
 
