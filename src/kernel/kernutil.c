@@ -50,7 +50,7 @@ void panic(const char *str) {
 	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
 	kernel_paniced = true;
 	update_statusbar();
-	asm volatile("0: hlt ; jmp 0b");
+	asm volatile("cli; 0: hlt ; jmp 0b");
 }
 
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
