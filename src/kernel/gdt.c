@@ -39,6 +39,11 @@ void gdt_set_gate(sint32 num, uint32 base, uint32 limit, uint8 access, uint8 gra
 
 #include <kernel/console.h>
 void double_fault_handler(void) {
+	printk("EAX =%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", tss_entry.eax, tss_entry.ebx, tss_entry.ecx, tss_entry.edx);
+	printk("ESI =%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", tss_entry.esi, tss_entry.edi, tss_entry.esp, tss_entry.ebp);
+	printk("CS  =%08x    DS =%08x    EIP=%08x    EFLAGS=%08x\n", tss_entry.cs, tss_entry.ds, tss_entry.eip, tss_entry.eflags);
+	printk("ESP0=%08x\n", tss_entry.esp0);
+
 	panic("Double fault!");
 }
 
