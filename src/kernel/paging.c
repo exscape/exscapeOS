@@ -21,6 +21,8 @@ extern heap_t *kheap;
 
 uint32 mem_end_page = 0;
 
+list_t *pagedirs = NULL;
+
 /* Bitmap macros */
 /* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
  * and the number of bits to shift that dword to find it, respectively. */
@@ -106,7 +108,6 @@ uint32 free_bytes(void) {
 
 	return unused;
 }
-
 
 /**********************************
  **** END BITMAP HANDLING CODE ****
@@ -242,10 +243,14 @@ void init_paging(unsigned long upper_mem) {
 	used_frames = (uint32 *)kmalloc(nframes / 32);
 	memset(used_frames, 0, nframes / 32);
 
+	pagedirs = list_create();
+
 	/* Create a page directory */
 	kernel_directory = (page_directory_t *)kmalloc_a(sizeof(page_directory_t));
 	memset(kernel_directory, 0, sizeof(page_directory_t));
 	kernel_directory->physical_address = (uint32)kernel_directory->tables_physical;
+
+	list_append(pagedirs, kernel_directory); // TODO: should this be the one left out of the list?
 
 	/* Create all the page tables... */
 #if 0
@@ -285,7 +290,7 @@ void init_paging(unsigned long upper_mem) {
 
 	addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		map_phys_to_virt_alloc(addr, addr, false, true);
+		map_phys_to_virt_alloc(addr, addr, false, true); // TODO: use kernel mode here!
 		addr += PAGE_SIZE;
 	}
 
@@ -349,7 +354,6 @@ bool addr_is_mapped(uint32 addr) {
 
 	return (page->present == 1 && page->frame != 0);
 }
-
 bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir) {
 	page_t *page = get_page(addr, /*create = */ false, dir);
 	if (page == NULL)
@@ -358,10 +362,12 @@ bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir) {
 	return (page->present == 1 && page->frame != 0);
 }
 
+extern volatile list_t ready_queue;
+
 /* Returns a pointer to the page entry responsible for the address at /addr/. */
-page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
+page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
 	/* Turn the address into an index. */
-	addr /= PAGE_SIZE;
+	uint32 addr = in_addr / PAGE_SIZE;
 
 	/* Find the page table containing this address */
 	uint32 table_idx = addr / 1024;
@@ -375,6 +381,24 @@ page_t *get_page (uint32 addr, bool create, page_directory_t *dir) {
 		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
 		memset(dir->tables[table_idx], 0, sizeof(page_table_t));
 		dir->tables_physical[table_idx] = phys | 0x07;
+
+		/* Are we creating this for a kernel page, e.g. 0x110000 or 0xc000baba,
+		   or a user mode page, e.g. 0xefff0000? */
+		if (in_addr <= placement_address + PAGE_SIZE || (in_addr >= 0xc0000000 && in_addr < 0xd0000000)) {
+			// This belongs to kernel space, and needs to be in sync across
+			// *ALL* user mode tasks as well
+			disable_interrupts();
+			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
+				page_directory_t *d = (page_directory_t *)it->data;
+				if (d != kernel_directory && d != 0 && d != dir) {
+					d->tables[table_idx] = dir->tables[table_idx];
+					d->tables_physical[table_idx] = phys | 0x07;
+					printk("updated task's page dir (dir 0x%08x); page addr = 0x%08x\n", d, addr * PAGE_SIZE);
+				}
+			}
+			enable_interrupts();
+		}
+
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
 	}
 	else {
@@ -418,6 +442,8 @@ page_directory_t *create_user_page_dir(void) {
 	/* Since we want the kernel mapping to be the same in all address spaces, and the kernel (+ kernel heap, etc.) is
 	 * all that exists in the kernel directory, copy it! */
 	memcpy(dir, kernel_directory, sizeof(page_directory_t));
+
+	list_append(pagedirs, dir);
 
 	enable_interrupts();
 

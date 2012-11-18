@@ -107,6 +107,7 @@ void kill(task_t *task) {
 	}
 
 	/* TODO: destroy user page directory */
+	// Don't forget to also: list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
 
 	/* Delete this task from the queue */
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
@@ -174,9 +175,16 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */, data, length);
 	assert(task != NULL);
 
+	static int count = 0;
+	printk("create_task_user run #%d\n", count + 1);
+	count++;
+
 	assert(task->console == con);
-	if (con != NULL)
-		assert( (task_t *)list_find_last(con->tasks, (void *)task)->data == task );
+	if (con != NULL) {
+		node_t *n = list_find_last(con->tasks, (void *)task);
+		if (n)
+			assert((task_t *)n->data == task);
+	}
 
 	return task;
 }
@@ -198,12 +206,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	/* Zero the stack, so user applications can't peer in to what may have been on the kernel heap */
 	memset((void *)( (uint32)task->stack - KERNEL_STACK_SIZE ), 0, KERNEL_STACK_SIZE);
 
-	if (privilege == 0)
-		task->page_directory = current_directory;
-	else {
-		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
-	}
-
 	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
 
@@ -211,6 +213,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 #define USER_STACK_SIZE 32768 /* overkill? */
 
 	if (task->privilege == 3) {
+		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
+
+		disable_interrupts();
+
 		/* Set up a usermode stack for this task */
 		// void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
 		uint32 addr = USER_STACK_START;
@@ -226,7 +232,14 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		uint32 physical_stack = virtual_to_physical(USER_STACK_START - 4, task->page_directory);
 		map_phys_to_virt(physical_stack & 0xfffff000, 0xb0000000, false, true);
 		*( (uint32 *) (0xb0000000 + (physical_stack & 0xfff) )) = (uint32)&user_exit;
+
+		enable_interrupts();
 	}
+
+	if (privilege == 0) {
+		task->page_directory = current_directory;
+	}
+	/* if == 3, this is done above */
 
 	/* All tasks are running by default */
 	task->state = TASK_RUNNING;
@@ -406,7 +419,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
 	// If next_task is set, use it.
 	// Set by e.g. the network handler to speed things up.
-	// Not very good for security, but that's irrelevant at the moment.
+	// Not very good for security (DDoS etc.), but that's irrelevant at the moment.
 	if (next_task) {
 		task_t *tmp = next_task;
 		next_task = NULL;

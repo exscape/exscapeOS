@@ -33,6 +33,8 @@ uint32 syscall_handler(uint32 esp) {
 	/* Get the function */
 	void *func = syscalls[regs->eax];
 
+	enable_interrupts();
+
 	/* Since we don't know how many arguments the function needs, pass along
 	 * them all, and let it use however many it needs to. */
 	int ret;
