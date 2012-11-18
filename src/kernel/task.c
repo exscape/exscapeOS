@@ -86,7 +86,7 @@ void kill(task_t *task) {
 	assert(task != current_task);
 	assert(task->state == TASK_EXITING);
 
-	task_switching = false;
+	//task_switching = false;
 
 	if (task->console != NULL) {
 		/* Remove this task from the console chain */
@@ -115,7 +115,7 @@ void kill(task_t *task) {
 	kfree((void *)(  (uint32)task->stack - KERNEL_STACK_SIZE ) );
 	kfree(task);
 
-	task_switching = true;
+	//task_switching = true;
 
 	/* If the task being killed is currently active, force a switch from it.
 	 * The pointer is still valid, even though the memory it's pointing to is not, so we can still use it for a comparison. */
@@ -371,8 +371,8 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 		return esp;
 
 	/* this should really be a no-op, since, interrupts should already be disabled from the ISR. */
-	disable_interrupts();
-	task_switching = false;
+	//disable_interrupts();
+	//task_switching = false;
 
 	if (new_task->page_directory != current_task->page_directory)
 		switch_page_directory(new_task->page_directory);
@@ -389,7 +389,7 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	assert(current_task->ss == 0x10 || current_task->ss == 0x23);
 	tss_switch((uint32)current_task->stack, current_task->esp, current_task->ss);
 
-	task_switching = true;
+	//task_switching = true;
 	//enable_interrupts(); // let the ISR do this
 
 	/*
