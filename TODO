@@ -1,13 +1,6 @@
-* TODO: set up a separate double fault handler (see OSDev / Triple_Fault)
-* TODO: implement mutexes and start placing them where needed
-
-1) Multitasking - first part is complete! (Kernel mode only; no separate address spaces)
-2) Consoles - pretty much complete; they are hardly great, but appears to work
-3) ATA driver (PIO only to begin with)
+* TODO: use mutexes in more places
 
 Stuff that need fixing:
 * Add a proper HLT task that doesn't steal useful CPU time or slow down the disk
 
-3) User mode (including system calls)
-4) ELF parsing + executable loading (from the initrd)?
-* Serial port output (for debugging)?
+* ELF parsing + executable loading (from the initrd)?
