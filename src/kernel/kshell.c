@@ -156,6 +156,10 @@ static void test_dfault(void *data, uint32 length) {
 	//asm volatile("int $8");
 }
 
+static void test_stackof(void *data, uint32 length) {
+	asm volatile("0: push %eax; jmp 0b");
+}
+
 static void user_test(void *data, uint32 length) {
 	/* A task that runs in user mode */
 	syscall_puts("User mode puts()!\n");
@@ -363,6 +367,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "test_dfault") == 0) {
 			task = create_task(&test_dfault, "test_dfault", con, NULL, 0);
+		}
+		else if (strcmp(p, "test_stackof") == 0) {
+			task = create_task(&test_stackof, "test_stackof", con, NULL, 0);
 		}
 		else if (strcmp(p, "spamtest") == 0) {
 			task = create_task(&spamtest, "spamtest", con, NULL, 0);
