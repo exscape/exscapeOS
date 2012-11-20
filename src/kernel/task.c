@@ -112,7 +112,9 @@ void kill(task_t *task) {
 	/* Delete this task from the queue */
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
-	kfree((void *)(  (uint32)task->stack - KERNEL_STACK_SIZE ) );
+	get_page((uint32)task->stack - KERNEL_STACK_SIZE - 4096, false, kernel_directory)->present = 1;
+	get_page((uint32)task->stack, false, kernel_directory)->present = 1;
+	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 	kfree(task);
 
 	//task_switching = true;
@@ -201,10 +203,42 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	task->id = next_pid++;
 	task->esp = 0;
 	task->eip = 0;
-	task->stack = (void *)( (uint32)kmalloc_a(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE );
+
+	/*
+	 * Use guard pages around the stack
+	 * This wastes a "lot" of memory (16 kB total, per task of course), to keep the code simple...
+	 * The heap adds a header and a footer around the allocated memory,
+	 * so to get page-aligned storage with guard pages around, we need
+	 * to allocate a bunch of memory extra for those full pages, AND to store
+	 * the heap stuff before and after them.
+	 */
+
+	// tmp: the entire memory area, including guard pages
+	uint32 tmp = (uint32)kmalloc_a(KERNEL_STACK_SIZE + 4*4096);
+	// start_guard: address to the guard page BEFORE the memory (protects against OVERflow)
+	uint32 start_guard = (uint32)(tmp + 4096);
+	task->stack = (void*) (tmp + 2*4096 + KERNEL_STACK_SIZE);
+	// end_guard: address to the guard page AFTER the memory (protects against UNDERflow)
+	uint32 end_guard = (uint32)task->stack;
+
+	assert(tmp + KERNEL_STACK_SIZE + 2*4096 == (uint32)task->stack);
+	assert((uint32)task->stack + 2*4096 == tmp + KERNEL_STACK_SIZE + 4*4096);
 
 	/* Zero the stack, so user applications can't peer in to what may have been on the kernel heap */
-	memset((void *)( (uint32)task->stack - KERNEL_STACK_SIZE ), 0, KERNEL_STACK_SIZE);
+	memset((void *)tmp, 0, KERNEL_STACK_SIZE + 4*4096);
+
+	/* Unmap the guard pages */
+	page_t *start_page = get_page(start_guard, false, kernel_directory);
+	assert(start_page != NULL);
+	start_page->present = 0;
+
+	page_t *end_page = get_page(end_guard, false, kernel_directory);
+	assert(end_page != NULL);
+	end_page->present = 0;
+
+	flush_all_tlb(); // TODO: just until it works!
+	//invalidate_tlb((void *)start_guard);
+	//invalidate_tlb((void *)end_guard);
 
 	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
@@ -224,7 +258,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
 
-		/* allocate a guard page - is this really necessary? */
+		/* allocate a guard page */
 		alloc_frame(addr, task->page_directory, true, false);
 
 		/* Make sure this task exits if it RETs at the end of the stack */
