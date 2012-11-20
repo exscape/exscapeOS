@@ -7,7 +7,6 @@
 
 /* task.c */
 extern bool task_switching;
-volatile bool interrupts_enabled = false;
 
 volatile bool in_isr = false; // True if the code that runs was called from an ISR
 
@@ -16,15 +15,19 @@ void disable_interrupts(void) {
 	outb(0x70, inb(0x70) & 0x7f);
 
 	asm volatile("cli");
-	interrupts_enabled = false;
 }
 
 void enable_interrupts(void) {
 	asm volatile("sti");
-	interrupts_enabled = true;
 
 	/*enable NMI */
 	outb(0x70, inb(0x70) | 0x80);
+}
+
+bool interrupts_enabled(void) {
+	uint8 enabled = 0;
+	asm volatile("pushf; pop %%eax; test $0x200, %%eax; setnzb %[enabled]" : [enabled]"=m"(enabled) : : "cc", "%eax", "memory");
+	return !!enabled;
 }
 
 /* All of these are defined in kernel.s using NASM macros */
@@ -244,12 +247,18 @@ const char *exception_name[] = {
     "Reserved" // 31
 };
 
+static int depth = 0;
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
 	/* Make sure all output goes to the kernel console */
+	registers_t *regs = (registers_t *)esp;
+
+	depth++;
+	uint32 cur_esp;
+	asm volatile("movl %%esp, %[cur_esp]" : [cur_esp]"=m"(cur_esp) : : "cc", "memory");
+	printk("depth now %d (int_no = %u, esp for task = 0x%08x, cur_esp = 0x%08x)\n", depth, regs->int_no, esp, cur_esp);
 	console_task = &kernel_task;
 
-	registers_t *regs = (registers_t *)esp;
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
 	if (regs->int_no != 0x80) {
@@ -274,6 +283,7 @@ uint32 isr_handler(uint32 esp) {
 	/* Return the console to its correct value */
 	console_task = current_task;
 
+	depth--;
 	return esp;
 }
 

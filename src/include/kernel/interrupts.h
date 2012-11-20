@@ -28,8 +28,7 @@ void idt_install(void);
 
 void disable_interrupts(void);
 void enable_interrupts(void);
-
-extern volatile bool interrupts_enabled;
+bool interrupts_enabled(void);
 
 struct idt_entry {
 	uint16 base_lo;
