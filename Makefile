@@ -1,7 +1,8 @@
 #all:
 #	i586-elf-gcc -o kernel.o -c kernel.c -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -ggdb3 -std=gnu99 && i586-elf-ld -T linker.ld -o kernel.bin loader.o kernel.o
 
-CC = clang # i586-elf-gcc should work too
+CC = clang
+#CC = i586-elf-gcc
 LD = i586-elf-ld
 
 AUXFILES := # FIXME: isofiles osv
@@ -21,9 +22,10 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
                 -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
 				-Wuninitialized -Wstrict-prototypes -Wno-unused-function \
-				-Wno-unused-parameter -Wno-cast-align -Wno-self-assign -Werror
+				-Wno-unused-parameter -Wno-cast-align -Werror
 
-CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS)
+CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign
+#CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS)
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
