@@ -266,6 +266,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		uint32 physical_stack = virtual_to_physical(USER_STACK_START - 4, task->page_directory);
 		map_phys_to_virt(physical_stack & 0xfffff000, 0xb0000000, false, true);
 		*( (uint32 *) (0xb0000000 + (physical_stack & 0xfff) )) = (uint32)&user_exit;
+		// Unmap the page again
+		page_t *p = get_page(0xb0000000, false, kernel_directory);
+		p->frame = 0;
+		p->present = 0;
 
 		enable_interrupts();
 	}
