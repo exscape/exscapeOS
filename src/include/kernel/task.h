@@ -33,6 +33,9 @@ extern task_t kernel_task;
 
 void user_exit(void); // called from user mode
 
+#define USER_STACK_START 0xf0000000
+#define USER_STACK_SIZE 16384 /* overkill? */
+
 void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);

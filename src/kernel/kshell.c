@@ -171,21 +171,16 @@ static void kernel_test(void *data, uint32 length) {
 
 static void user_stress(void *data, uint32 length) {
 	// User mode task creation stress test -- the 7th task used to crash
-	//task_t *t;
-	for (int i=0; i < 500; i++) {
-		/*t = */create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
-
-		//sleep(25);
+	for (int i=0; i < 1000; i++) {
+		create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
 		asm volatile("int $0x7e");
 	}
 }
 
 static void kernel_stress(void *data, uint32 length) {
-	task_t *t;
-	for (int i=0; i < 300; i++) {
-		t = create_task(kernel_test, "kernel_test", (console_t *)data, NULL, 0);
-		sleep(10);
-		//asm volatile("int $0x7e");
+	for (int i=0; i < 1000; i++) {
+		create_task(kernel_test, "kernel_test", (console_t *)data, NULL, 0);
+		asm volatile("int $0x7e");
 	}
 }
 

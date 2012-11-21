@@ -208,7 +208,8 @@ void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmod
 
 /* Free a frame */
 void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
-	page_t *page = get_page(virtual_addr, true, page_dir);
+	page_t *page = get_page(virtual_addr, false, page_dir);
+	assert(page != NULL);
 	if (page->frame == 0)
 		return;
 
@@ -455,6 +456,30 @@ page_directory_t *create_user_page_dir(void) {
 	dir->physical_address = new_dir_phys + offset;
 
 	return dir;
+}
+
+void destroy_user_page_dir(page_directory_t *dir) {
+	assert(dir != NULL);
+	assert(dir != kernel_directory);
+
+	uint32 reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	for (int i=0; i < 1024; i++) {
+		page_table_t *table = dir->tables[i];
+		if (table == NULL)
+			continue;
+		else if (table == kernel_directory->tables[i]) {
+			// Kernel space, let it be
+			continue;
+		}
+		else {
+			// User mode table! This should be destroyed.
+			kfree(table);
+		}
+	}
+
+	kfree(dir);
+
+	if (reenable_interrupts) enable_interrupts();
 }
 
 #if 0

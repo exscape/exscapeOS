@@ -85,5 +85,6 @@ uint32 free_bytes(void);
 uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir);
 
 page_directory_t *create_user_page_dir(void);
+void destroy_user_page_dir(page_directory_t *dir);
 
 #endif /* header guard */
