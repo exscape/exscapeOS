@@ -747,6 +747,13 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			placement_address &= 0xfffff000; /* align it to a page boundary */
 			placement_address += PAGE_SIZE;     /* ... the NEXT page boundary */
 		}
+		else if ((placement_address & 3) != 0) {
+			// DWORD align either way
+			placement_address &= ~3;
+			placement_address += 4;
+		}
+
+		assert((placement_address & 3) == 0);
 
 		if (phys != 0) {
 			/* The caller wants to know the physical placement address. */
