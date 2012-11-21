@@ -386,7 +386,7 @@ page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
 		if (in_addr <= placement_address + PAGE_SIZE || (in_addr >= 0xc0000000 && in_addr < 0xd0000000)) {
 			// This belongs to kernel space, and needs to be in sync across
 			// *ALL* user mode tasks as well
-			disable_interrupts();
+			bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
 				page_directory_t *d = (page_directory_t *)it->data;
 				if (d != kernel_directory && d != 0 && d != dir) {
@@ -395,7 +395,7 @@ page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
 					printk("updated task's page dir (dir 0x%08x); page addr = 0x%08x\n", d, addr * PAGE_SIZE);
 				}
 			}
-			enable_interrupts();
+			if (reenable_interrupts) enable_interrupts();
 		}
 
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */

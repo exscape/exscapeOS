@@ -52,12 +52,14 @@ void send_arp_reply(const uint8 *packet) {
 
 void arp_cache_add(uint8 *ip, uint8 *mac) {
 	// Is this IP in the ARP cache?
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
 		arpentry_t *entry = (arpentry_t *)it->data;
 		if (memcmp(entry->ip, ip, 4) == 0) {
 			// Yes - update this entry
 			memcpy(entry->mac, mac, 6);
 			entry->timestamp = gettickcount();
+			if (reenable_interrupts) enable_interrupts();
 			return;
 		}
 	}
@@ -69,6 +71,7 @@ void arp_cache_add(uint8 *ip, uint8 *mac) {
 	entry->timestamp = gettickcount();
 
 	list_append(arp_cache, entry);
+	if (reenable_interrupts) enable_interrupts();
 }
 
 void arp_handle_packet(void *data, uint32 length) {
@@ -124,6 +127,7 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 	// Loop through the ARP cache list
 	// Perhaps not the best-suited data structure, but it works,
 	// and with few hosts it's certainly fast enough.
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
 		arpentry_t *entry = (arpentry_t *)it->data;
 		if (memcmp(entry->ip, ip, 4) == 0) {
@@ -132,15 +136,18 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 				// This entry is too old! Let's dump it. Sorry, requester, you're out of luck.
 				list_remove(arp_cache, it);
 				kfree(entry);
+				if (reenable_interrupts) enable_interrupts();
 				return false;
 			}
 
 			// Looks like it's fresh enough, let's return it.
 			memcpy(mac_buffer, entry->mac, 6);
+			if (reenable_interrupts) enable_interrupts();
 			return true;
 		}
 	}
 
+	if (reenable_interrupts) enable_interrupts();
 	return false;
 }
 

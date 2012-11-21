@@ -127,14 +127,17 @@ bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
 	assert(pid != 1); /* kernel_task has PID 1 */
 
+	bool reenable_interrupts = interrupts_enabled();
 	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
 		task_t *t = (task_t *)it->data;
 		if (t->id == pid) {
 			t->state = TASK_EXITING;
+			if (reenable_interrupts) enable_interrupts();
 			return true;
 		}
 	}
 
+	if (reenable_interrupts) enable_interrupts();
 	return false;
 }
 
@@ -273,11 +276,11 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		enable_interrupts();
 	}
-
-	if (privilege == 0) {
+	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
 	}
-	/* if == 3, this is done above */
+	else
+		panic("Task privilege isn't 0 or 3!");
 
 	/* All tasks are running by default */
 	task->state = TASK_RUNNING;
@@ -404,7 +407,6 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 		panic("switch_task with no current_task or task_switching disabled");
 		// return 0;
 	}
-
 	if (new_task == current_task)
 		return esp;
 
@@ -452,6 +454,7 @@ void set_next_task(task_t *task) {
 
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
 uint32 scheduler_taskSwitch(uint32 esp) {
+	assert(interrupts_enabled() == false);
 	if (task_switching == false || (current_task == &kernel_task && ready_queue.count == 1))
 		return esp;
 

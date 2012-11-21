@@ -2,7 +2,7 @@
 #include <kernel/kernutil.h>
 #include <kernel/paging.h>
 #include <kernel/console.h> /* for print_heap_index() */
-#include <kernel/mutex.h>
+#include <kernel/interrupts.h>
 #include <stdio.h> /* sprintf */
 #include <string.h> /* memset */
 
@@ -492,14 +492,14 @@ void heap_free(void *p, heap_t *heap) {
 	if (p == NULL)
 		return;
 
-	mutex_lock(heap->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	/* Don't try to free memory that is clearly not from the heap.
 	 * Note that max_address is NOT the current highest address (as determined by heap size),
 	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
 	 */
 	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address ) {
-		mutex_unlock(heap->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return;
 	}
 
@@ -645,15 +645,14 @@ void heap_free(void *p, heap_t *heap) {
 		/* Since the header address hasn't changed, we don't need to modify the index. We're done! */
 	}
 
-	mutex_unlock(heap->mutex);
+	if (reenable_interrupts) enable_interrupts();
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
 	heap_t *heap = (heap_t *)kmalloc_a(sizeof(heap_t));
 	assert (heap != NULL);
 
-	heap->mutex = mutex_create();
-	mutex_lock(heap->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	/* Start and end addresses need to be page aligned; the end address is calculated and checked below */
 	assert(IS_PAGE_ALIGNED(start_address));
@@ -702,7 +701,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	/* Keep track of the rightmost area - since this is the ONLY area, it's also the rightmost area! */
 	heap->rightmost_area = header_to_create;
 
-	mutex_unlock(heap->mutex);
+	if (reenable_interrupts) enable_interrupts();
 
 	return heap;
 }
@@ -719,7 +718,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			panic("heap kmalloc called from ISR!");
 		}
 
-		mutex_lock(kheap->mutex);
+		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 		void *addr = heap_alloc(size, align, kheap);
 
@@ -728,7 +727,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			*phys = (page->frame * PAGE_SIZE) + ((uint32)addr & 0xfff);
 		}
 
-		mutex_unlock(kheap->mutex);
+		if (reenable_interrupts) enable_interrupts();
 
 		if (align)
 			assert(IS_PAGE_ALIGNED(addr));
@@ -738,9 +737,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	else {
 		/* kheap == NULL, i.e. we haven't created the kernel heap yet */
 
-		// This only happens early on; use cli instead of mutex. TODO
-		if (!in_isr)
-			disable_interrupts();
+		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 		if (align == true && !IS_PAGE_ALIGNED(placement_address)) {
 			/* The page isn't page aligned; align it */
@@ -769,8 +766,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		if (align)
 			assert(IS_PAGE_ALIGNED(ret));
 
-		if (!in_isr)
-			enable_interrupts();
+		if (reenable_interrupts) enable_interrupts();
 
 		return (void *)ret;
 	}

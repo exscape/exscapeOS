@@ -48,12 +48,14 @@ volatile extern list_t ready_queue;
 
 void cleanup_tasks(void *data, uint32 length) {
 	while(true) {
+		disable_interrupts();
 		for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
 			task_t *p = (task_t *)it->data;
 			if (p->state == TASK_EXITING) {
 				kill(p);
 			}
 		}
+		enable_interrupts();
 		sleep(10);
 		//asm volatile("int $0x7e");
 	}

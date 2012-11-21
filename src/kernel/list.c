@@ -8,8 +8,8 @@
 #include <types.h>
 #include <kernel/kernutil.h>
 #include <kernel/kheap.h>
-#include <kernel/mutex.h>
 #include <kernel/list.h>
+#include <kernel/interrupts.h>
 
 #define LIST_DEBUG 1
 
@@ -47,9 +47,9 @@ static void list_validate(list_t *list) {
 uint32 list_size(list_t *list) {
 	assert(list != NULL);
 #if LIST_DEBUG > 0
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	list_validate(list);
-	mutex_unlock(list->mutex);
+	if (reenable_interrupts) enable_interrupts();
 #endif
 
 	return list->count;
@@ -58,7 +58,7 @@ uint32 list_size(list_t *list) {
 node_t *list_prepend(list_t *list, void *data) {
 	assert(list != NULL);
 
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	if (list->head != NULL) {
 		/* The list has at least one element */
@@ -85,7 +85,7 @@ node_t *list_prepend(list_t *list, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 	else {
@@ -110,14 +110,13 @@ node_t *list_prepend(list_t *list, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 }
 
 list_t *list_create(void) {
 	list_t *new = kmalloc(sizeof(list_t));
-	new->mutex = mutex_create();
 
 	new->head = NULL;
 	new->tail = NULL;
@@ -132,7 +131,7 @@ list_t *list_create(void) {
 
 node_t *list_append(list_t *list, void *data) {
 	assert(list != NULL);
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	if (list->tail != NULL) {
 		node_t *new = kmalloc(sizeof(node_t));
@@ -155,7 +154,7 @@ node_t *list_append(list_t *list, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 	else {
@@ -183,7 +182,7 @@ node_t *list_append(list_t *list, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 }
@@ -192,14 +191,14 @@ node_t *list_append(list_t *list, void *data) {
 node_t *list_node_insert_before(node_t *node, void *data) {
 	assert(node != NULL);
 	assert(node->list != NULL);
-	mutex_lock(node->list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	list_t *list = node->list;
 
 	if (node->prev == NULL) {
 		/* This node in the head of the list, and we want to insert a new node *before* it -
 		 * which means we want the new node to be the new head. Easy! */
 		assert(list->head == node);
-		mutex_unlock(list->mutex); // TODO: ugh!
+		if (reenable_interrupts) enable_interrupts(); // TODO: ugh!
 		return list_prepend(list, data);
 	}
 	else {
@@ -228,7 +227,7 @@ node_t *list_node_insert_before(node_t *node, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 }
@@ -237,13 +236,13 @@ node_t *list_node_insert_before(node_t *node, void *data) {
 node_t *list_node_insert_after(node_t *node, void *data) {
 	assert(node != NULL);
 	assert(node->list != NULL);
-	mutex_lock(node->list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	list_t *list = node->list;
 
 	if (node->next == NULL) {
 		/* This node in the tail of the list, and we want to insert a new node *after* it - that's easy! */
 		assert(list->tail == node);
-		mutex_unlock(list->mutex); // TODO: ugh!
+		if (reenable_interrupts) enable_interrupts(); // TODO: ugh!
 		return list_append(list, data);
 	}
 	else {
@@ -272,7 +271,7 @@ node_t *list_node_insert_after(node_t *node, void *data) {
 		list_validate(list);
 #endif
 
-		mutex_unlock(list->mutex);
+		if (reenable_interrupts) enable_interrupts();
 		return new;
 	}
 }
@@ -280,7 +279,7 @@ node_t *list_node_insert_after(node_t *node, void *data) {
 void list_remove(list_t *list, node_t *elem) {
 	/* Find /elem/ and remove it from the list */
 	assert(list != NULL);
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	assert(elem != NULL);
 	assert(elem->list == list);
 
@@ -305,14 +304,14 @@ void list_remove(list_t *list, node_t *elem) {
 
 	kfree(elem);
 
-	mutex_unlock(list->mutex);
+	if (reenable_interrupts) enable_interrupts();
 }
 
 /* Destroys an entire list, and frees all elements */
 void list_destroy(list_t *list) {
 	assert(list != NULL);
 
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 #if LIST_DEBUG > 0
 		list_validate(list);
@@ -330,16 +329,14 @@ void list_destroy(list_t *list) {
 	list->tail = NULL;
 	list->count = 0;
 
-	mutex_unlock(list->mutex);
-	mutex_destroy(list->mutex);
-
 	kfree(list);
+	if (reenable_interrupts) enable_interrupts();
 }
 
 node_t *list_find_first(list_t *list, void *data) {
 	/* Finds the first node where node->data == data, and returns it. */
 	assert(list != NULL);
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	assert(list->head != NULL);
 
 #if LIST_DEBUG > 0
@@ -348,19 +345,19 @@ node_t *list_find_first(list_t *list, void *data) {
 
 	for (node_t *it = list->head; it != NULL; it = it->next) {
 		if (it->data == data) {
-			mutex_unlock(list->mutex);
+			if (reenable_interrupts) enable_interrupts();
 			return it;
 		}
 	}
 
-	mutex_unlock(list->mutex);
+	if (reenable_interrupts) enable_interrupts();
 	return NULL;
 }
 
 node_t *list_find_last(list_t *list, void *data) {
 	/* Finds the last node where node->data == data, and returns it. */
 	assert(list != NULL);
-	mutex_lock(list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	assert(list->tail != NULL);
 
 #if LIST_DEBUG > 0
@@ -369,23 +366,23 @@ node_t *list_find_last(list_t *list, void *data) {
 
 	for (node_t *it = list->tail; it != NULL; it = it->prev) {
 		if (it->data == data) {
-			mutex_unlock(list->mutex);
+			if (reenable_interrupts) enable_interrupts();
 			return it;
 		}
 	}
 
-	mutex_unlock(list->mutex);
+	if (reenable_interrupts) enable_interrupts();
 	return NULL;
 }
 
 node_t *list_node_find_next_predicate(node_t *node, bool (*predicate_func)(node_t *) ) {
 	assert(node != NULL);
-	mutex_lock(node->list->mutex);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 	assert(predicate_func != NULL);
 	/* Look through the remainer of the list first */
 	for (node_t *it = node->next; it != NULL; it = it->next) {
 		if (predicate_func(it)) {
-			mutex_unlock(node->list->mutex);
+			if (reenable_interrupts) enable_interrupts();
 			return it;
 		}
 	}
@@ -396,13 +393,13 @@ node_t *list_node_find_next_predicate(node_t *node, bool (*predicate_func)(node_
 	for (node_t *it = node->list->head; it != node; it = it->next) {
 		if (predicate_func(it)) {
 			assert(it != node); /* TODO: remove this check after debugging */
-			mutex_unlock(node->list->mutex);
+			if (reenable_interrupts) enable_interrupts();
 			return it;
 		}
 	}
 
 	/* We didn't find anything! */
-	mutex_unlock(node->list->mutex);
+	if (reenable_interrupts) enable_interrupts();
 	return NULL;
 }
 
