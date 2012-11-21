@@ -239,9 +239,8 @@ void init_paging(unsigned long upper_mem) {
 	nframes = mem_end_page / PAGE_SIZE;
 
 	/* allocate and initialize the bitmap */
-	// TODO: can nframes % 32 != 0, causing the allocation to be off-by-one?
-	used_frames = (uint32 *)kmalloc(nframes / 32);
-	memset(used_frames, 0, nframes / 32);
+	used_frames = (uint32 *)kmalloc((nframes / 32 + 1) * sizeof(uint32));
+	memset(used_frames, 0, (nframes / 32 + 1) * sizeof(uint32));
 
 	pagedirs = list_create();
 
