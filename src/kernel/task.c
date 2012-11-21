@@ -81,6 +81,8 @@ bool does_task_exist(task_t *task) {
 	return (list_find_first((list_t *)&ready_queue, (void *)task) != NULL);
 }
 
+extern list_t *pagedirs;
+
 void kill(task_t *task) {
 	assert(task != &kernel_task);
 	assert(task != current_task);
@@ -106,8 +108,18 @@ void kill(task_t *task) {
 		//console_destroy(task->console);
 	}
 
-	/* TODO: destroy user page directory */
-	// Don't forget to also: list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
+	if (task->privilege == 3) {
+		// Unallocate this task's user space stack
+		uint32 addr = USER_STACK_START;
+		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
+			free_frame(addr, task->page_directory);
+		}
+		// Free the guard page "before" (at a lower address), too
+		free_frame(addr, task->page_directory);
+
+		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
+		destroy_user_page_dir(task->page_directory);
+	}
 
 	/* Delete this task from the queue */
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
@@ -242,15 +254,11 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	assert(end_page != NULL);
 	end_page->present = 0;
 
-	flush_all_tlb(); // TODO: just until it works!
-	//invalidate_tlb((void *)start_guard);
-	//invalidate_tlb((void *)end_guard);
+	invalidate_tlb((void *)start_guard);
+	invalidate_tlb((void *)end_guard);
 
 	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
-
-#define USER_STACK_START 0xf0000000
-#define USER_STACK_SIZE 32768 /* overkill? */
 
 	if (task->privilege == 3) {
 		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
