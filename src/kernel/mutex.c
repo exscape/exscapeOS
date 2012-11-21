@@ -20,13 +20,15 @@ void mutex_destroy(mutex_t *mutex) {
 	kfree(mutex);
 }
 
-
 #define DISABLE_MUTEXES 0
 
 void mutex_lock(mutex_t *mutex) {
 	assert(mutex != NULL);
 #if (!DISABLE_MUTEXES)
 	uint8 success = 0;
+
+	if (in_isr)
+		panic("mutex_lock() while in ISR!");
 
 	while (success == 0) {
 		asm volatile("LOCK BTSL $0, %[mutex];"
@@ -36,11 +38,11 @@ void mutex_lock(mutex_t *mutex) {
 					  [success]"=m"(success)
 					  : : "cc", "memory");
 
-
 		if (success) {
 			mutex->owner = (task_t *)current_task;
 		}
 		else {
+			//sleep(10);
 			if (task_switching)
 				asm volatile("int $0x7e");
 		}
@@ -51,6 +53,8 @@ void mutex_lock(mutex_t *mutex) {
 void mutex_unlock(mutex_t *mutex) {
 	assert(mutex != NULL);
 #if (!DISABLE_MUTEXES)
+	if (in_isr)
+		panic("mutex_unlock() while in ISR!");
 	assert(mutex->mutex != 0); // mutex is locked
 	assert(mutex->owner == current_task);
 	mutex->mutex = 0;
