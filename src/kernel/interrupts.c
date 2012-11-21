@@ -247,16 +247,11 @@ const char *exception_name[] = {
     "Reserved" // 31
 };
 
-static int depth = 0;
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
 	/* Make sure all output goes to the kernel console */
 	registers_t *regs = (registers_t *)esp;
 
-	depth++;
-	uint32 cur_esp;
-	asm volatile("movl %%esp, %[cur_esp]" : [cur_esp]"=m"(cur_esp) : : "cc", "memory");
-	printk("depth now %d (int_no = %u, esp for task = 0x%08x, cur_esp = 0x%08x)\n", depth, regs->int_no, esp, cur_esp);
 	console_task = &kernel_task;
 
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
@@ -283,7 +278,6 @@ uint32 isr_handler(uint32 esp) {
 	/* Return the console to its correct value */
 	console_task = current_task;
 
-	depth--;
 	return esp;
 }
 
