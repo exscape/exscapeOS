@@ -520,6 +520,10 @@ void heaptest(void *data, uint32 length) {
 	void *b = kmalloc(8);
 	void *c = kmalloc(8);
 
+	assert(IS_DWORD_ALIGNED(a));
+	assert(IS_DWORD_ALIGNED(b));
+	assert(IS_DWORD_ALIGNED(c));
+
 	memset(a, 0xab, 6);
 	memcpy(b, a, 6);
 
@@ -542,11 +546,13 @@ void heaptest(void *data, uint32 length) {
 
 	printk("Testing page alignment...");
 
-	void *initial = kmalloc(16); /* to make sure the alignments aren't aligned by chance */
+	void *initial = kmalloc(15); /* to make sure the allocations aren't aligned by chance */
+	assert(IS_DWORD_ALIGNED(initial));
 	printk("Initial: %p\n", initial);
 	print_heap_index();
-	void *unaligned = kmalloc(16);
+	void *unaligned = kmalloc(14);
 	printk("Unaligned: %p\n", unaligned);
+	assert(IS_DWORD_ALIGNED(unaligned));
 	print_heap_index();
 	void *aligned = kmalloc_a(16);
 	assert(IS_PAGE_ALIGNED(aligned));
@@ -593,6 +599,7 @@ void heaptest(void *data, uint32 length) {
 	for (uint32 i = 0; i < NUM; i++) {
 		uint32 sz = RAND_RANGE(4, 65535);
 		p[i] = kmalloc(sz);
+		assert(IS_DWORD_ALIGNED(p[i]));
 		if (p[i] > max_alloc) max_alloc = p[i];
 		total += sz;
 		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, sz, p[i]);
@@ -665,10 +672,14 @@ void heaptest(void *data, uint32 length) {
 
 			uint8 align = RAND_RANGE(1, 10); /* align ~1/10 allocs */
 			//printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
-			if (align == 1)
+			if (align == 1) {
 				p[r2] = kmalloc_a(r3);
-			else
+				assert(IS_PAGE_ALIGNED(p[r2]));
+			}
+			else {
 				p[r2] = kmalloc(r3);
+				assert(IS_DWORD_ALIGNED(p[r2]));
+			}
 			//printk(" at 0x%p\n", p[r2]);
 
 			/* store the alloc size */

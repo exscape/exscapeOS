@@ -316,6 +316,13 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
 
+	// Add 3 bytes to ensure that DWORD-alignment always fits.
+	// (It's either aligned, which means 0 bytes extra are needed,
+	//  off by one -> 3 bytes needed, off by two -> 2 bytes needed, etc.
+	//  4 bytes extra are never needed.)
+	if (!page_align)
+		size += 3;
+
 	area_header_t *area = find_smallest_hole(size, page_align, heap);
 
 	if (area == NULL) {
@@ -336,27 +343,8 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 
 		/* First, let's check the rightmost area... */
 		area_header_t *rightmost_area = heap->rightmost_area;
-		/*
-		 * This is old code, which is obviously much slower than the new code above. Both were used,
-		 * with an assert(), to make sure the pointer was always up-to-date.
-		 * I'll leave this here (commented out) for a while, just in case I want to make sure again. 
-		area_header_t *rightmost_area = NULL;
-		for (int i = 0; i < heap->free_index.size; i++) {
-			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->free_index);
-			if (test_area > rightmost_area) {
-				rightmost_area = test_area;
-			}
-		}
-		for (int i = 0; i < heap->used_index.size; i++) {
-			area_header_t *test_area = (area_header_t *)lookup_ordered_array(i, &heap->used_index);
-			if (test_area > rightmost_area) {
-				rightmost_area = test_area;
-			}
-		}
-		*/
 
-		/* rightmost_area now points to the rightmost area (free or not!) - or NULL. */
-
+		/* rightmost_area now points to the rightmost area (free or not!) */
 		if (rightmost_area != NULL && rightmost_area->type == AREA_FREE) {
 			/* Add the space to this area */
 			area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
@@ -380,8 +368,10 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 				panic("No areas whatsoever in the heap! This is a bug and should never happen.");
 			}
 
+			assert(rightmost_area->type == AREA_USED);
+
 			/* Now that the edge-case (which should never happen) is gone, we have a valid header in rightmost_header. */
-			/* We need to add a new header to it's right. */
+			/* We need to add a new header to its right. */
 
 			area_header_t *new_header = (area_header_t *)( (uint32)rightmost_area + rightmost_area->size );
 			create_area((uint32)new_header, new_heap_size - old_heap_size, AREA_FREE, heap);
@@ -484,7 +474,16 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Add this area to the used_index */
 	insert_ordered_array((void *)area, &kheap->used_index);
 
-	return (void *)( (uint32)area + sizeof(area_header_t) );
+	uint32 ret = (uint32)area + sizeof(area_header_t);
+
+	// DWORD align the return value.
+	// We've added space (just in the beginning of heap_alloc) to ensure that this always fits.
+	if ((ret & 3UL) != 0) {
+		ret &= ~3UL;
+		ret += 4;
+	}
+
+	return (void *)ret;
 }
 
 void heap_free(void *p, heap_t *heap) {
@@ -505,6 +504,14 @@ void heap_free(void *p, heap_t *heap) {
 
 	/* Calculate the header and footer locations */
 	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
+	/* "p" might not be exactly sizeof(area_header_t) bytes ahead of the header,
+	   if it was DWORD-aligned upon creation. Handle that case. */
+	int count = 0;
+	while (header->magic != HEAP_MAGIC && count < 4) {
+		header = (area_header_t *)( (uint32)header - 1);
+	}
+	if (header->magic != HEAP_MAGIC)
+		panic("Can't find area header - corrupt heap!");
 	area_footer_t *footer = FOOTER_FROM_HEADER(header);
 
 	/* Sanity checks */

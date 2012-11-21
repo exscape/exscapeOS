@@ -7,6 +7,7 @@
  ************************/
 
 #define IS_PAGE_ALIGNED(x) ((  ((uint32)(x)) & 0x00000fff) == 0)
+#define IS_DWORD_ALIGNED(x) (( ((uint32)(x)) & 3) == 0)
 
 #define HEAP_MAGIC 0xabcdef12
 
@@ -17,9 +18,9 @@
 
 /* Describes an area header; placed before every block (free or used) */
 typedef struct {
-	uint32 magic;
 	uint32 size; /* includes the header and footer! */
 	uint8 type; /* == AREA_USED (0) || AREA_FREE (1) */
+	uint32 magic;
 } area_header_t;
 
 /* Describes an area footer; placed after every block (free or used) */
