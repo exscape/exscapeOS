@@ -170,8 +170,11 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 	assert(task != NULL);
 
 	assert(task->console == con);
-	if (con != NULL)
-		assert( (task_t *)list_find_last(con->tasks, (void *)task)->data == task );
+	if (con != NULL) {
+		node_t *n = list_find_last(con->tasks, (void *)task);
+		if (n)
+			assert((task_t *)n->data == task);
+	}
 
 	return task;
 }
