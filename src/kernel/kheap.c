@@ -52,6 +52,9 @@ uint32 kheap_used_bytes(void) {
 
 void validate_heap_index(bool print_areas) {
 	/* Since there are two indexes, we need to loop through them both! */
+
+	uint32 restore_interrupts = interrupts_enabled(); disable_interrupts();
+
 	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };
 	uint32 total_index = 0;
 	for (uint32 index_num=0; index_num < 2; index_num++) {
@@ -87,6 +90,8 @@ void validate_heap_index(bool print_areas) {
 			assert(found_footer->header == found_header);
 		}
 	}
+
+	if (restore_interrupts) enable_interrupts();
 }
 
 void print_heap_index(void) {
