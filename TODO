@@ -1,8 +1,3 @@
 * TODO: use mutexes in more places
 
-Stuff that need fixing:
-* Add a proper HLT task that doesn't steal useful CPU time or slow down the disk
-
 * ELF parsing + executable loading (from the initrd)?
-
-* Fix user mode consoles!

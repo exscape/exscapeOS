@@ -252,7 +252,9 @@ uint32 isr_handler(uint32 esp) {
 	/* Make sure all output goes to the kernel console */
 	registers_t *regs = (registers_t *)esp;
 
-	console_task = &kernel_task;
+	/* Send all output to the kernel console, unless this is a syscall */
+	if (regs->int_no != 0x80)
+		console_task = &kernel_task;
 
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
@@ -276,7 +278,8 @@ uint32 isr_handler(uint32 esp) {
 	}
 
 	/* Return the console to its correct value */
-	console_task = current_task;
+	if (regs->int_no != 0x80)
+		console_task = current_task;
 
 	return esp;
 }
