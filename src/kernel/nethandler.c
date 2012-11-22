@@ -85,7 +85,8 @@ void nethandler_task(void *data, uint32 length) {
 
 			if (buffer == NULL) {
 				// Nothing to do; switch to some other task, that can actually do something
-				asm volatile("int $0x7e");
+				sleep(10);
+				//asm volatile("int $0x7e");
 			}
 		}
 

@@ -170,11 +170,13 @@ static void kernel_test(void *data, uint32 length) {
 }
 
 static void user_stress(void *data, uint32 length) {
-	// User mode task creation stress test -- the 7th task used to crash
-	for (int i=0; i < 1000; i++) {
-		create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
-		asm volatile("int $0x7e");
-	}
+    // User mode task creation stress test -- the 7th task used to crash
+    uint32 start = gettickcount();
+    for (int i=0; i < 2500; i++) {
+        create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
+        asm volatile("int $0x7e");
+    }
+    printk("ran for %u ticks\n", gettickcount() - start);
 }
 
 static void kernel_stress(void *data, uint32 length) {
@@ -250,9 +252,9 @@ void kshell(void *data, uint32 length) {
 
 	task_t *task = NULL;
 
-	/* Make sure the current code spawns a new task for the kernel shell; otherwise, sleep() won't work. */
+	/* Make sure the current code spawns a new task for the kernel shell */
 	assert(current_task != &kernel_task);
-	assert(strlen((char *)current_task->name) >= 6 && strncmp((char *)current_task->name, "kshell", 6) == 0);
+	assert(strlen((char *)current_task->name) >= 8 && strncmp((char *)current_task->name, "[kshell]", 8) == 0);
 
 	while (true) {
 
@@ -514,6 +516,8 @@ void heaptest(void *data, uint32 length) {
 #define TEST_1_LOOPS 1
 #define TEST_2_LOOPS 50
 
+	uint32 start_time = gettickcount();
+
 	print_heap_index();
 
 	void *a = kmalloc(8);
@@ -731,6 +735,7 @@ printk("\n");
 //print_heap_index();
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
 	printk("Total allocated: (approx.) %u kiB (%u MiB)\n", kbytes_allocated, kbytes_allocated >> 10);
+	printk("heaptest took %u ticks\n", gettickcount() - start_time);
 
 #if 0
 	printk("Benchmarking...\n");

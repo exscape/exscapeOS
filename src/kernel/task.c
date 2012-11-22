@@ -33,6 +33,7 @@ extern void alloc_frame_to_page(page_t *, bool, bool);
 volatile bool task_switching = false;
 
 task_t *next_task = NULL;
+task_t *idle_task = NULL;
 
 /* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
 #define KERNEL_STACK_SIZE 8192
@@ -164,12 +165,21 @@ void user_exit(void) {
 	syscall_exit_proc();
 }
 
+void idle_task_func(void *data, uint32 length) {
+	while (true) {
+		asm volatile("hlt");
+	}
+}
+
 void init_tasking(uint32 kerntask_esp0) {
 	disable_interrupts();
 
 	kernel_task.page_directory = kernel_directory;
 	kernel_task.stack = (void *)kerntask_esp0;
-	strlcpy(kernel_task.name, "kernel_task", TASK_NAME_LEN);
+	strlcpy(kernel_task.name, "[kernel_task]", TASK_NAME_LEN);
+
+	idle_task = create_task(&idle_task_func, "[idle_task]", NULL, NULL, 0);
+	idle_task->state = TASK_IDLE; /* TODO(?): should really be ->priority, but there is no such thing yet */
 
 	task_switching = true;
 	enable_interrupts();
@@ -515,7 +525,8 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 				return (esp);
 			}
 			else {
-				panic("No running tasks found! TODO: run a HLT task here");
+				// There is NOTHING to run. Let's run the HLT task.
+				return switch_task(idle_task, esp);
 			}
 		}
 
@@ -559,7 +570,7 @@ void sleep(uint32 milliseconds) {
 	assert(current_task->state != TASK_SLEEPING);
 	assert(current_task->state != TASK_IOWAIT);
 	assert(current_task->wakeup_time == 0);
-	assert(current_task != &kernel_task);
+	//assert(current_task != &kernel_task);
 
 	/* Mark the task as sleeping */
 	current_task->state = TASK_SLEEPING;

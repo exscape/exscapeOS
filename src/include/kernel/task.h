@@ -30,6 +30,7 @@ extern task_t kernel_task;
 #define TASK_SLEEPING (1 << 1)
 #define TASK_IOWAIT (1 << 2)
 #define TASK_EXITING (1 << 3)
+#define TASK_IDLE (1 << 4) // used for the idle_task process
 
 void user_exit(void); // called from user mode
 
