@@ -28,6 +28,7 @@ extern task_t kernel_task;
 
 #define TASK_RUNNING (1 << 0)
 #define TASK_SLEEPING (1 << 1)
+#define TASK_WAKING_UP (TASK_RUNNING | TASK_SLEEPING) // was sleeping, has not yet been scheduled since then
 #define TASK_IOWAIT (1 << 2)
 #define TASK_EXITING (1 << 3)
 #define TASK_IDLE (1 << 4) // used for the idle_task process

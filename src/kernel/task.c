@@ -431,6 +431,9 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	if (new_task == current_task)
 		return esp;
 
+	if (new_task->state == TASK_WAKING_UP)
+		new_task->state = TASK_RUNNING;
+
 	/* this should really be a no-op, since, interrupts should already be disabled from the ISR. */
 	//disable_interrupts();
 	//task_switching = false;
@@ -466,7 +469,7 @@ static bool task_running_predicate(node_t *node) {
 	assert(node != NULL);
 	assert(node->data != NULL);
 	task_t *t = (task_t *)node->data;
-	return (t->state == TASK_RUNNING);
+	return (t->state & TASK_RUNNING);
 }
 
 void set_next_task(task_t *task) {
@@ -498,7 +501,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		if (p->state == TASK_SLEEPING && p->wakeup_time <= ticks) {
 			/* Wake this task! */
 			p->wakeup_time = 0;
-			p->state = TASK_RUNNING;
+			p->state = TASK_WAKING_UP;
 			//return switch_task(p, esp); // It turns out that this will cause some tasks to never run...
 		}
 	}
@@ -520,7 +523,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
 		if (new_task_node == NULL) {
 			/* all tasks are asleep, possibly except for the current one! */
-			if ( ((task_t *)old_task_node->data)->state == TASK_RUNNING) {
+			if ( ((task_t *)old_task_node->data)->state & TASK_RUNNING) {
 				/* only the current process is not sleeping; let's not switch, then! */
 				return (esp);
 			}
@@ -544,7 +547,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 
 	/* Looks like we found a running task to switch to! Let's do so. */
 
-	assert(new_task->state == TASK_RUNNING);
+	assert(new_task->state & TASK_RUNNING);
 
     return switch_task(new_task, esp);
 }
