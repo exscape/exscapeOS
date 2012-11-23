@@ -15,6 +15,13 @@ sint32 nroot_nodes;                 /* number of entries in the above array */
 /* TODO: is this really a good idea? */
 struct dirent dirent;
 
+// Returns the file size
+static uint32 initrd_fsize(fs_node_t *node) {
+	assert(node->inode >= 1);
+	initrd_file_header_t header = file_headers[node->inode - 1];
+	return header.length;
+}
+
 /* The read function used by our initrd filesystem */
 static uint32 initrd_read(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {
 	assert(node->inode >= 1);
@@ -94,6 +101,7 @@ fs_node_t *init_initrd(uint32 location) {
 	initrd_dev->flags = FS_DIRECTORY;
 	initrd_dev->readdir = &initrd_readdir;
 	initrd_dev->finddir = &initrd_finddir;
+	initrd_dev->fsize = &initrd_fsize;
 	/* same deal here, we don't need the other function pointers */
 
 	/* set up the files that reside in the initrd filesystem */
@@ -113,6 +121,7 @@ fs_node_t *init_initrd(uint32 location) {
 		root_nodes[i].inode = i + 1; /* 0 is hardcoded for /dev */
 		root_nodes[i].flags = FS_FILE;
 		root_nodes[i].read = &initrd_read;
+		root_nodes[i].fsize = &initrd_fsize;
 		/* the rest of the function pointers, including write/open/close are left as NULL */
 	}
 

@@ -9,8 +9,8 @@ static uint32 syscall_handler(uint32);
 void exit_proc(void); // task.c
 
 static void *syscalls[] = {
-	&puts,
 	&exit_proc,
+	&puts,
 	&sleep,
 	&getchar,
 	&putchar,
@@ -57,8 +57,8 @@ uint32 syscall_handler(uint32 esp) {
 	return esp;
 }
 
-DEFN_SYSCALL1(puts, 0, const char *);
 DEFN_SYSCALL0(exit_proc, 1);
+DEFN_SYSCALL1(puts, 0, const char *);
 DEFN_SYSCALL1(sleep, 2, uint32);
 DEFN_SYSCALL0(getchar, 3);
 DEFN_SYSCALL1(putchar, 4, int);

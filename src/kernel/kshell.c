@@ -8,6 +8,8 @@
 #include <kernel/task.h>
 #include <kernel/list.h>
 #include <kernel/syscall.h>
+#include <kernel/vfs.h>
+#include <kernel/elf.h>
 
 /* for heaptest() */
 #include <kernel/paging.h>
@@ -488,7 +490,13 @@ void kshell(void *data, uint32 length) {
 			printk("help: show this help message\n");
 		}
 		else {
-			printk("Unknown command: \"%s\"\n", p);
+			fs_node_t *node = finddir_fs(initrd_root, p);
+			if (node != NULL) {
+				// This is a program that exists on the initrd
+				task = create_task_elf(node, con, NULL, 0);
+			}
+			else
+				printk("Unknown command: \"%s\"\n", p);
 		}
 
 		strlcpy(last_cmd, p, 1024);

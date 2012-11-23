@@ -44,6 +44,9 @@ typedef struct page_directory {
 	uint32 physical_address;
 } page_directory_t;
 
+extern page_directory_t *kernel_directory;
+extern page_directory_t *current_directory;
+
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem);
 
@@ -63,6 +66,7 @@ void free_frame(uint32 virtual_addr, page_directory_t *page_dir);
 // JUST MAPS a physical address to a virtual one. If it's not already allocated (see below),
 // it can't really be used safely.
 void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
+void unmap_virt(uint32 virtual_addr);
 
 // As above, but actually allocates the physical memory etc.
 void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);

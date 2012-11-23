@@ -151,10 +151,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_pci();
 	printc(BLACK, GREEN, "done\n");
 
-	//while (true) {
-	//printk("test\n");
-	//}
-
 	/* Set up the syscall interface */
 	printk("Initializing syscalls... ");
 	init_syscalls();
@@ -172,24 +168,18 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		printc(BLACK, RED, "failed!\n");
 
-	//printk("Starting idle_task... ");
-	//create_task(idle_task, "idle_task", /*console = */ false, NULL, 0);
-	//printc(BLACK, GREEN, "done\n");
-
 	create_task(cleanup_tasks, "[cleanup_tasks]", false, NULL, 0);
 
-#if 1
+#if 0
 	printk("Detecting ATA devices and initializing them... ");
 	ata_init();
 	printc(BLACK, GREEN, "done\n");
-#endif
 
 	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */
 	for (int i=0; i<3; i++)
 		parse_mbr(&devices[i]);
 
 	/* Detect FAT filesystems on all partitions */
-	/*
 	for (int disk = 0; disk < 4; disk++) {
 
 		if (!devices[disk].exists || devices[disk].is_atapi)
@@ -207,10 +197,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	assert(fat32_partitions !=  NULL);
 	assert(fat32_partitions->count == 1);
-	*/
-
+#endif
 
 #if 0
+	uint8 buf[512] = {0};
 	ata_device_t *ata_dev = &devices[0];
 	ata_read(ata_dev, 0, buf);
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);

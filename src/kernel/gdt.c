@@ -48,7 +48,6 @@ void double_fault_handler(void) {
 }
 
 uint8 *stack = NULL;
-extern page_directory_t *kernel_directory;
 
 /*
  * This is the "main" GDT setup function, i.e. the one kmain() should call.

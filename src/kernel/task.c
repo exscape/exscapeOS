@@ -9,6 +9,8 @@
 #include <kernel/timer.h>
 #include <kernel/list.h>
 #include <kernel/syscall.h>
+#include <kernel/vfs.h>
+#include <kernel/elf.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -26,8 +28,6 @@
  */
 
 /* Externs from paging.c */
-extern page_directory_t *kernel_directory;
-extern page_directory_t *current_directory;
 extern void alloc_frame_to_page(page_t *, bool, bool);
 
 volatile bool task_switching = false;
@@ -198,6 +198,19 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 			assert((task_t *)n->data == task);
 	}
 
+	return task;
+}
+
+task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 length) {
+	assert(file != NULL);
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+
+	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, length);
+	assert (task != NULL);
+
+	elf_load(file, fsize(file), task->page_directory);
+
+	if (reenable_interrupts) enable_interrupts();
 	return task;
 }
 

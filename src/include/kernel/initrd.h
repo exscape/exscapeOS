@@ -8,6 +8,8 @@ typedef struct {
 	uint32 nfiles;
 } initrd_header_t;
 
+extern fs_node_t *initrd_root;
+
 /* Also defined in create_initrd.c */
 typedef struct {
 	uint8 magic;

@@ -121,6 +121,8 @@ void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode
 
 	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
 
+	printk("map_phys_to_virt(virt = 0x%08x)\n", virtual_addr);
+
 	assert(mem_end_page != 0); // This needs to be set up first!
 	assert(page != NULL);
 
@@ -128,6 +130,16 @@ void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode
 	page->rw = (writable ? 1 : 0);
 	page->user = (kernelmode ? 0 : 1);
 	page->frame = (physical_addr / PAGE_SIZE);
+}
+
+void unmap_virt(uint32 virtual_addr) {
+	printk("unmap_virt(0x%08x)\n", virtual_addr);
+	page_t *p = get_page(virtual_addr, false, kernel_directory);
+	assert(p != NULL);
+
+	*((uint32 *)p) = 0;
+	//p->present = 0;
+	//p->frame = 0;
 }
 
 void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
@@ -202,8 +214,8 @@ void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmod
 	alloc_frame_to_page(page, kernelmode, writable);
 
 	/* Make sure the CPU doesn't cache the old values */
-	/* TODO: there's no need to invalidate the TLB in the wrong address space, is there? Check for this! */
-	invalidate_tlb((void *)virtual_addr);
+	if (page_dir == current_directory)
+		invalidate_tlb((void *)virtual_addr);
 }
 
 /* Free a frame */
@@ -220,7 +232,8 @@ void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
 	page->present = 0;
 
 	/* Make sure the CPU doesn't cache the old values */
-	invalidate_tlb((void *)virtual_addr);
+	if (page_dir == current_directory)
+		invalidate_tlb((void *)virtual_addr);
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
@@ -437,7 +450,7 @@ page_directory_t *create_user_page_dir(void) {
 	uint32 new_dir_phys;
 	page_directory_t *dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
 
-	disable_interrupts();
+	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	/* Since we want the kernel mapping to be the same in all address spaces, and the kernel (+ kernel heap, etc.) is
 	 * all that exists in the kernel directory, copy it! */
@@ -445,7 +458,7 @@ page_directory_t *create_user_page_dir(void) {
 
 	list_append(pagedirs, dir);
 
-	enable_interrupts();
+	if (reenable_interrupts) enable_interrupts();
 
 	/*
 	 * We need the physical address of the /tables_physical/ struct member. /dir/ points to the beginning of the structure, of course.

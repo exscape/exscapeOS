@@ -20,9 +20,6 @@
 /* The kernel heap */
 heap_t *kheap = NULL;
 
-/* paging.c */
-extern page_directory_t *kernel_directory;
-
 /* Defined in linker.ld */
 extern uint32 end;
 

@@ -11,6 +11,7 @@ struct fs_node;
 /* Function declarations for the VFS (for sensible parameter names, look further below) */
 typedef uint32 (*read_type_t)(struct fs_node *, uint32, uint32, uint8 *);
 typedef uint32 (*write_type_t)(struct fs_node *, uint32, uint32, uint8 *);
+typedef uint32 (*fsize_type_t)(struct fs_node *);
 typedef void (*open_type_t)(struct fs_node *);
 typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
@@ -59,6 +60,7 @@ typedef struct fs_node {
 	close_type_t   close;
 	readdir_type_t readdir;
 	finddir_type_t finddir;
+	fsize_type_t   fsize;
 
 	/* Used by mountpoints and symlinks */
 	struct fs_node *ptr;
@@ -91,5 +93,6 @@ void open_fs(fs_node_t *node, uint8 read, uint8 write);
 void close_fs(fs_node_t *node);
 struct dirent *readdir_fs(fs_node_t *node, uint32 index);
 fs_node_t *finddir_fs(fs_node_t *node, const char *name);
+uint32 fsize(fs_node_t *node);
 
 #endif /* header guard */

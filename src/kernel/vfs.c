@@ -17,6 +17,11 @@ mountpoint_t *find_mountpoint_for_path(const char *path) {
 	return (mountpoint_t *)mountpoints->head->data;
 }
 
+uint32 fsize(fs_node_t *node) {
+	assert(node->fsize != NULL);
+	return node->fsize(node);
+}
+
 /* Calls the correct read function */
 uint32 read_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {
 	assert(node->read != NULL);
