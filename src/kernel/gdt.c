@@ -109,9 +109,9 @@ void init_double_fault_handler(page_directory_t *pagedir) {
 	tss_double_fault.ss = 0x10;
 	tss_double_fault.ss0 = 0x10;
 
-	stack = kmalloc_a(4096);
-	tss_double_fault.esp = (uint32)stack + 0x1000;
-	tss_double_fault.esp0 = (uint32)stack + 0x1000;
+	stack = kmalloc_a(PAGE_SIZE);
+	tss_double_fault.esp = (uint32)stack + PAGE_SIZE;
+	tss_double_fault.esp0 = (uint32)stack + PAGE_SIZE;
 	tss_double_fault.eflags = 0x2;
 
 	tss_double_fault.iomap_base = sizeof(tss_entry_t);

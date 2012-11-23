@@ -113,7 +113,7 @@ void kill(task_t *task) {
 		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
 		for (node_t *it = task->user_addr_table->head; it != NULL; it = it->next) {
 			addr_entry_t *entry = (addr_entry_t *)it->data;
-			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += 0x1000) {
+			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += PAGE_SIZE) {
 				free_frame(addr, task->page_directory);
 			}
 			kfree(entry);
@@ -294,7 +294,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		/* Set up a usermode stack for this task */
 		uint32 addr = USER_STACK_START;
-		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
+		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= PAGE_SIZE) {
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
 
@@ -303,8 +303,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
-		entry->start = (void *)(USER_STACK_START - USER_STACK_SIZE - 0x1000);
-		entry->num_pages = ((USER_STACK_START + 0x1000) - ((uint32)entry->start)) / PAGE_SIZE;
+		entry->start = (void *)(USER_STACK_START - USER_STACK_SIZE - PAGE_SIZE);
+		entry->num_pages = ((USER_STACK_START + PAGE_SIZE) - ((uint32)entry->start)) / PAGE_SIZE;
 		list_append(task->user_addr_table, entry);
 
 		/* Force a call to user_exit() if the task attempts to read and RET "past" the stack */

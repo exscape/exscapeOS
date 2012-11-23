@@ -54,11 +54,11 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 			uint32 start_addr = phdr->p_vaddr;
 			uint32 end_addr   = start_addr + phdr->p_memsz;
 			if (!IS_PAGE_ALIGNED(end_addr)) {
-				end_addr &= 0xfffff000;
-				end_addr += 0x1000;
+				end_addr &= ~(PAGE_SIZE - 1);
+				end_addr += PAGE_SIZE;
 			}
 
-			for (uint32 addr = start_addr; addr < end_addr; addr += 0x1000) {
+			for (uint32 addr = start_addr; addr < end_addr; addr += PAGE_SIZE) {
 				// Allocate a physical frame for this address in the task's address space, set for user mode
 				alloc_frame(addr, task_dir, false, writable);
 			}

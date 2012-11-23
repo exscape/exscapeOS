@@ -441,7 +441,7 @@ uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir) {
 	}
 
 	/* calculate the address for the beginning of the frame */
-	uint32 phys_addr = page->frame * 0x1000;
+	uint32 phys_addr = page->frame * PAGE_SIZE;
 	/* add the offset within the page */
 	phys_addr += (virt_addr & 0xfff);
 
