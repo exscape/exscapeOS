@@ -21,6 +21,7 @@ typedef struct task
 	uint32 wakeup_time; /* for sleeping tasks only: at which tick this task should be woken */
 	uint8 privilege; /* this task's privilege level (i.e. 0 or 3) */
 	console_t *console;
+	list_t *user_addr_table; /* a list of addresses to unmap when the task exits; user mode only */
 } task_t;
 
 extern volatile task_t *current_task;
@@ -38,6 +39,13 @@ void user_exit(void); // called from user mode
 
 #define USER_STACK_START 0xf0000000
 #define USER_STACK_SIZE 16384 /* overkill? */
+
+/* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
+   that last byte, of course; e.g. with start = 0x10000 and num_pages=1, [0x10000, 0x10fff] is mapped)  */
+typedef struct {
+	void *start;
+	uint32 num_pages;
+} addr_entry_t;
 
 void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);

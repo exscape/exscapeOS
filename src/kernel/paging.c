@@ -341,7 +341,6 @@ void init_paging(unsigned long upper_mem) {
 }
 
 extern struct idt_entry idt[256];
-bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir);
 
 /* Loads the page directory at /dir/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {

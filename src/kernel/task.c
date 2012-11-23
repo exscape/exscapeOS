@@ -110,13 +110,13 @@ void kill(task_t *task) {
 	}
 
 	if (task->privilege == 3) {
-		// Unallocate this task's user space stack
-		uint32 addr = USER_STACK_START;
-		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
-			free_frame(addr, task->page_directory);
+		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
+		for (node_t *it = task->user_addr_table->head; it != NULL; it = it->next) {
+			addr_entry_t *entry = (addr_entry_t *)it->data;
+			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += 0x1000) {
+				free_frame(addr, task->page_directory);
+			}
 		}
-		// Free the guard page "before" (at a lower address), too
-		free_frame(addr, task->page_directory);
 
 		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
 		destroy_user_page_dir(task->page_directory);
@@ -208,7 +208,7 @@ task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 leng
 	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, length);
 	assert (task != NULL);
 
-	elf_load(file, fsize(file), task->page_directory);
+	elf_load(file, fsize(file), task);
 
 	if (reenable_interrupts) enable_interrupts();
 	return task;
@@ -286,17 +286,28 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	if (task->privilege == 3) {
 		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
 
+		// Store a list of all virtual addresses to unmap when the task
+		// is destroyed
+		task->user_addr_table = list_create();
+
 		disable_interrupts();
 
 		/* Set up a usermode stack for this task */
-		// void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
 		uint32 addr = USER_STACK_START;
-		for (; addr > USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
+		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
+			printk("alloc_frame at 0x%08x\n", addr);
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
 
 		/* allocate a guard page */
 		alloc_frame(addr, task->page_directory, true, false);
+		printk("alloc_frame at 0x%08x (guard page)\n", addr);
+
+		// Write down the above
+		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
+		entry->start = (void *)(USER_STACK_START - USER_STACK_SIZE - 0x1000);
+		entry->num_pages = ((USER_STACK_START + 0x1000) - ((uint32)entry->start)) / PAGE_SIZE;
+		list_append(task->user_addr_table, entry);
 
 		/* Make sure this task exits if it RETs at the end of the stack */
 		/* Writing to memory in another address space isn't pretty. */
@@ -312,6 +323,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	}
 	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
+		task->user_addr_table = NULL;
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");

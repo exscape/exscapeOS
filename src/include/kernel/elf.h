@@ -3,8 +3,9 @@
 
 #include <string.h>
 #include <kernel/vfs.h>
+#include <kernel/task.h>
 
-void elf_load(fs_node_t *fs_node, uint32 file_size, page_directory_t *task_dir);
+void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task);
 
 typedef uint32 Elf32_Addr;
 typedef uint16 Elf32_Half;

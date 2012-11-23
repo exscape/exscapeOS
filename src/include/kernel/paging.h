@@ -72,6 +72,7 @@ void unmap_virt(uint32 virtual_addr);
 void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
 
 bool addr_is_mapped(uint32 addr);
+bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir);
 
 /* Executes INVLPG for the argument. */
 void invalidate_tlb(void *addr);

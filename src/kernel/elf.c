@@ -3,14 +3,17 @@
 #include <kernel/initrd.h>
 #include <kernel/kheap.h>
 #include <kernel/elf.h>
+#include <kernel/task.h>
 #include <string.h>
 #include <kernel/paging.h>
 
 #define ELF_DEBUG 0
 
-void elf_load(fs_node_t *fs_node, uint32 file_size, page_directory_t *task_dir) {
+void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
+
+	page_directory_t *task_dir = task->page_directory;
 
 	unsigned char *data = kmalloc(file_size);
 	assert(read_fs(fs_node, 0, file_size, data) == file_size);
@@ -67,6 +70,12 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, page_directory_t *task_dir) 
 				// Also map this in kernel space
 				map_phys_to_virt(virtual_to_physical(addr, task_dir), addr, true, true);
 			}
+
+			// Keep track of the allocated frames, so that we can free them when the task exits
+			addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
+			entry->start = (void *)start_addr;
+			entry->num_pages = (end_addr - start_addr) / PAGE_SIZE;
+			list_append(task->user_addr_table, entry);
 
 			// Okay, we should have the memory. Let's clear it (since PARTS may be left empty by the memcpy,
 			// e.g. the .bss section, and we do want zeroes to be there)
