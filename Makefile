@@ -27,8 +27,8 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign
 #CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS)
 
-QEMU := /usr/local/bin/qemu
-#QEMU := /opt/local/bin/qemu
+#QEMU := /usr/local/bin/qemu
+QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
 	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}

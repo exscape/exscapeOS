@@ -128,6 +128,7 @@ void kill(task_t *task) {
 	/* Delete this task from the queue */
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
+	/* Free the kernel stack, after re-mapping the guard pages again */
 	get_page((uint32)task->stack - KERNEL_STACK_SIZE - 4096, false, kernel_directory)->present = 1;
 	get_page((uint32)task->stack, false, kernel_directory)->present = 1;
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
@@ -237,9 +238,6 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 }
 
 static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length) {
-	//disable_interrupts(); /* not sure if this is needed */
-	//task_switching = false;
-
 	assert(privilege == 0 || privilege == 3);
 
 	task_t *task = kmalloc(sizeof(task_t));
@@ -294,8 +292,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		// is destroyed
 		task->user_addr_table = list_create();
 
-		disable_interrupts();
-
 		/* Set up a usermode stack for this task */
 		uint32 addr = USER_STACK_START;
 		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
@@ -316,8 +312,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		switch_page_directory(task->page_directory);
 		*((uint32 *)(0xf0000000 - 4)) = (uint32)&user_exit;
 		switch_page_directory(kernel_directory);
-
-		enable_interrupts();
 	}
 	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
@@ -396,8 +390,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	//if (console)
 		//console_switch(task->console);
 
-		//task_switching = true;
-		//enable_interrupts(); /* not sure if this is needed */
 	return task;
 }
 

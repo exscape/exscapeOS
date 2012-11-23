@@ -13,6 +13,8 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
+	assert(interrupts_enabled() == false); // TODO: get rid of the race condition from create_task, so that this isn't needed
+
 	page_directory_t *task_dir = task->page_directory;
 
 	unsigned char *data = kmalloc(file_size);
@@ -30,8 +32,6 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 	assert(header->e_machine == EM_386);
 	assert(header->e_entry > 0);
 	assert(header->e_type == ET_EXEC);
-
-	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 
 	for (int i=0; i < header->e_phnum; i++) {
 		Elf32_Phdr *phdr = (Elf32_Phdr *)(data + header->e_phoff + header->e_phentsize * i);
@@ -61,8 +61,6 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 			for (uint32 addr = start_addr; addr < end_addr; addr += 0x1000) {
 				// Allocate a physical frame for this address in the task's address space, set for user mode
 				alloc_frame(addr, task_dir, false, writable);
-
-				assert(current_directory == kernel_directory);
 			}
 
 			// Keep track of the allocated frames, so that we can free them when the task exits
@@ -141,5 +139,4 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 #endif // ELF_DEBUG
 
 	kfree(data);
-	if (reenable_interrupts) enable_interrupts();
 }

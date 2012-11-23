@@ -4,6 +4,11 @@ int puts(const char *str) {
 	return 0;
 }
 
+int sleep(unsigned int ms) {
+	asm volatile("mov $2, %%eax; mov %[ms], %%ebx; int $0x80" : : [ms]"r"(ms) : "cc", "memory", "%ebx", "%eax");
+	return 0;
+}
+
 char some_data[] = "Global char array";
 int global_int;
 int main(int argc, char **argv) {
@@ -14,6 +19,8 @@ int main(int argc, char **argv) {
 	char *world = "world!";
 	char test_arr[8] = {0};
 	puts(str);
+	sleep(100);
+	puts("Exiting.\n");
 
 	return 0;
 }

@@ -157,10 +157,14 @@ void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kern
 		else {
 			uint32 index = physical_addr / 4096;
 
+			bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+
 			/* Claim the frame */
 			/* First, make sure it's currently set to being unused. */
 			assert(test_frame(index) == false);
 			set_frame(index);
+
+			if (reenable_interrupts) enable_interrupts();
 
 			/* Set up the page associated with this frame */
 			page->present = 1;
@@ -186,6 +190,7 @@ static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 	}
 	else {
 		/* Find a free frame */
+		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
 		uint32 index = first_free_frame();
 
 		if (index == 0xffffffff) {
@@ -196,6 +201,8 @@ static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 		/* First, make sure it's currently set to being unused. */
 		assert(test_frame(index) == false);
 		set_frame(index);
+
+		if (reenable_interrupts) enable_interrupts();
 
 		/* Set up the page associated with this frame */
 		page->present = 1;
