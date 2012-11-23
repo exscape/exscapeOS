@@ -116,10 +116,13 @@ void kill(task_t *task) {
 			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += 0x1000) {
 				free_frame(addr, task->page_directory);
 			}
+			kfree(entry);
 		}
 
 		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
 		destroy_user_page_dir(task->page_directory);
+
+		list_destroy(task->user_addr_table);
 	}
 
 	/* Delete this task from the queue */
@@ -128,6 +131,7 @@ void kill(task_t *task) {
 	get_page((uint32)task->stack - KERNEL_STACK_SIZE - 4096, false, kernel_directory)->present = 1;
 	get_page((uint32)task->stack, false, kernel_directory)->present = 1;
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
+
 	kfree(task);
 
 	//task_switching = true;
@@ -295,13 +299,11 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		/* Set up a usermode stack for this task */
 		uint32 addr = USER_STACK_START;
 		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= 0x1000) {
-			printk("alloc_frame at 0x%08x\n", addr);
 			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
 		}
 
 		/* allocate a guard page */
 		alloc_frame(addr, task->page_directory, true, false);
-		printk("alloc_frame at 0x%08x (guard page)\n", addr);
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
@@ -309,15 +311,11 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		entry->num_pages = ((USER_STACK_START + 0x1000) - ((uint32)entry->start)) / PAGE_SIZE;
 		list_append(task->user_addr_table, entry);
 
-		/* Make sure this task exits if it RETs at the end of the stack */
-		/* Writing to memory in another address space isn't pretty. */
-		uint32 physical_stack = virtual_to_physical(USER_STACK_START - 4, task->page_directory);
-		map_phys_to_virt(physical_stack & 0xfffff000, 0xb0000000, false, true);
-		*( (uint32 *) (0xb0000000 + (physical_stack & 0xfff) )) = (uint32)&user_exit;
-		// Unmap the page again
-		page_t *p = get_page(0xb0000000, false, kernel_directory);
-		p->frame = 0;
-		p->present = 0;
+		/* Force a call to user_exit() if the task attempts to read and RET "past" the stack */
+		assert(current_directory == kernel_directory);
+		switch_page_directory(task->page_directory);
+		*((uint32 *)(0xf0000000 - 4)) = (uint32)&user_exit;
+		switch_page_directory(kernel_directory);
 
 		enable_interrupts();
 	}

@@ -58,17 +58,11 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 				end_addr += 0x1000;
 			}
 
-			//uint32 kern_start = 0x1000000; /* 16 MB */
-			//uint32 kern_end = kern_start + (end_addr - start_addr);
-
 			for (uint32 addr = start_addr; addr < end_addr; addr += 0x1000) {
 				// Allocate a physical frame for this address in the task's address space, set for user mode
 				alloc_frame(addr, task_dir, false, writable);
 
 				assert(current_directory == kernel_directory);
-
-				// Also map this in kernel space
-				map_phys_to_virt(virtual_to_physical(addr, task_dir), addr, true, true);
 			}
 
 			// Keep track of the allocated frames, so that we can free them when the task exits
@@ -77,6 +71,10 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 			entry->num_pages = (end_addr - start_addr) / PAGE_SIZE;
 			list_append(task->user_addr_table, entry);
 
+			// Switch to the new page directory, so that we can copy the data there
+			assert(current_directory == kernel_directory);
+			switch_page_directory(task_dir);
+
 			// Okay, we should have the memory. Let's clear it (since PARTS may be left empty by the memcpy,
 			// e.g. the .bss section, and we do want zeroes to be there)
 			memset((void *)start_addr, 0, end_addr - start_addr);
@@ -84,12 +82,8 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 			// Copy the segment (e.g. .text + .rodata + .eh_frame, or .data + .bss) to the location
 			memcpy((void *)start_addr, data + phdr->p_offset, phdr->p_filesz);
 
-			// Unmap the memory in the kernel directory...
-			//for (uint32 addr = kern_start; addr < kern_end; addr += 0x1000) {
-			//assert(current_directory == kernel_directory);
-			//
-			//unmap_virt(addr);
-			//}
+			// Return to the kernel's directory again
+			switch_page_directory(kernel_directory);
 		}
 		else
 			printk("Warning: skipping unsupported ELF program header (#%u, p_type = 0x%x)\n", i, phdr->p_type);

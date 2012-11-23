@@ -175,7 +175,19 @@ static void user_stress(void *data, uint32 length) {
     // User mode task creation stress test -- the 7th task used to crash
     uint32 start = gettickcount();
     for (int i=0; i < 2500; i++) {
-        create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
+		create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
+        asm volatile("int $0x7e");
+    }
+    printk("ran for %u ticks\n", gettickcount() - start);
+}
+
+static void user_stress_elf(void *data, uint32 length) {
+    uint32 start = gettickcount();
+    for (int i=0; i < 2500; i++) {
+		fs_node_t *node = finddir_fs(initrd_root, "helloworld");
+		assert(node != NULL);
+		create_task_elf(node, (console_t *)data, NULL, 0);
+
         asm volatile("int $0x7e");
     }
     printk("ran for %u ticks\n", gettickcount() - start);
@@ -457,8 +469,10 @@ void kshell(void *data, uint32 length) {
 			task = create_task_user(&user_test, "user_test", con, NULL, 0);
 		}
 		else if (strcmp(p, "user_stress") == 0) {
-			/* launch a user mode test task */
 			task = create_task(&user_stress, "user_stress", con, con, 0);
+		}
+		else if (strcmp(p, "user_stress_elf") == 0) {
+			task = create_task(&user_stress_elf, "user_stress_elf", con, con, 0);
 		}
 		else if (strcmp(p, "kernel_stress") == 0) {
 			/* launch a kernel mode test task */

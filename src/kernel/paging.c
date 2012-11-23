@@ -121,8 +121,6 @@ void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode
 
 	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
 
-	printk("map_phys_to_virt(virt = 0x%08x)\n", virtual_addr);
-
 	assert(mem_end_page != 0); // This needs to be set up first!
 	assert(page != NULL);
 
