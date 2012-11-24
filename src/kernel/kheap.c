@@ -732,8 +732,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		void *addr = heap_alloc(size, align, kheap);
 
 		if (phys != 0) {
-			page_t *page = get_page((uint32)addr, true, kernel_directory);
-			*phys = (page->frame * PAGE_SIZE) + ((uint32)addr & 0xfff);
+			*phys = virtual_to_physical((uint32)addr, kernel_directory);
 		}
 
 		if (reenable_interrupts) enable_interrupts();

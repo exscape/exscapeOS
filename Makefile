@@ -21,7 +21,7 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
 WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
                 -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
-				-Wuninitialized -Wstrict-prototypes -Wno-unused-function \
+				-Wuninitialized -Wstrict-prototypes \
 				-Wno-unused-parameter -Wno-cast-align -Werror
 
 CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign
