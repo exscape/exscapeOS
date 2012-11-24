@@ -200,11 +200,6 @@ static void kernel_stress(void *data, uint32 length) {
 	}
 }
 
-static void flushtlb(void *data, uint32 length) {
-	flush_all_tlb();
-	printk("All TLBs flushed (CR3 reloaded)\n");
-}
-
 static void paramtest(void *data, uint32 length) {
 	printk("data=0x%08x length=0x%08x\n", data, length);
 }
@@ -248,7 +243,7 @@ static void permaidle(void *data, uint32 length) {
 }
 
 static void free(void *data, uint32 length) {
-	printk("Free RAM: %u bytes\n", free_bytes());
+	printk("Free RAM: %u bytes\n", pmm_bytes_free());
 	printk("kheap used: %u bytes\n", kheap_used_bytes());
 }
 
@@ -367,9 +362,6 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "permaidle") == 0) {
 			task = create_task(&permaidle, "permaidle", con, NULL, 0);
-		}
-		else if (strcmp(p, "flushtlb") == 0) {
-			task = create_task(&flushtlb, "flushtlb", con, NULL, 0);
 		}
 		else if (strcmp(p, "pagefault") == 0) {
 			task = create_task(&create_pagefault, "create_pagefault", con, NULL, 0);
@@ -599,7 +591,7 @@ void heaptest(void *data, uint32 length) {
 //#define NUM 2750
 
 	/* account for the overhead and a tiny bit more */
-	uint32 free_ = free_bytes();
+	uint32 free_ = pmm_bytes_free();
 	free_ -= ((free_/1024/128) + 24) * (sizeof(area_header_t) + sizeof(area_footer_t));
 
 

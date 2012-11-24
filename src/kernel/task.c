@@ -27,9 +27,6 @@
  * task has been switched!
  */
 
-/* Externs from paging.c */
-extern void alloc_frame_to_page(page_t *, bool, bool);
-
 volatile bool task_switching = false;
 
 task_t *next_task = NULL;
@@ -114,7 +111,7 @@ void kill(task_t *task) {
 		for (node_t *it = task->user_addr_table->head; it != NULL; it = it->next) {
 			addr_entry_t *entry = (addr_entry_t *)it->data;
 			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += PAGE_SIZE) {
-				free_frame(addr, task->page_directory);
+				vmm_free(addr, task->page_directory);
 			}
 			kfree(entry);
 		}
@@ -129,8 +126,8 @@ void kill(task_t *task) {
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
 	/* Free the kernel stack, after re-mapping the guard pages again */
-	get_page((uint32)task->stack - KERNEL_STACK_SIZE - 4096, false, kernel_directory)->present = 1;
-	get_page((uint32)task->stack, false, kernel_directory)->present = 1;
+	vmm_set_guard((uint32)task->stack - KERNEL_STACK_SIZE - 4096, kernel_directory, false);
+	vmm_set_guard((uint32)task->stack, kernel_directory, false);
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 
 	kfree(task);
@@ -272,16 +269,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	memset((void *)tmp, 0, KERNEL_STACK_SIZE + 4*4096);
 
 	/* Unmap the guard pages */
-	page_t *start_page = get_page(start_guard, false, kernel_directory);
-	assert(start_page != NULL);
-	start_page->present = 0;
-
-	page_t *end_page = get_page(end_guard, false, kernel_directory);
-	assert(end_page != NULL);
-	end_page->present = 0;
-
-	invalidate_tlb((void *)start_guard);
-	invalidate_tlb((void *)end_guard);
+	vmm_set_guard(start_guard, kernel_directory, true);
+	vmm_set_guard(end_guard,   kernel_directory, true);
 
 	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
@@ -294,13 +283,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		task->user_addr_table = list_create();
 
 		/* Set up a usermode stack for this task */
-		uint32 addr = USER_STACK_START;
-		for (; addr >= USER_STACK_START - USER_STACK_SIZE; addr -= PAGE_SIZE) {
-			alloc_frame(addr, task->page_directory, /* kernelmode = */ false, /* writable = */ true);
-		}
+		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_SIZE + PAGE_SIZE, task->page_directory, true /* writable */);
 
-		/* allocate a guard page */
-		alloc_frame(addr, task->page_directory, true, false);
+		/* Set a guard page */
+		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory, true /* set guard page */);
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));

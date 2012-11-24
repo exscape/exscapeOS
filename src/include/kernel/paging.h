@@ -6,12 +6,6 @@
 
 #define PAGE_SIZE 0x1000
 
-/* Used for alloc_frame(), perhaps others */
-#define PAGE_USER 0
-#define PAGE_KERNEL 1
-#define PAGE_READONLY 0
-#define PAGE_WRITABLE 1
-
 /* Represents a page entry in memory */
 typedef struct page {
 	uint32 present  : 1;  /* is page present in physical memory? */
@@ -23,9 +17,21 @@ typedef struct page {
 	uint32 dirty    : 1;  /* has the page been written to since last refresh? */
 	uint32 pat      : 1;
 	uint32 global   : 1;  /* if CR4.PGE = 1, determines whether the translation is global; ignored otherwise */
-	uint32 avail    : 3;  /* bits available for use by the OS */
+	uint32 guard	: 1; // One of the three "avail" bits; is this page a guard page?
+	uint32 avail    : 2;  /* bits available for use by the OS; one is used by the OS */
 	uint32 frame    : 20; /* high 20 bits of the frame address */
 } __attribute__((packed)) page_t;
+
+#define PAGE_PRESENT (1 << 0)
+#define PAGE_RW (1 << 1)
+#define PAGE_USER (1 << 2)
+#define PAGE_PWT (1 << 3)
+#define PAGE_PCD (1 << 4)
+#define PAGE_ACCESSED (1 << 5)
+#define PAGE_DIRTY (1 << 6)
+#define PAGE_PAT (1 << 7)
+#define PAGE_GLOBAL (1 << 8)
+#define PAGE_GUARD (1 << 9)
 
 /* Represents a page table in memory */
 typedef struct page_table {
@@ -47,47 +53,31 @@ typedef struct page_directory {
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 
+// TODO: these should probably either be in their own file, or static/"private" (except pmm_bytes_free)
+uint32 pmm_alloc(void);
+uint32 pmm_alloc_continuous(uint32 num_frames);
+void pmm_free(uint32 phys_addr);
+uint32 pmm_bytes_free(void);
+
+uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
+void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable);
+void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable);
+void vmm_unmap(uint32 virtual, page_directory_t *dir);
+void vmm_free(uint32 virtual, page_directory_t *dir);
+uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir);
+void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */);
+
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem);
 
 /* Loads the page directory at /new/ into the CR3 register. */
 void switch_page_directory(page_directory_t *new);
 
-/* Returns a pointer to the page entry responsible for the address at /addr/.
- */
-page_t *get_page (uint32 addr, bool create, page_directory_t *dir);
-
 /* The page fault interrupt handler. */
 uint32 page_fault_handler(uint32);
 
-void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable);
-void free_frame(uint32 virtual_addr, page_directory_t *page_dir);
-
-// JUST MAPS a physical address to a virtual one. If it's not already allocated (see below),
-// it can't really be used safely.
-void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
-void unmap_virt(uint32 virtual_addr);
-
-// As above, but actually allocates the physical memory etc.
-void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable);
-
-bool addr_is_mapped(uint32 addr);
-bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir);
-
-/* Executes INVLPG for the argument. */
-void invalidate_tlb(void *addr);
-
-/* Flushes the TLB for all pages (by writing to CR3) */
-void flush_all_tlb(void);
-
-/* Clones a page directory */
-page_directory_t *clone_directory(page_directory_t *src);
-
 /* Returns the number of bytes free in PHYSICAL memory. */
-uint32 free_bytes(void);
-
-/* Converts a virtual address to a physical one (within the current address space, i.e. current_directory is used) */
-uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir);
+uint32 pmm_bytes_free(void);
 
 page_directory_t *create_user_page_dir(void);
 void destroy_user_page_dir(page_directory_t *dir);

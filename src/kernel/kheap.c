@@ -222,6 +222,7 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 
 /* Grows the heap, and allocates frames to store it on. */
 void heap_expand(uint32 size_to_add, heap_t *heap) {
+	assert(interrupts_enabled() == false);
 	/* Don't expand any less than HEAP_MIN_GROWTH bytes */
 	if (size_to_add < HEAP_MIN_GROWTH)
 		size_to_add = HEAP_MIN_GROWTH;
@@ -263,16 +264,8 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	assert(new_end_address > heap->end_address);
 
 	/* Now, finally... Physically allocate the new frames */
-	/* start at the old end_address, and move forwards one page at a time */
-	uint32 addr = heap->end_address; 
-	while (addr < new_end_address + PAGE_SIZE /* allocate one extra page */) {
-		assert(IS_PAGE_ALIGNED(addr));
-
-		assert(heap->supervisor == 1); /* only until user mode is implemented, of course! */
-
-		alloc_frame(addr, kernel_directory, (heap->supervisor ? PAGE_KERNEL : PAGE_USER), (heap->readonly ? PAGE_READONLY : PAGE_WRITABLE) );
-		addr += PAGE_SIZE;
-	}
+	// TODO: userspace heap support
+	vmm_alloc_kernel(heap->end_address /* start */, new_end_address + PAGE_SIZE /* end */, false /* not continous physical */, (heap->readonly ? false : true) /* writable */);
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
@@ -308,7 +301,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 
 	/* Free the frames that make up the new-freed space */
 	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= PAGE_SIZE) {
-		free_frame(addr, kernel_directory);
+		vmm_free(addr, kernel_directory);
 	}
 
 	heap->end_address = new_end_address;
@@ -727,12 +720,16 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			panic("heap kmalloc called from ISR!");
 		}
 
+
 		INTERRUPT_LOCK;
 
 		void *addr = heap_alloc(size, align, kheap);
 
 		if (phys != 0) {
-			*phys = virtual_to_physical((uint32)addr, kernel_directory);
+			if (!align || (align && size > PAGE_SIZE)) {
+				panic("kmalloc: can't guarantee continous physical pages - use vmm_alloc_kernel instead");
+			}
+			*phys = vmm_get_phys((uint32)addr, kernel_directory);
 		}
 
 		INTERRUPT_UNLOCK;

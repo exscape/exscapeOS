@@ -58,10 +58,8 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 				end_addr += PAGE_SIZE;
 			}
 
-			for (uint32 addr = start_addr; addr < end_addr; addr += PAGE_SIZE) {
-				// Allocate a physical frame for this address in the task's address space, set for user mode
-				alloc_frame(addr, task_dir, false, writable);
-			}
+			// Allocate memory for this address in the task's address space, set for user mode
+			vmm_alloc_user(start_addr, end_addr, task_dir, writable);
 
 			// Keep track of the allocated frames, so that we can free them when the task exits
 			addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));

@@ -23,6 +23,12 @@ uint32 mem_end_page = 0;
 
 list_t *pagedirs = NULL;
 
+static void _vmm_invalidate(void *addr);
+static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable);
+static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernelspace);
+static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir, bool kernelspace);
+//static void _vmm_flush_tlb(void);
+
 /* Bitmap macros */
 /* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
  * and the number of bits to shift that dword to find it, respectively. */
@@ -34,46 +40,54 @@ list_t *pagedirs = NULL;
  ******************************/
 
 /* Set a bit in the used_frames bitmap */
-static void set_frame(uint32 frame_addr) {
-	uint32 index = INDEX_FROM_BIT(frame_addr);
+static void _pmm_set_frame(uint32 phys_addr) {
+	phys_addr /= PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(phys_addr);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_addr);
-	used_frames[index] |= (0x1 << offset);
+	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	assert((used_frames[index] & (1 << offset)) == 0);
+	used_frames[index] |= (1 << offset);
 }
 
 /* Clear a bit in the used_frames bitmap */
-static void clear_frame(uint32 frame_addr) {
-	uint32 index = INDEX_FROM_BIT(frame_addr);
+static void _pmm_clear_frame(uint32 phys_addr) {
+	phys_addr /= PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(phys_addr);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_addr);
-	used_frames[index] &= ~(0x1 << offset);
+	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	assert((used_frames[index] & (1 << offset)) != 0);
+	used_frames[index] &= ~(1 << offset);
 }
 
 /* Test whether a bit is set in the used_frames bitmap */
-static bool test_frame(uint32 frame_addr) {
-	uint32 index = INDEX_FROM_BIT(frame_addr);
+static bool _pmm_test_frame(uint32 phys_addr) {
+	phys_addr /= PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(phys_addr);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_addr);
-	if ((used_frames[index] & (0x1 << offset)) != 0)
+	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	if ((used_frames[index] & (1 << offset)) != 0)
 		return true;
 	else
 		return false;
 }
 
-/* Returns the first free frame */
-static uint32 first_free_frame(void) {
-	uint32 index, offset;
-	for (index = 0; index < nframes / 32; index++) {
+/* Returns the first free frame, roughly after (or at) /start_addr/ */
+static uint32 _pmm_first_free_frame(uint32 start_addr) {
+	uint32 index = start_addr / PAGE_SIZE;
+	index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
+	for (; index < nframes / 32; index++) {
 		if (used_frames[index] == 0xffffffff) {
 			/* No bits are free among the 32 tested; try the next index */
 			continue;
 		}
 
 		/* Since we're still here, at least one bit among these 32 is zero... Let's find the first. */
-		for (offset = 0; offset < 32; offset++) {
+		// Offset starts at 0 which means we *may* return something earlier than start_addr,
+		// but that is only indended as a rough guide, not a hard rule.
+		for (uint32 offset = 0; offset < 32; offset++) {
 			if ((used_frames[index] & (1 << offset)) == 0) {
 				/* Found it! Return the frame address. */
-				return index * 32 + offset;
+				return (index * 32 + offset) * PAGE_SIZE;
 			}
 		}
 	}
@@ -82,15 +96,71 @@ static uint32 first_free_frame(void) {
 	return 0xffffffff;
 }
 
+uint32 pmm_alloc(void) {
+	INTERRUPT_LOCK;
+	// TODO: keep track of the first free frame for quicker access
+	uint32 phys_addr = _pmm_first_free_frame(0);
+	if (phys_addr == 0xffffffff) {
+		panic("pmm_alloc: no free frames (out of memory)!");
+	}
+	_pmm_set_frame(phys_addr); // also tests that it's actually free
+	INTERRUPT_UNLOCK;
+	return phys_addr;
+}
+
+// Allocates /num_frames/ continuous physical frames
+uint32 pmm_alloc_continuous(uint32 num_frames) {
+	if (num_frames < 2)
+		return pmm_alloc();
+
+	uint32 last = placement_address + PAGE_SIZE; // don't bother trying prior to this
+	uint32 start = _pmm_first_free_frame(last);
+	bool success = false;
+
+	INTERRUPT_LOCK;
+
+	while (!success) {
+		success = true; // if set when the for loop breaks, we're done
+		if (start + (num_frames - 1) * PAGE_SIZE > mem_end_page)
+			panic("pmm_alloc_continuous: no large enough continuous region found");
+
+		for (uint32 i=1; i < num_frames; i++) { // we know that start + 0 is free, so start looking at 1
+			if (_pmm_test_frame(start + (i * PAGE_SIZE)) != 0) {
+				// We found a non-free frame! D'oh!
+				// Start over at the next possibly free address.
+				last = start + ((i+1) * PAGE_SIZE);
+				success = false;
+				break;
+			}
+		}
+		// if the for loop didn't break because of finding a page, success == true and we'll exit
+	}
+
+	// Phew! /num_frames/ starting at (and including) /start/ ought to be free now.
+	for(uint32 i=0; i < num_frames; i++) {
+		_pmm_set_frame(start + i * PAGE_SIZE);
+	}
+
+	INTERRUPT_UNLOCK;
+
+	return start;
+}
+
+void pmm_free(uint32 phys_addr) {
+	INTERRUPT_LOCK;
+	_pmm_clear_frame(phys_addr);
+	INTERRUPT_UNLOCK;
+}
+
 /* Returns the amount of *physical* RAM that it still unused, i.e. unused_frame_count * 4096
  * Note that this function is simple, not fast! It should NOT be called often, e.g. in loops! */
-uint32 free_bytes(void) {
+uint32 pmm_bytes_free(void) {
 	uint32 unused = 0;
 
 	for (uint32 index = 0; index < nframes/32; index++) {
 		if (used_frames[index] == 0) {
 			/* All 32 frames in this bitmap chunk are free */
-			unused += 4096 * 32;
+			unused += PAGE_SIZE * 32;
 			continue;
 		}
 		else if (used_frames[index] == 0xffffffff) {
@@ -101,7 +171,7 @@ uint32 free_bytes(void) {
 		/* We're somewhere in between all used and all free; let's check a bit closer */
 		for (uint32 offset = 0; offset < 32; offset++) {
 			if ( (used_frames[index] & (1 << offset)) == 0 ) {
-				unused += 4096;
+				unused += PAGE_SIZE;
 			}
 		}
 	}
@@ -109,136 +179,172 @@ uint32 free_bytes(void) {
 	return unused;
 }
 
-/**********************************
- **** END BITMAP HANDLING CODE ****
- **********************************/
+uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable) {
+	INTERRUPT_LOCK;
+	assert(end_virtual > start_virtual);
+	assert((start_virtual & 0xfff) == 0);
+	assert((end_virtual & 0xfff) == 0);
+	assert(((end_virtual - start_virtual) & 0xfff) == 0);
+	assert(continuous_physical == !!continuous_physical);
+	assert(writable == !!writable);
 
-// JUST MAPS, without checking if the frame is used or anything.
-// Use with caution!
-void map_phys_to_virt(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
-	assert((physical_addr & 0xfff) == 0);
-	assert((virtual_addr  & 0xfff) == 0);
-
-	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
-
-	assert(mem_end_page != 0); // This needs to be set up first!
-	assert(page != NULL);
-
-	page->present = 1;
-	page->rw = (writable ? 1 : 0);
-	page->user = (kernelmode ? 0 : 1);
-	page->frame = (physical_addr / PAGE_SIZE);
-}
-
-void unmap_virt(uint32 virtual_addr) {
-	printk("unmap_virt(0x%08x)\n", virtual_addr);
-	page_t *p = get_page(virtual_addr, false, kernel_directory);
-	assert(p != NULL);
-
-	*((uint32 *)p) = 0;
-	//p->present = 0;
-	//p->frame = 0;
-}
-
-void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kernelmode, bool writable) {
-	assert((physical_addr & 0xfff) == 0);
-	assert((virtual_addr  & 0xfff) == 0);
-
-	page_t *page = get_page(virtual_addr, true, kernel_directory); // TODO: should there be a parameter for this?
-
-	assert(mem_end_page != 0); // This needs to be set up first!
-
-	if (physical_addr < mem_end_page) {
-		// This is a regular memory address, as opposed to MMIO and stuff
-		if (page->frame != 0) {
-			/* This frame is already allocated */
-			return;
+	if (continuous_physical) {
+		const uint32 ret = pmm_alloc_continuous(end_virtual - start_virtual /* size */);
+		uint32 phys = ret;
+		for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE, phys += PAGE_SIZE) {
+			vmm_map_kernel(addr, phys, writable);
 		}
-		else {
-			uint32 index = physical_addr / 4096;
-
-			INTERRUPT_LOCK;
-
-			/* Claim the frame */
-			/* First, make sure it's currently set to being unused. */
-			assert(test_frame(index) == false);
-			set_frame(index);
-
-			INTERRUPT_UNLOCK;
-
-			/* Set up the page associated with this frame */
-			page->present = 1;
-			page->rw = (writable ? 1 : 0);
-			page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
-			page->frame = index;
-		}
-	}
-	else {
-		assert(page != NULL);
-
-		page->present = 1;
-		page->rw = (writable ? 1 : 0);
-		page->user = (kernelmode ? 0 : 1);
-		page->frame = (physical_addr / PAGE_SIZE);
-	}
-}
-
-static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
-	if (page->frame != 0) {
-		/* This frame is already allocated! */
-		return;
-	}
-	else {
-		/* Find a free frame */
-		INTERRUPT_LOCK;
-		uint32 index = first_free_frame();
-
-		if (index == 0xffffffff) {
-			panic("alloc_frame(): no frames available!");
-		}
-
-		/* Claim the frame */
-		/* First, make sure it's currently set to being unused. */
-		assert(test_frame(index) == false);
-		set_frame(index);
-
 		INTERRUPT_UNLOCK;
+		return ret;
+	}
+	else {
+		// Non-continuous
+		uint32 ret = 0;
+		for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE) {	
+			uint32 phys = pmm_alloc();
+			if (ret == 0)
+				ret = phys; // store the first physical address
 
-		/* Set up the page associated with this frame */
-		page->present = 1;
-		page->rw = (writable ? 1 : 0);
-		page->user = (kernelmode ? 0 : 1); /* we call it kernel mode, but the PTE calls it "user mode", so flip the choice */
-		page->frame = index;
+			vmm_map_kernel(addr, phys, writable);
+		}
+		INTERRUPT_UNLOCK;
+		return ret;
 	}
 }
 
-/* Allocate a frame */
-void alloc_frame(uint32 virtual_addr, page_directory_t *page_dir, bool kernelmode, bool writable) {
-	page_t *page = get_page(virtual_addr, true, page_dir);
+void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable) {
+	INTERRUPT_LOCK;
+	assert(end_virtual > start_virtual);
+	assert((start_virtual & 0xfff) == 0);
+	assert((end_virtual & 0xfff) == 0);
+	assert(((end_virtual - start_virtual) & 0xfff) == 0);
+	assert(writable == !!writable);
 
-	alloc_frame_to_page(page, kernelmode, writable);
+		for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE) {
+			uint32 phys = pmm_alloc();
+			_vmm_map(addr, phys, dir, false /* user mode */, writable);
+		}
 
-	/* Make sure the CPU doesn't cache the old values */
-	if (page_dir == current_directory)
-		invalidate_tlb((void *)virtual_addr);
+	INTERRUPT_UNLOCK;
 }
 
-/* Free a frame */
-void free_frame(uint32 virtual_addr, page_directory_t *page_dir) {
-	page_t *page = get_page(virtual_addr, false, page_dir);
+void vmm_unmap(uint32 virtual, page_directory_t *dir) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
 	assert(page != NULL);
-	if (page->frame == 0)
-		return;
+	*((uint32 *)page) = 0;
 
-	/* Make sure this frame is currently set as being used, then clear it */
-	assert(test_frame(page->frame) == true);
-	clear_frame(page->frame);
-	page->frame = 0;
-	page->present = 0;
+	_vmm_invalidate((void *)virtual);
+	INTERRUPT_UNLOCK;
+}
 
-	/* Make sure the CPU doesn't cache the old values */
-	if (page_dir == current_directory)
-		invalidate_tlb((void *)virtual_addr);
+void vmm_free(uint32 virtual, page_directory_t *dir) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	pmm_free(vmm_get_phys(virtual, dir));
+	vmm_unmap(virtual, dir);
+	INTERRUPT_UNLOCK;
+}
+
+uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
+	assert(page != 0);
+	uint32 phys = page->frame * PAGE_SIZE;
+	phys += (virtual & 0xfff); // add the offset into the page
+
+	INTERRUPT_UNLOCK;
+	return phys;
+}
+
+void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	assert(guard == !!guard);
+
+	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
+	assert(page->present == guard); // if guard is true: should be true (before), else false
+	assert(page->guard == !guard);  // if guard is true: should be false (before), else true
+	page->present = !guard;
+	page->guard = guard; // custom bit from the "avail" bits
+
+	_vmm_invalidate((void *)virtual);
+	INTERRUPT_UNLOCK;
+}
+
+void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable) {
+	_vmm_map(virtual, physical, kernel_directory, true /* kernel mode */, writable);
+}
+
+static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	assert(kernelmode == !!kernelmode);
+	assert(writable == !!writable);
+
+	page_t *page = _vmm_get_page(virtual, dir, kernelmode);
+	*((uint32 *)page) = 0; // clear out all bits before we begin, e.g. accessed, dirty, guard (custom bit), ...
+	page->frame = (physical / PAGE_SIZE);
+	page->user = !kernelmode;
+	page->rw = !!writable;
+	page->present = 1;
+
+	_vmm_invalidate((void *)virtual);
+	INTERRUPT_UNLOCK;
+}
+
+static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernelspace) {
+	INTERRUPT_LOCK;
+	assert(dir != NULL);
+	assert(kernelspace == !!kernelspace);
+
+	uint32 pt_index = virtual / 4096 / 1024;
+	uint32 pt_offset = (virtual / 4096) % 1024;
+	page_table_t *table = dir->tables[pt_index];
+
+	if (table == NULL) {
+		_vmm_create_page_table(pt_index, dir, kernelspace);
+	}
+
+	INTERRUPT_UNLOCK;
+
+	return &dir->tables[pt_index]->pages[pt_offset];
+}
+
+#include <stdio.h> // TODO: remove when temporary panic() call is gone
+static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir, bool kernelspace) {
+	INTERRUPT_LOCK;
+
+	assert(dir->tables[pt_index] == NULL);
+	assert(kernelspace == !!kernelspace);
+
+	uint32 phys;
+	dir->tables[pt_index] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
+	memset(dir->tables[pt_index], 0, sizeof(page_table_t));
+	dir->tables_physical[pt_index] = phys | PAGE_PRESENT | PAGE_USER | PAGE_RW; // TODO: access bits are currently used on a page-level only
+
+	if (kernelspace) {
+		assert(dir == kernel_directory);
+		  // This belongs to kernel space, and needs to be in sync across
+			// *ALL* user mode tasks as well
+			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
+				page_directory_t *d = (page_directory_t *)it->data;
+				if (d != kernel_directory && d != 0 && d != dir) {
+					d->tables[pt_index] = dir->tables[pt_index];
+					d->tables_physical[pt_index] = dir->tables_physical[pt_index];
+
+					char buf[128] = {0};
+					sprintf(buf, "updated task's page dir (dir 0x%08x); page table = 0x%08x - TODO: change to printk\n", d, dir->tables);
+					panic(buf);
+				}
+			}
+	}
+	else
+		assert(dir != kernel_directory);
+
+	INTERRUPT_UNLOCK;
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
@@ -270,59 +376,30 @@ void init_paging(unsigned long upper_mem) {
 
 	list_append(pagedirs, kernel_directory); // TODO: should this be the one left out of the list?
 
-	/* Create all the page tables... */
-#if 0
-	assert(kernel_directory != NULL);
-	for (uint32 i = 0; i < 1024; i++) {
-
-		uint32 phys_addr;
-		/* allocate it */
-		kernel_directory->tables[i] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys_addr);
-		/* zero the new table */
-		memset(kernel_directory->tables[i], 0, PAGE_SIZE);
-
-		/* clear the low bits */
-		phys_addr &= 0xfffff000;
-
-		phys_addr |= 0x7; /* Set the present, r/w and supervisor flags (for the page table, not for the pages!) */
-
-		kernel_directory->tables_physical[i] = phys_addr;
-
-	}
-#endif
-
 	/* Create ALL the page tables that may be necessary for the kernel heap.
 	 * This way, we cannot run in to the godawful situation of malloc() -> heap full -> heap_expand() -> get_page() -> malloc() new page table (while heap is full!)! */
-	uint32 addr = 0;
-	assert(KHEAP_START == 0xc0000000);
-	assert(KHEAP_MAX_ADDR == 0xcffff000);
-	for (addr = KHEAP_START; addr < KHEAP_MAX_ADDR; addr += PAGE_SIZE) {
-		get_page(addr, true, kernel_directory);
+	for (uint32 index = (KHEAP_START / PAGE_SIZE / 1024); index < (KHEAP_MAX_ADDR / PAGE_SIZE / 1024); index++) {
+		_vmm_create_page_table(index, kernel_directory, true /* kernelspace */);
 	}
+	assert(kernel_directory->tables[(0xcfffffff / PAGE_SIZE / 1024)] != NULL); // TODO: remove this
 
 	/*
 	 * Identity map from the beginning (0x0) of memory to
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
-
-	addr = 0;
+	uint32 addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		map_phys_to_virt_alloc(addr, addr, false, true); // TODO: use kernel mode here!
-		addr += PAGE_SIZE;
+		vmm_map_kernel(addr, addr, true); // TODO: parts should be read only
 	}
 
-	/* Set the page at virtual address 0 to not present (to guard against null pointer dereferences) */
-	page_t *tmp_page = get_page(0, true, kernel_directory);
-	tmp_page->present = 0;
-	invalidate_tlb((void *)0);
+	// Set address 0 as a guard page, to catch NULL pointer dereferences
+	vmm_set_guard(0 /* address */, kernel_directory, true);
 
 	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
 	 * enough for the initial size. */
-	for (addr = KHEAP_START; addr < KHEAP_START + KHEAP_INITIAL_SIZE; addr += PAGE_SIZE) {
-		alloc_frame(addr, kernel_directory, PAGE_KERNEL, PAGE_WRITABLE);
-	}
+	vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, false /* continuous physical */, true /* writable */);
 
 	/* Register the page fault handler */
 	register_interrupt_handler(EXCEPTION_PAGE_FAULT, page_fault_handler);
@@ -356,7 +433,7 @@ void switch_page_directory(page_directory_t *dir) {
 	assert((new_cr3_contents & 0xfff) == 0);
 
 	asm volatile("mov %0, %%cr3;" /* set the page directory register */
-			     "mov %%cr0, %%eax;"
+				 "mov %%cr0, %%eax;"
 				 "or $0x80000000, %%eax;" /* PG = 1! */
 				 "mov %%eax, %%cr0"
 				 : /* no outputs */
@@ -364,91 +441,7 @@ void switch_page_directory(page_directory_t *dir) {
 				 : "%eax");
 }
 
-bool addr_is_mapped(uint32 addr) {
-	page_t *page = get_page(addr, /*create = */ false, current_directory);
-	if (page == NULL)
-		return false;
-
-	return (page->present == 1 && page->frame != 0);
-}
-bool addr_is_mapped_in_dir(uint32 addr, page_directory_t *dir) {
-	page_t *page = get_page(addr, /*create = */ false, dir);
-	if (page == NULL)
-		return false;
-
-	return (page->present == 1 && page->frame != 0);
-}
-
 extern volatile list_t ready_queue;
-
-/* Returns a pointer to the page entry responsible for the address at /addr/. */
-page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
-	/* Turn the address into an index. */
-	uint32 addr = in_addr / PAGE_SIZE;
-
-	/* Find the page table containing this address */
-	uint32 table_idx = addr / 1024;
-
-	/* Check whether this address/page already has a table; if so, just return the page */
-	if (dir->tables[table_idx] != NULL) {
-		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
-	}
-	else if (create == true) {
-		uint32 phys;
-		dir->tables[table_idx] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
-		memset(dir->tables[table_idx], 0, sizeof(page_table_t));
-		dir->tables_physical[table_idx] = phys | 0x07;
-
-		/* Are we creating this for a kernel page, e.g. 0x110000 or 0xc000baba,
-		   or a user mode page, e.g. 0xefff0000? */
-		if (in_addr <= placement_address + PAGE_SIZE || (in_addr >= 0xc0000000 && in_addr < 0xd0000000)) {
-			// This belongs to kernel space, and needs to be in sync across
-			// *ALL* user mode tasks as well
-			INTERRUPT_LOCK;
-			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
-				page_directory_t *d = (page_directory_t *)it->data;
-				if (d != kernel_directory && d != 0 && d != dir) {
-					d->tables[table_idx] = dir->tables[table_idx];
-					d->tables_physical[table_idx] = phys | 0x07;
-					printk("updated task's page dir (dir 0x%08x); page addr = 0x%08x\n", d, addr * PAGE_SIZE);
-				}
-			}
-			INTERRUPT_UNLOCK;
-		}
-
-		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
-	}
-	else {
-		/* Page doesn't already have a table, and creation isn't managed here any more; give up */
-		return NULL;
-	}
-}
-
-uint32 virtual_to_physical(uint32 virt_addr, page_directory_t *page_dir) {
-	/* Converts a virtual address (in the current address space) to a physical address, if possible. */
-
-	assert(virt_addr >= 0x1000); /* addresses below 0x1000 are unmapped, and nobody should ask for them */
-
-	page_t *page = get_page(virt_addr, false, page_dir);
-	if (page == NULL) {
-		panic("virtual_to_physical on non-created page");
-	}
-
-	if (page->present == 0 || page->frame == 0) {
-		/* Frame 0 is probably never used in protected mode; nevertheless, this is a minor bug (IF frame 0 is valid;
-		 * from memory, I do believe they're 0-indexed) */
-		panic("virtual_to_physical: page not present");
-	}
-
-	/* calculate the address for the beginning of the frame */
-	uint32 phys_addr = page->frame * PAGE_SIZE;
-	/* add the offset within the page */
-	phys_addr += (virt_addr & 0xfff);
-
-	return phys_addr;
-}
-
-void copy_page_physical (uint32 src, uint32 dest);
 
 page_directory_t *create_user_page_dir(void) {
 	uint32 new_dir_phys;
@@ -499,90 +492,14 @@ void destroy_user_page_dir(page_directory_t *dir) {
 	INTERRUPT_UNLOCK;
 }
 
-#if 0
-static page_table_t *clone_table(page_table_t *src, uint32 *physaddr) {
-	/* Create a new, empty page table */
-	page_table_t *table = (page_table_t *)kmalloc_ap(sizeof(page_table_t), physaddr);
-	memset(table, 0, sizeof(page_table_t));
-
-	/* Copy entries */
-	for (uint32 i = 0; i < 1024; i++) {
-		if (src->pages[i].frame == 0)
-			continue;
-
-		/* Allocate a new frame to hold the data (since we must copy it) */
-		alloc_frame_to_page(&table->pages[i], 0, 0); /* TODO: #defines instead of zeroes */
-
-		/* TODO: can't this be done in a prettier way? */
-		if (src->pages[i].present) table->pages[i].present = 1;
-		if (src->pages[i].rw)      table->pages[i].rw = 1;
-		if (src->pages[i].user)    table->pages[i].user = 1;
-		if (src->pages[i].pwt)    table->pages[i].pwt = 1;
-		if (src->pages[i].pcd)    table->pages[i].pcd = 1;
-		if (src->pages[i].accessed) table->pages[i].accessed = 1;
-		if (src->pages[i].dirty)   table->pages[i].dirty = 1;
-		if (src->pages[i].pat)   table->pages[i].pat = 1;
-		if (src->pages[i].global)   table->pages[i].global = 1;
-		if (src->pages[i].avail)   table->pages[i].avail = src->pages[i].avail;
-
-		/* Copy the data between the frames */
-		copy_page_physical(src->pages[i].frame * PAGE_SIZE, table->pages[i].frame * PAGE_SIZE);
-	}
-
-	return table;
-}
-
-page_directory_t *clone_directory(page_directory_t *src) {
-	/* Create a new, empty page directory */
-	uint32 new_dir_phys;
-	page_directory_t *dir = (page_directory_t *)kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
-	memset(dir, 0, sizeof(page_directory_t));
-
-	/*
-	 * We need the physical address of the /physical_address/ struct member. /dir/ points to the beginning of the structure, of course.
-	 * Since the physical address is (obviously!) in another address space, we can't use the & operator, but must instead calculate
-	 * its offset into the structure, then add that to the physical address.
-	 */
-	uint32 offset = (uint32)dir->tables_physical - (uint32)dir;
-	dir->physical_address = new_dir_phys + offset;
-
-	/* Clone the page tables */
-	for (uint32 i = 0; i < 1024; i++) {
-		if (src->tables[i] == NULL) {
-			continue;
-		}
-
-		/*
-		 * TODO: I have my doubts about this procedure... Will the kernel directory stay in sync across all address spaces if it changes?
-		 */
-
-		if (kernel_directory->tables[i] == src->tables[i]) {
-			/* This table is in the kernel; just link it (don't clone it) */
-			dir->tables[i] = src->tables[i];
-			dir->tables_physical[i] = src->tables_physical[i];
-		}
-		else {
-			/* Copy the table */
-			uint32 phys;
-			dir->tables[i] = clone_table(src->tables[i], &phys);
-			dir->tables_physical[i] = phys | 0x07; /* Present, RW, User */
-		}
-	}
-
-	flush_all_tlb(); /* TODO: is this the right place to do this? */
-
-	return dir;
-}
-#endif
-
 /* Tells the CPU that the page at this (virtual) address has changed. */
-void invalidate_tlb(void *addr) {
-	   asm volatile("invlpg (%%eax)" : : "a" (addr) );
+static void _vmm_invalidate(void *addr) {
+	asm volatile("invlpg (%%eax)" : : "a" (addr) );
 }
 
-void flush_all_tlb(void) {
-	asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
-}
+//static void _vmm_flush_tlb(void) {
+//asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
+//}
 
 /* The page fault interrupt handler. */
 uint32 page_fault_handler(uint32 esp) {
@@ -593,9 +510,9 @@ uint32 page_fault_handler(uint32 esp) {
 
 	/* We also get an error code pushed to the stack, located in regs->err_code. */
 	bool present_bit = (regs->err_code & (1 << 0));   // 0 = non-present page; 1 = protection violation
-	bool write_bit = regs->err_code & (1 << 1);       // was the access a write? true if write, false if read
-	bool user_bit = regs->err_code & (1 << 2);        // did the access happen from user mode (ring 3) or kernel mode (ring 0)?   
-	bool reserved_bit = regs->err_code & (1 << 3);    // was the fault caused by us setting a reserved bit to 1 in entry?
+	bool write_bit = regs->err_code & (1 << 1);	   // was the access a write? true if write, false if read
+	bool user_bit = regs->err_code & (1 << 2);		// did the access happen from user mode (ring 3) or kernel mode (ring 0)?   
+	bool reserved_bit = regs->err_code & (1 << 3);	// was the fault caused by us setting a reserved bit to 1 in entry?
 	bool int_fetch_bit = regs->err_code & (1 << 4);   // was the fault caused by an instruction fetch?
 
 	/* Print a message and panic */
@@ -604,12 +521,12 @@ uint32 page_fault_handler(uint32 esp) {
 		   "Faulting address: 0x%x\n", 
 		   (present_bit ? "protection_violation" : "non_present_page"),
 		   (write_bit   ? "action=write" : "action=read"),
-		   (user_bit    ? "user-mode" : "kernel-mode"),
+		   (user_bit	? "user-mode" : "kernel-mode"),
 		   (reserved_bit? "reserved_bits_trampled" : ""),
 		   (int_fetch_bit?"int_fetch" : ""),
 		   faulting_address);
 
-	printk("Address is %s; heap end address is %p\n", (addr_is_mapped(faulting_address)) ? "mapped" : "UNMAPPED", (kheap == 0) ? 0 : kheap->end_address);
+	printk("Heap end address is %p\n", kheap->end_address);
 
 	panic("Page fault");
 
