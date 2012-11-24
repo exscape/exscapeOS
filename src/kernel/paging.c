@@ -157,14 +157,14 @@ void map_phys_to_virt_alloc(uint32 physical_addr, uint32 virtual_addr, bool kern
 		else {
 			uint32 index = physical_addr / 4096;
 
-			bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+			INTERRUPT_LOCK;
 
 			/* Claim the frame */
 			/* First, make sure it's currently set to being unused. */
 			assert(test_frame(index) == false);
 			set_frame(index);
 
-			if (reenable_interrupts) enable_interrupts();
+			INTERRUPT_UNLOCK;
 
 			/* Set up the page associated with this frame */
 			page->present = 1;
@@ -190,7 +190,7 @@ static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 	}
 	else {
 		/* Find a free frame */
-		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+		INTERRUPT_LOCK;
 		uint32 index = first_free_frame();
 
 		if (index == 0xffffffff) {
@@ -202,7 +202,7 @@ static void alloc_frame_to_page(page_t *page, bool kernelmode, bool writable) {
 		assert(test_frame(index) == false);
 		set_frame(index);
 
-		if (reenable_interrupts) enable_interrupts();
+		INTERRUPT_UNLOCK;
 
 		/* Set up the page associated with this frame */
 		page->present = 1;
@@ -404,7 +404,7 @@ page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
 		if (in_addr <= placement_address + PAGE_SIZE || (in_addr >= 0xc0000000 && in_addr < 0xd0000000)) {
 			// This belongs to kernel space, and needs to be in sync across
 			// *ALL* user mode tasks as well
-			bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+			INTERRUPT_LOCK;
 			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
 				page_directory_t *d = (page_directory_t *)it->data;
 				if (d != kernel_directory && d != 0 && d != dir) {
@@ -413,7 +413,7 @@ page_t *get_page (uint32 in_addr, bool create, page_directory_t *dir) {
 					printk("updated task's page dir (dir 0x%08x); page addr = 0x%08x\n", d, addr * PAGE_SIZE);
 				}
 			}
-			if (reenable_interrupts) enable_interrupts();
+			INTERRUPT_UNLOCK;
 		}
 
 		return & dir->tables[table_idx]->pages[addr % 1024]; /* addr%1024 works as the offset into the table */
@@ -454,7 +454,7 @@ page_directory_t *create_user_page_dir(void) {
 	uint32 new_dir_phys;
 	page_directory_t *dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
 
-	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 
 	/* Since we want the kernel mapping to be the same in all address spaces, and the kernel (+ kernel heap, etc.) is
 	 * all that exists in the kernel directory, copy it! */
@@ -462,7 +462,7 @@ page_directory_t *create_user_page_dir(void) {
 
 	list_append(pagedirs, dir);
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 
 	/*
 	 * We need the physical address of the /tables_physical/ struct member. /dir/ points to the beginning of the structure, of course.
@@ -479,7 +479,7 @@ void destroy_user_page_dir(page_directory_t *dir) {
 	assert(dir != NULL);
 	assert(dir != kernel_directory);
 
-	uint32 reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 	for (int i=0; i < 1024; i++) {
 		page_table_t *table = dir->tables[i];
 		if (table == NULL)
@@ -496,7 +496,7 @@ void destroy_user_page_dir(page_directory_t *dir) {
 
 	kfree(dir);
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 }
 
 #if 0

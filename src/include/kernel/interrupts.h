@@ -24,6 +24,9 @@
 #define EXCEPTION_MACHINE_CHECK 18
 #define EXCEPTION_SIMD_FP_EXCEPTION 19
 
+#define INTERRUPT_LOCK bool reenable_interrupts = interrupts_enabled(); disable_interrupts()
+#define INTERRUPT_UNLOCK if (reenable_interrupts) enable_interrupts()
+
 void idt_install(void);
 
 void disable_interrupts(void);

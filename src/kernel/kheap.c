@@ -50,7 +50,7 @@ uint32 kheap_used_bytes(void) {
 void validate_heap_index(bool print_areas) {
 	/* Since there are two indexes, we need to loop through them both! */
 
-	uint32 restore_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 
 	ordered_array_t *indexes[] = { &kheap->used_index, &kheap->free_index };
 	uint32 total_index = 0;
@@ -88,7 +88,7 @@ void validate_heap_index(bool print_areas) {
 		}
 	}
 
-	if (restore_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 }
 
 void print_heap_index(void) {
@@ -493,14 +493,14 @@ void heap_free(void *p, heap_t *heap) {
 	if (p == NULL)
 		return;
 
-	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 
 	/* Don't try to free memory that is clearly not from the heap.
 	 * Note that max_address is NOT the current highest address (as determined by heap size),
 	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
 	 */
 	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address ) {
-		if (reenable_interrupts) enable_interrupts();
+		INTERRUPT_UNLOCK;
 		return;
 	}
 
@@ -654,14 +654,14 @@ void heap_free(void *p, heap_t *heap) {
 		/* Since the header address hasn't changed, we don't need to modify the index. We're done! */
 	}
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 }
 
 heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
 	heap_t *heap = (heap_t *)kmalloc_a(sizeof(heap_t));
 	assert (heap != NULL);
 
-	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 
 	/* Start and end addresses need to be page aligned; the end address is calculated and checked below */
 	assert(IS_PAGE_ALIGNED(start_address));
@@ -710,7 +710,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 	/* Keep track of the rightmost area - since this is the ONLY area, it's also the rightmost area! */
 	heap->rightmost_area = header_to_create;
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 
 	return heap;
 }
@@ -727,7 +727,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			panic("heap kmalloc called from ISR!");
 		}
 
-		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+		INTERRUPT_LOCK;
 
 		void *addr = heap_alloc(size, align, kheap);
 
@@ -735,7 +735,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			*phys = virtual_to_physical((uint32)addr, kernel_directory);
 		}
 
-		if (reenable_interrupts) enable_interrupts();
+		INTERRUPT_UNLOCK;
 
 		if (align)
 			assert(IS_PAGE_ALIGNED(addr));
@@ -745,7 +745,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	else {
 		/* kheap == NULL, i.e. we haven't created the kernel heap yet */
 
-		bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+		INTERRUPT_LOCK;
 
 		if (align == true && !IS_PAGE_ALIGNED(placement_address)) {
 			/* The page isn't page aligned; align it */
@@ -774,7 +774,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		if (align)
 			assert(IS_PAGE_ALIGNED(ret));
 
-		if (reenable_interrupts) enable_interrupts();
+		INTERRUPT_UNLOCK;
 
 		return (void *)ret;
 	}

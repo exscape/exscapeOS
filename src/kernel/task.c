@@ -145,17 +145,18 @@ bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
 	assert(pid != 1); /* kernel_task has PID 1 */
 
-	bool reenable_interrupts = interrupts_enabled();
+	INTERRUPT_LOCK;
+
 	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
 		task_t *t = (task_t *)it->data;
 		if (t->id == pid) {
 			t->state = TASK_EXITING;
-			if (reenable_interrupts) enable_interrupts();
+			INTERRUPT_UNLOCK;
 			return true;
 		}
 	}
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 	return false;
 }
 
@@ -208,14 +209,14 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 
 task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 length) {
 	assert(file != NULL);
-	bool reenable_interrupts = interrupts_enabled(); disable_interrupts();
+	INTERRUPT_LOCK;
 
 	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, length);
 	assert (task != NULL);
 
 	elf_load(file, fsize(file), task);
 
-	if (reenable_interrupts) enable_interrupts();
+	INTERRUPT_UNLOCK;
 	return task;
 }
 
