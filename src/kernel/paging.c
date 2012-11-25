@@ -74,7 +74,8 @@ static bool _pmm_test_frame(uint32 phys_addr) {
 /* Returns the first free frame, roughly after (or at) /start_addr/ */
 static uint32 _pmm_first_free_frame(uint32 start_addr) {
 	uint32 index = start_addr / PAGE_SIZE;
-	index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
+	if (index != 0)
+		index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
 	for (; index < nframes / 32; index++) {
 		if (used_frames[index] == 0xffffffff) {
 			/* No bits are free among the 32 tested; try the next index */
@@ -112,6 +113,8 @@ uint32 pmm_alloc(void) {
 uint32 pmm_alloc_continuous(uint32 num_frames) {
 	if (num_frames < 2)
 		return pmm_alloc();
+
+	panic("TODO: pmm_alloc_continuous - test it!");
 
 	uint32 last = placement_address + PAGE_SIZE; // don't bother trying prior to this
 	uint32 start = _pmm_first_free_frame(last);
@@ -285,7 +288,11 @@ static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, boo
 	assert(writable == !!writable);
 
 	page_t *page = _vmm_get_page(virtual, dir, kernelmode);
-	*((uint32 *)page) = 0; // clear out all bits before we begin, e.g. accessed, dirty, guard (custom bit), ...
+	assert(*((uint32 *)page) == 0);
+
+	if (physical <= placement_address) {
+		printk(".\b");
+	}
 	page->frame = (physical / PAGE_SIZE);
 	page->user = !kernelmode;
 	page->rw = !!writable;
@@ -378,10 +385,9 @@ void init_paging(unsigned long upper_mem) {
 
 	/* Create ALL the page tables that may be necessary for the kernel heap.
 	 * This way, we cannot run in to the godawful situation of malloc() -> heap full -> heap_expand() -> get_page() -> malloc() new page table (while heap is full!)! */
-	for (uint32 index = (KHEAP_START / PAGE_SIZE / 1024); index < (KHEAP_MAX_ADDR / PAGE_SIZE / 1024); index++) {
+	for (uint32 index = (KHEAP_START / PAGE_SIZE / 1024); index <= (KHEAP_MAX_ADDR / PAGE_SIZE / 1024); index++) {
 		_vmm_create_page_table(index, kernel_directory, true /* kernelspace */);
 	}
-	assert(kernel_directory->tables[(0xcfffffff / PAGE_SIZE / 1024)] != NULL); // TODO: remove this
 
 	/*
 	 * Identity map from the beginning (0x0) of memory to
@@ -391,6 +397,8 @@ void init_paging(unsigned long upper_mem) {
 	uint32 addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		vmm_map_kernel(addr, addr, true); // TODO: parts should be read only
+		_pmm_set_frame(addr);
+		addr += PAGE_SIZE;
 	}
 
 	// Set address 0 as a guard page, to catch NULL pointer dereferences
@@ -399,7 +407,7 @@ void init_paging(unsigned long upper_mem) {
 	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
 	 * enough for the initial size. */
-	vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, false /* continuous physical */, true /* writable */);
+	vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
 
 	/* Register the page fault handler */
 	register_interrupt_handler(EXCEPTION_PAGE_FAULT, page_fault_handler);

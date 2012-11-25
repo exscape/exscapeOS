@@ -433,6 +433,8 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	if (new_task == current_task)
 		return esp;
 
+	assert(new_task->state != TASK_SLEEPING);
+
 	if (new_task->state == TASK_WAKING_UP)
 		new_task->state = TASK_RUNNING;
 
@@ -476,6 +478,8 @@ static bool task_running_predicate(node_t *node) {
 
 void set_next_task(task_t *task) {
 	next_task = task;
+	next_task->state = TASK_RUNNING;
+	next_task->wakeup_time = 0;
 }
 
 /* This function is called by the IRQ handler whenever the timer fires (or a software interrupt 0x7e is sent). */
