@@ -301,7 +301,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		/* Force a call to user_exit() if the task attempts to read and RET "past" the stack */
 		assert(current_directory == kernel_directory);
 		switch_page_directory(task->page_directory);
-		*((uint32 *)(0xf0000000 - 4)) = (uint32)&user_exit;
+		*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
 		switch_page_directory(kernel_directory);
 	}
 	else if (task->privilege == 0) {

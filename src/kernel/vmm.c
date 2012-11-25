@@ -20,11 +20,19 @@ uint32 mem_end_page = 0;
 
 list_t *pagedirs = NULL;
 
+// Everything outside of the user mode address range of 0x1000000 to 0xc0000000 (exclusive) is kernel space.
+// Currently, 0x10000000 is where ELF programs are loaded, while 0xbffff000 is the start of the userspace stack.
+// The rest of the space (virtually that entire space except the few pages used by the program + data and
+// the stack) is currently unused.
+// (keep in mind that the stack grows towards LOWER addresses).
+#define IS_USER_SPACE(addr) ( (addr >= 0x10000000 && addr < 0xc0000000) )
+#define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
+
 // Forward declarations; the internal (static, _ prefixed) functions are below the public ones
 static void _vmm_invalidate(void *addr);
 static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable);
-static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernelspace);
-static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir, bool kernelspace);
+static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir);
+static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir);
 //static void _vmm_flush_tlb(void);
 
 // Allocate physical memory for kernel space, possibly with continuous physical addresses, and map it to the selected virtual address range
@@ -83,7 +91,7 @@ void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *
 void vmm_unmap(uint32 virtual, page_directory_t *dir) {
 	INTERRUPT_LOCK;
 	assert(dir != NULL);
-	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
+	page_t *page = _vmm_get_page(virtual, dir);
 	assert(page != NULL);
 	*((uint32 *)page) = 0;
 
@@ -104,7 +112,7 @@ void vmm_free(uint32 virtual, page_directory_t *dir) {
 uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir) {
 	INTERRUPT_LOCK;
 	assert(dir != NULL);
-	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
+	page_t *page = _vmm_get_page(virtual, dir);
 	assert(page != 0);
 	uint32 phys = page->frame * PAGE_SIZE;
 	phys += (virtual & 0xfff); // add the offset into the page
@@ -119,7 +127,7 @@ void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to 
 	assert(dir != NULL);
 	assert(guard == !!guard);
 
-	page_t *page = _vmm_get_page(virtual, dir, (dir == kernel_directory ? true : false));
+	page_t *page = _vmm_get_page(virtual, dir);
 	assert(page->present == guard); // if guard is true: should be true (before), else false
 	assert(page->guard == !guard);  // if guard is true: should be false (before), else true
 	page->present = !guard;
@@ -141,7 +149,7 @@ static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, boo
 	assert(kernelmode == !!kernelmode);
 	assert(writable == !!writable);
 
-	page_t *page = _vmm_get_page(virtual, dir, kernelmode);
+	page_t *page = _vmm_get_page(virtual, dir);
 	assert(*((uint32 *)page) == 0);
 
 	page->frame = (physical / PAGE_SIZE);
@@ -154,10 +162,9 @@ static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, boo
 }
 
 // Internal function: get a pointer to a page entry; create the page table containing it if necessary
-static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernelspace) {
+static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir) {
 	INTERRUPT_LOCK;
 	assert(dir != NULL);
-	assert(kernelspace == !!kernelspace);
 
 	// 4096: page size; 1024: number of pages per page table
 	uint32 pt_index = virtual / 4096 / 1024;
@@ -165,7 +172,7 @@ static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernels
 	page_table_t *table = dir->tables[pt_index];
 
 	if (table == NULL) {
-		_vmm_create_page_table(pt_index, dir, kernelspace);
+		_vmm_create_page_table(pt_index, dir);
 	}
 
 	INTERRUPT_UNLOCK;
@@ -178,18 +185,17 @@ static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir, bool kernels
 // all kernel space page tables are created prior to user mode tasks.
 
 // Internal function: create and set up a page table
-static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir, bool kernelspace) {
+static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 	INTERRUPT_LOCK;
 
 	assert(dir->tables[pt_index] == NULL);
-	assert(kernelspace == !!kernelspace);
 
 	uint32 phys;
 	dir->tables[pt_index] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
 	memset(dir->tables[pt_index], 0, sizeof(page_table_t));
 	dir->tables_physical[pt_index] = phys | PAGE_PRESENT | PAGE_USER | PAGE_RW; // TODO: access bits are currently used on a page-level only
 
-	if (kernelspace) {
+	if (IS_KERNEL_SPACE(pt_index * 4096 * 1024)) {
 		assert(dir == kernel_directory);
 		  // This belongs to kernel space, and needs to be in sync across
 			// *ALL* user mode tasks as well
@@ -236,7 +242,7 @@ void init_paging(unsigned long upper_mem) {
 	/* Create ALL the page tables that may be necessary for the kernel heap.
 	 * This way, we cannot run in to the godawful situation of malloc() -> heap full -> heap_expand() -> get_page() -> malloc() new page table (while heap is full!)! */
 	for (uint32 index = (KHEAP_START / PAGE_SIZE / 1024); index <= (KHEAP_MAX_ADDR / PAGE_SIZE / 1024); index++) {
-		_vmm_create_page_table(index, kernel_directory, true /* kernelspace */);
+		_vmm_create_page_table(index, kernel_directory);
 	}
 
 	/*

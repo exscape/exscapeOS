@@ -37,7 +37,7 @@ extern task_t kernel_task;
 
 void user_exit(void); // called from user mode
 
-#define USER_STACK_START 0xf0000000
+#define USER_STACK_START 0xbffff000
 #define USER_STACK_SIZE 16384 /* overkill? */
 
 /* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
