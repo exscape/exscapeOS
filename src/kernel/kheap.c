@@ -1,6 +1,6 @@
 #include <kernel/kheap.h>
 #include <kernel/kernutil.h>
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/console.h> /* for print_heap_index() */
 #include <kernel/interrupts.h>
 #include <stdio.h> /* sprintf */

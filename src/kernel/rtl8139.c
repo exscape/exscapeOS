@@ -3,7 +3,7 @@
 #include <kernel/kheap.h>
 #include <kernel/console.h>
 #include <kernel/pci.h>
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/rtl8139.h>
 #include <kernel/ipicmp.h>
 #include <kernel/timer.h>

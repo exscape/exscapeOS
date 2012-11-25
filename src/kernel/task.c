@@ -2,7 +2,7 @@
 #include <string.h>
 #include <kernel/kernutil.h>
 #include <kernel/kheap.h>
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/console.h>
 #include <kernel/task.h>
 #include <kernel/gdt.h>

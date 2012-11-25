@@ -12,7 +12,7 @@
 #include <kernel/elf.h>
 
 /* for heaptest() */
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/timer.h>
 #include <stdlib.h>
 

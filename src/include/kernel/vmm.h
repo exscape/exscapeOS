@@ -53,27 +53,6 @@ typedef struct page_directory {
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 
-///////////////////////////////
-/// PHYSICAL MEMORY MANAGER ///
-///////////////////////////////
-
-// Allocate a physical frame and return the address
-uint32 pmm_alloc(void);
-
-// Allocate a set of continuous physical frames, e.g. physical adressess 0x100000 - 0x110000.
-// Useful for DMA buffers and such.
-uint32 pmm_alloc_continuous(uint32 num_frames);
-
-// Free a single physical frame
-void pmm_free(uint32 phys_addr);
-
-// Returns how many upper RAM bytes are still unallocated
-uint32 pmm_bytes_free(void);
-
-//////////////////////////////
-/// VIRTUAL MEMORY MANAGER ///
-//////////////////////////////
-
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
 

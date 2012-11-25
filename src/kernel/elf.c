@@ -5,7 +5,7 @@
 #include <kernel/elf.h>
 #include <kernel/task.h>
 #include <string.h>
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 
 #define ELF_DEBUG 0
 

@@ -2,7 +2,7 @@
 #include <kernel/gdt.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* assert */
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/kheap.h>
 
 /* Create three kernel-global instances of GDT entries, and a pointer */

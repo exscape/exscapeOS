@@ -1,7 +1,7 @@
 #ifndef _TASK_H
 #define _TASK_H
 
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <types.h>
 #include <kernel/console.h>
 #include <kernel/vfs.h>

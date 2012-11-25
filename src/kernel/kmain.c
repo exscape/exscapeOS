@@ -9,7 +9,7 @@
 #include <kernel/keyboard.h>
 #include <kernel/timer.h>
 #include <kernel/kheap.h>
-#include <kernel/paging.h>
+#include <kernel/vmm.h>
 #include <kernel/rtc.h>
 #include <kernel/multiboot.h>
 #include <kernel/initrd.h>
