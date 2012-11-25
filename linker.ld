@@ -15,9 +15,11 @@ SECTIONS{
 		*(.__mbHeader)
 	}
 
+	__start_text = .;
     .text :{
         *(.text)
     }
+	__end_text = .;
 
     .rodata ALIGN (0x1000) : {
         *(.rodata)

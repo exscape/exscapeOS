@@ -726,8 +726,10 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		void *addr = heap_alloc(size, align, kheap);
 
 		if (phys != 0) {
-			if (!align || (align && size > PAGE_SIZE)) {
-				panic("kmalloc: can't guarantee continous physical pages - use vmm_alloc_kernel instead");
+			if (!align || ((align && size > PAGE_SIZE) && size != sizeof(page_directory_t))) {
+				// HACK: page directories aren't affected by this because all the data *the CPU* needs are in the first page,
+				// so continuous frames aren't required.
+				panic("kmalloc: can't guarantee continous physical pages - use vmm_alloc_kernel instead (ignore for page dirs)\n");
 			}
 			*phys = vmm_get_phys((uint32)addr, kernel_directory);
 		}

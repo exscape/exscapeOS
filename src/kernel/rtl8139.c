@@ -257,8 +257,11 @@ bool init_rtl8139(void) {
 
 		my_mac = (uint8 *)(rtl_mmio_base); // MAC address is stored at register 0
 
-		recv_buf = kmalloc_ap(RTL8139_RXBUFFER_SIZE + 16, &recv_buf_phys);
-		memset(recv_buf, 0, RTL8139_RXBUFFER_SIZE + 16);
+		//recv_buf = kmalloc_ap(RTL8139_RXBUFFER_SIZE + 16, &recv_buf_phys);
+
+		recv_buf = (uint8 *)0xff000000;
+		recv_buf_phys = vmm_alloc_kernel((uint32)recv_buf, (uint32)(recv_buf + RTL8139_RXBUFFER_SIZE + PAGE_SIZE), true /* continuous physical */, true /* writable */);
+		memset(recv_buf, 0, RTL8139_RXBUFFER_SIZE + PAGE_SIZE);
 
 		rtl8139_packetBuffer = kmalloc(2048);
 		memset(rtl8139_packetBuffer, 0, 2048);

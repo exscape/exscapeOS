@@ -73,7 +73,7 @@ static bool _pmm_test_frame(uint32 phys_addr) {
 
 /* Returns the first free frame, roughly after (or at) /start_addr/ */
 static uint32 _pmm_first_free_frame(uint32 start_addr) {
-	uint32 index = start_addr / PAGE_SIZE;
+	uint32 index = start_addr / PAGE_SIZE / 32;
 	if (index != 0)
 		index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
 	for (; index < nframes / 32; index++) {
@@ -114,7 +114,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 	if (num_frames < 2)
 		return pmm_alloc();
 
-	panic("TODO: pmm_alloc_continuous - test it!");
+	printk("TODO: pmm_alloc_continuous - test it!\n");
 
 	uint32 last = placement_address + PAGE_SIZE; // don't bother trying prior to this
 	uint32 start = _pmm_first_free_frame(last);
@@ -159,6 +159,7 @@ void pmm_free(uint32 phys_addr) {
  * Note that this function is simple, not fast! It should NOT be called often, e.g. in loops! */
 uint32 pmm_bytes_free(void) {
 	uint32 unused = 0;
+	INTERRUPT_LOCK;
 
 	for (uint32 index = 0; index < nframes/32; index++) {
 		if (used_frames[index] == 0) {
@@ -179,6 +180,8 @@ uint32 pmm_bytes_free(void) {
 		}
 	}
 
+	INTERRUPT_UNLOCK;
+	assert(unused % 4096 == 0);
 	return unused;
 }
 
@@ -192,7 +195,7 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 	assert(writable == !!writable);
 
 	if (continuous_physical) {
-		const uint32 ret = pmm_alloc_continuous(end_virtual - start_virtual /* size */);
+		const uint32 ret = pmm_alloc_continuous((end_virtual - start_virtual) / PAGE_SIZE /* size */);
 		uint32 phys = ret;
 		for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE, phys += PAGE_SIZE) {
 			vmm_map_kernel(addr, phys, writable);
@@ -348,13 +351,17 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir, bool 
 				}
 			}
 	}
-	else
-		assert(dir != kernel_directory);
+	//else // TODO: this can be enabled only when the kernel space is set to kernel mode in the paging structures!
+	//assert(dir != kernel_directory);
 
 	INTERRUPT_UNLOCK;
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
+
+
+extern uint32 __start_text;
+extern uint32 __end_text;
 
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem) {
@@ -394,9 +401,34 @@ void init_paging(unsigned long upper_mem) {
 	 * to the end of used memory, so that we can access it
 	 * as if paging wasn't enabled.
 	 */
+
+	// We currently need the kernel's .text to be readable to user mode as well...
+	// Tasks created in-kernel (not via ELF files) run code here.
+	// This reads the start and end addresses of .text from the linker script,
+	// maps it to page-aligned addresses and maps them differently from the rest
+	// of the kernel space.
+	uint32 start_text = (uint32)(&__start_text);
+	uint32 end_text = (uint32)(&__end_text);
+	if ((start_text & 0xfff) != 0) {
+		start_text &= 0xfffff000;
+		// DON'T add 0x1000 here, we want to truncate to map it all (.text starts at 0x10000c atm)
+	}
+	if ((end_text & 0xfff) != 0) {
+		end_text &= 0xfffff000;
+		end_text += 0x1000;
+	}
+
+	// Do the actual mapping
 	uint32 addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
-		vmm_map_kernel(addr, addr, true); // TODO: parts should be read only
+		// TODO: change this to map kernel pages as kernel mode; read-only for .text and read-write for the rest, when user tasks are no longer started in-kernel!
+		if (addr >= start_text && addr < end_text) {
+			// This is a kernel .text page - map it as user mode
+			_vmm_map(addr, addr, kernel_directory, false, false);
+		}
+		else {
+			_vmm_map(addr, addr, kernel_directory, false, false);
+		}
 		_pmm_set_frame(addr);
 		addr += PAGE_SIZE;
 	}
@@ -418,10 +450,8 @@ void init_paging(unsigned long upper_mem) {
 	/* Initialize the kernel heap */
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0); /* supervisor, not read-only */
 
-	/* Set up the current page directory */
-	//current_directory = clone_directory(kernel_directory);
-	current_directory = kernel_directory;
-	switch_page_directory(current_directory);
+	/* Set up the page directory and enable paging! */
+	switch_page_directory(kernel_directory);
 
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
@@ -434,6 +464,7 @@ extern struct idt_entry idt[256];
 
 /* Loads the page directory at /dir/ into the CR3 register. */
 void switch_page_directory(page_directory_t *dir) {
+	INTERRUPT_LOCK;
 	current_directory = dir;
 	uint32 new_cr3_contents = (uint32) dir->physical_address;
 	/* bit 3 and 4 (i.e. with values 8 and 16) are used to control write-through and cache, but we don't want either set.
@@ -447,6 +478,8 @@ void switch_page_directory(page_directory_t *dir) {
 				 : /* no outputs */
 				 : "r"(new_cr3_contents)
 				 : "%eax");
+
+	INTERRUPT_UNLOCK;
 }
 
 extern volatile list_t ready_queue;

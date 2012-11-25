@@ -218,6 +218,8 @@ task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 leng
 }
 
 task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length) {
+	INTERRUPT_LOCK;
+
 	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */, data, length);
 	assert(task != NULL);
 
@@ -231,6 +233,8 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 		if (n)
 			assert((task_t *)n->data == task);
 	}
+
+	INTERRUPT_UNLOCK;
 
 	return task;
 }
@@ -283,7 +287,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		task->user_addr_table = list_create();
 
 		/* Set up a usermode stack for this task */
-		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_SIZE + PAGE_SIZE, task->page_directory, true /* writable */);
+		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, true /* writable */);
 
 		/* Set a guard page */
 		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory, true /* set guard page */);
