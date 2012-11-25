@@ -37,30 +37,30 @@ void pmm_init(uint32 upper_mem) {
 
 /* Set a bit in the used_frames bitmap */
 static void _pmm_set_frame(uint32 phys_addr) {
-	phys_addr /= PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(phys_addr);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	uint32 offset = OFFSET_FROM_BIT(frame_index);
 	assert((used_frames[index] & (1 << offset)) == 0);
 	used_frames[index] |= (1 << offset);
 }
 
 /* Clear a bit in the used_frames bitmap */
 static void _pmm_clear_frame(uint32 phys_addr) {
-	phys_addr /= PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(phys_addr);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	uint32 offset = OFFSET_FROM_BIT(frame_index);
 	assert((used_frames[index] & (1 << offset)) != 0);
 	used_frames[index] &= ~(1 << offset);
 }
 
 /* Test whether a bit is set in the used_frames bitmap */
 static bool _pmm_test_frame(uint32 phys_addr) {
-	phys_addr /= PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(phys_addr);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(phys_addr);
+	uint32 offset = OFFSET_FROM_BIT(frame_index);
 	if ((used_frames[index] & (1 << offset)) != 0)
 		return true;
 	else
@@ -72,6 +72,7 @@ static uint32 _pmm_first_free_frame(uint32 start_addr) {
 	uint32 index = start_addr / PAGE_SIZE / 32;
 	if (index != 0)
 		index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
+
 	for (; index < nframes / 32; index++) {
 		if (used_frames[index] == 0xffffffff) {
 			/* No bits are free among the 32 tested; try the next index */
@@ -100,6 +101,7 @@ uint32 pmm_alloc(void) {
 	if (phys_addr == 0xffffffff) {
 		panic("pmm_alloc: no free frames (out of memory)!");
 	}
+
 	_pmm_set_frame(phys_addr); // also tests that it's actually free
 	INTERRUPT_UNLOCK;
 	return phys_addr;
@@ -116,7 +118,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 		last = placement_address + PAGE_SIZE;
 	}
 	else {
-		// This is the very FIRST "allocation" where we identity map the lower addresses
+		// This is (most likely!) the very FIRST "allocation" where we identity map the lower addresses. Always start at zero here.
 		last = 0;
 	}
 
@@ -124,6 +126,14 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 	bool success = false;
 
 	INTERRUPT_LOCK;
+
+	/*
+	 * The idea behind this (naïve but relatively simple) algorithm is:
+	 * 1) Find the first free frame
+	 * 2) Are (frame+1), (frame+2), (frame+...), (frame + (num_frames - 1)) also free?
+	 *	3) If yes: we're done, allocate them and return
+	 *  4) If no: find the next free frame; start looking *after* the used one we found in step 2
+	 */
 
 	while (!success) {
 		success = true; // if set when the for loop breaks, we're done
@@ -154,6 +164,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 
 void pmm_free(uint32 phys_addr) {
 	INTERRUPT_LOCK;
+	assert(_pmm_test_frame(phys_addr) != 0);
 	_pmm_clear_frame(phys_addr);
 	INTERRUPT_UNLOCK;
 }
