@@ -15,23 +15,24 @@ typedef struct page {
 	uint32 pcd      : 1;  /* Page-level cache disable */
 	uint32 accessed : 1;  /* has the page been accessed (read or written) since last refresh? */
 	uint32 dirty    : 1;  /* has the page been written to since last refresh? */
-	uint32 pat      : 1;
+	uint32 pat      : 1;  /* not used: related to caching in Pentium III and newer processors */
 	uint32 global   : 1;  /* if CR4.PGE = 1, determines whether the translation is global; ignored otherwise */
-	uint32 guard	: 1; // One of the three "avail" bits; is this page a guard page?
-	uint32 avail    : 2;  /* bits available for use by the OS; one is used by the OS */
+	uint32 guard	: 1;  /* One of the three "avail" bits; is this page a guard page? */
+	uint32 avail    : 2;  /* bits available for use by the OS; one of the three is used (above) */
 	uint32 frame    : 20; /* high 20 bits of the frame address */
 } __attribute__((packed)) page_t;
 
-#define PAGE_PRESENT (1 << 0)
-#define PAGE_RW (1 << 1)
-#define PAGE_USER (1 << 2)
-#define PAGE_PWT (1 << 3)
-#define PAGE_PCD (1 << 4)
-#define PAGE_ACCESSED (1 << 5)
-#define PAGE_DIRTY (1 << 6)
-#define PAGE_PAT (1 << 7)
-#define PAGE_GLOBAL (1 << 8)
-#define PAGE_GUARD (1 << 9)
+// Page Table Entry bits, i.e. ones used to control a single page
+#define PTE_PRESENT (1 << 0)
+#define PTE_RW (1 << 1)
+#define PTE_USER (1 << 2)
+#define PTE_PWT (1 << 3)
+#define PTE_PCD (1 << 4)
+#define PTE_ACCESSED (1 << 5)
+#define PTE_DIRTY (1 << 6)
+#define PTE_PAT (1 << 7)
+#define PTE_GLOBAL (1 << 8)
+#define PTE_GUARD (1 << 9)
 
 /* Represents a page table in memory */
 typedef struct page_table {
@@ -52,6 +53,12 @@ typedef struct page_directory {
 
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
+
+// Defines that can be used as parameters to the below functions
+#define PAGE_RO 0
+#define PAGE_RW 1
+#define PAGE_ANY_PHYS 0
+#define PAGE_CONTINUOUS_PHYS 1
 
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);

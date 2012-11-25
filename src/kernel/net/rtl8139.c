@@ -260,7 +260,7 @@ bool init_rtl8139(void) {
 		//recv_buf = kmalloc_ap(RTL8139_RXBUFFER_SIZE + 16, &recv_buf_phys);
 
 		recv_buf = (uint8 *)0xff000000;
-		recv_buf_phys = vmm_alloc_kernel((uint32)recv_buf, (uint32)(recv_buf + RTL8139_RXBUFFER_SIZE + PAGE_SIZE), true /* continuous physical */, true /* writable */);
+		recv_buf_phys = vmm_alloc_kernel((uint32)recv_buf, (uint32)(recv_buf + RTL8139_RXBUFFER_SIZE + PAGE_SIZE), PAGE_CONTINUOUS_PHYS, PAGE_RW);
 		memset(recv_buf, 0, RTL8139_RXBUFFER_SIZE + PAGE_SIZE);
 
 		rtl8139_packetBuffer = kmalloc(2048);
@@ -276,7 +276,7 @@ bool init_rtl8139(void) {
 		arp_init();
 
 		// Map the MMIO address to the virtual address space
-		vmm_map_kernel((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, true /* writable */);
+		vmm_map_kernel((uint32)rtl_mmio_base, (uint32)rtl_mmio_base, PAGE_RW);
 
 		/* "Turn on" the card (is this really necessary? QEMU works either way) */
 

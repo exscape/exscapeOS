@@ -287,10 +287,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		task->user_addr_table = list_create();
 
 		/* Set up a usermode stack for this task */
-		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, true /* writable */);
+		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, PAGE_RW);
 
 		/* Set a guard page */
-		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory, true /* set guard page */);
+		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory, true);
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));

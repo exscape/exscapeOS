@@ -200,7 +200,7 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 	uint32 phys;
 	dir->tables[pt_index] = (page_table_t *)kmalloc_ap(sizeof(page_table_t), &phys);
 	memset(dir->tables[pt_index], 0, sizeof(page_table_t));
-	dir->tables_physical[pt_index] = phys | PAGE_PRESENT | PAGE_USER | PAGE_RW; // TODO: access bits are currently used on a page-level only
+	dir->tables_physical[pt_index] = phys | PTE_PRESENT | PTE_USER | PTE_RW; // TODO: access bits are currently used on a page-level only
 
 	if (IS_KERNEL_SPACE(pt_index * 4096 * 1024)) {
 		assert(dir == kernel_directory);
@@ -423,6 +423,8 @@ static void _vmm_invalidate(void *addr) {
 }
 
 //static void _vmm_flush_tlb(void) {
+// *NOTE*: this doesn't flush EVERYTHING: global pages are untouched.
+// Clear and set CR4.PGE instead?
 //asm volatile ("push %eax; mov %cr3, %eax; mov %eax, %cr3; pop %eax;");
 //}
 

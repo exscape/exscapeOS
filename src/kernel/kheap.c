@@ -265,7 +265,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	/* Now, finally... Physically allocate the new frames */
 	// TODO: userspace heap support
-	vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, false /* not continuous physical */, (heap->readonly ? false : true) /* writable */);
+	vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, PAGE_ANY_PHYS, (heap->readonly ? false : true) /* writable */);
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
