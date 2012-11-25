@@ -8,16 +8,16 @@
 [x] Kernel heap
 [x] VFS layer + basic initrd
 [x] Proper console support (not sure how "proper" it is, but... it's decent!)
-[ ] Multitasking
+[x] Multitasking
 	[x] Basic kernel mode multitasking (shared page directory)
-	[ ] User mode support
-[ ] Syscalls
-	// The basics are there, but the only syscall defined is puts
+	[x] User mode support
+[x] Syscalls
+	[ ] More are always needed, though...
 [ ] ATA driver
 	[x] Basic reading (PIO)
 	[x] Basic writing (PIO)
 	[ ] Decent error handling
 [ ] File system
-[ ] Executable loading (ELF parsing, etc.)
+[x] Executable loading (ELF parsing, etc.)
 [ ] User-mode libc
 [ ] FPU/SSE/AVX state saving during context switches

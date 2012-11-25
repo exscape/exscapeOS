@@ -157,6 +157,13 @@ static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, boo
 	page->rw = !!writable;
 	page->present = 1;
 
+	if (IS_KERNEL_SPACE(virtual)) {
+		// We use this macro instead of the /kernelmode/ parameter because at the moment,
+		// not all kernel structures are mapped as kernel mode (unfortunately).
+		// We still want this to stay in the TLB despite task/page dir switches though.
+		page->global = 1;
+	}
+
 	_vmm_invalidate((void *)virtual);
 	INTERRUPT_UNLOCK;
 }
@@ -218,6 +225,34 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
+
+static void enable_paging(void) {
+	INTERRUPT_LOCK;
+
+	/*
+	 * This seems silly to do in two steps, but it's
+	 * done because of this little paragraph from the Intel manual (aka. the holy
+	 * OSdev bible):
+	 *   "When enabling the global page feature, paging must be enabled (by
+	      setting the PG flag in control register CR0) before the PGE flag is set.
+		  Reversing this sequence may affect program correctness, and processor
+		  performance will be impacted."
+	*
+	* They mention "reversing" the sequence, not doing it simultaneously, but
+	* to be on the safe side, do it in two steps.
+	*/
+	asm volatile("mov %%cr0, %%eax;"
+				 "or $0x80000000, %%eax;" /* PG = 1 */
+				 "mov %%eax, %%cr0;"
+				 "mov %%cr0, %%eax;" /* I assume this isn't really needed, but eh */
+				 "or $0x00000080, %%eax;" /* PGE = 1 */
+				 "mov %%eax, %%cr0;"
+				 : /* no outputs */
+				 : /* no inputs */
+				 : "%eax", "cc");
+	INTERRUPT_UNLOCK;
+}
+
 
 extern uint32 __start_text;
 extern uint32 __end_text;
@@ -301,6 +336,7 @@ void init_paging(unsigned long upper_mem) {
 
 	/* Enable paging! */
 	switch_page_directory(kernel_directory);
+	enable_paging();
 
 	/* Initialize the kernel heap */
 	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0); /* supervisor, not read-only */
@@ -324,12 +360,9 @@ void switch_page_directory(page_directory_t *dir) {
 	assert((new_cr3_contents & 0xfff) == 0);
 
 	asm volatile("mov %0, %%cr3;" /* set the page directory register */
-				 "mov %%cr0, %%eax;"
-				 "or $0x80000000, %%eax;" /* PG = 1! */
-				 "mov %%eax, %%cr0"
 				 : /* no outputs */
 				 : "r"(new_cr3_contents)
-				 : "%eax");
+				 : "%eax", "cc");
 
 	INTERRUPT_UNLOCK;
 }
