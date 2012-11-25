@@ -116,7 +116,16 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 
 	printk("TODO: pmm_alloc_continuous - test it!\n");
 
-	uint32 last = placement_address + PAGE_SIZE; // don't bother trying prior to this
+	uint32 last;
+   	if (num_frames < (placement_address / PAGE_SIZE)) {
+		// This is a regular allocation: there won't be stuff free below the placement address, so don't bother trying
+		last = placement_address + PAGE_SIZE;
+	}
+	else {
+		// This is the very FIRST "allocation" where we identity map the lower addresses
+		last = 0;
+	}
+
 	uint32 start = _pmm_first_free_frame(last);
 	bool success = false;
 
@@ -418,7 +427,12 @@ void init_paging(unsigned long upper_mem) {
 		end_text += 0x1000;
 	}
 
-	// Do the actual mapping
+	// Allocate the physical addresses - this should ALWAYS be the FIRST call to
+	// *ANY* pmm_ function, so whe should ALWAYS get 0 back as the first address.
+	uint32 first_addr = pmm_alloc_continuous((placement_address / PAGE_SIZE) + 2);
+	assert(first_addr == 0);
+
+	// Map the virtual addresses, with their respective permissions
 	uint32 addr = 0;
 	while (addr < placement_address + PAGE_SIZE) {
 		// TODO: change this to map kernel pages as kernel mode; read-only for .text and read-write for the rest, when user tasks are no longer started in-kernel!
@@ -429,7 +443,7 @@ void init_paging(unsigned long upper_mem) {
 		else {
 			_vmm_map(addr, addr, kernel_directory, false, false);
 		}
-		_pmm_set_frame(addr);
+
 		addr += PAGE_SIZE;
 	}
 

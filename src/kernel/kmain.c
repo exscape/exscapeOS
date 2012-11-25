@@ -46,16 +46,20 @@ extern nethandler_t *nethandler_icmp;
 
 volatile extern list_t ready_queue;
 
+extern heap_t *kheap;
+
 void cleanup_tasks(void *data, uint32 length) {
 	while(true) {
-		disable_interrupts();
+		INTERRUPT_LOCK;
 		for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+			assert((uint32)it < (uint32)kheap->end_address);
 			task_t *p = (task_t *)it->data;
+			assert((uint32)p < (uint32)kheap->end_address);
 			if (p->state == TASK_EXITING) {
 				kill(p);
 			}
 		}
-		enable_interrupts();
+		INTERRUPT_UNLOCK;
 		sleep(10);
 		//asm volatile("int $0x7e");
 	}

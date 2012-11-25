@@ -53,18 +53,46 @@ typedef struct page_directory {
 extern page_directory_t *kernel_directory;
 extern page_directory_t *current_directory;
 
-// TODO: these should probably either be in their own file, or static/"private" (except pmm_bytes_free)
+///////////////////////////////
+/// PHYSICAL MEMORY MANAGER ///
+///////////////////////////////
+
+// Allocate a physical frame and return the address
 uint32 pmm_alloc(void);
+
+// Allocate a set of continuous physical frames, e.g. physical adressess 0x100000 - 0x110000.
+// Useful for DMA buffers and such.
 uint32 pmm_alloc_continuous(uint32 num_frames);
+
+// Free a single physical frame
 void pmm_free(uint32 phys_addr);
+
+// Returns how many upper RAM bytes are still unallocated
 uint32 pmm_bytes_free(void);
 
+//////////////////////////////
+/// VIRTUAL MEMORY MANAGER ///
+//////////////////////////////
+
+// Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
+
+// Allocate memory for user mode, with any physical addresses, to the specified virtual addresses in the specified page directory
 void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable);
+
+// Map a virtual address to a physical address, with no allocotion (e.g. for MMIO), with the page set te kernel mode
 void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable);
+
+// Unmap a virtual address, without deallocating the physical frame (e.g. for unmapping MMIO addresses)
 void vmm_unmap(uint32 virtual, page_directory_t *dir);
+
+// Free and unmap a page allocation previously allocated with vmm_alloc_{kernel,user}. NOTE: frees ONE page only, not necessarily the entire set allocated!
 void vmm_free(uint32 virtual, page_directory_t *dir);
+
+// Calculate the physical address for a known virtual one
 uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir);
+
+// Set a page as guard page, i.e. present = 0, to catch invalid reads/writes
 void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */);
 
 /* Sets up everything required and activates paging. */

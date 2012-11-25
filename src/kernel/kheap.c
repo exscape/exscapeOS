@@ -265,7 +265,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	/* Now, finally... Physically allocate the new frames */
 	// TODO: userspace heap support
-	vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, false /* not continous physical */, (heap->readonly ? false : true) /* writable */);
+	vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, false /* not continuous physical */, (heap->readonly ? false : true) /* writable */);
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
@@ -273,6 +273,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 /* Contract the heap, freeing the pages and physical frames that are no longer used */
 void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
+	assert(interrupts_enabled() == false);
 	/* Don't bother shrinking less than 512 kiB; this isn't an OS for 386-based computers */
 	if (bytes_to_shrink < 512*1024)
 		return;
@@ -729,7 +730,7 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 			if (!align || ((align && size > PAGE_SIZE) && size != sizeof(page_directory_t))) {
 				// HACK: page directories aren't affected by this because all the data *the CPU* needs are in the first page,
 				// so continuous frames aren't required.
-				panic("kmalloc: can't guarantee continous physical pages - use vmm_alloc_kernel instead (ignore for page dirs)\n");
+				panic("kmalloc: can't guarantee continuous physical pages - use vmm_alloc_kernel instead (ignore for page dirs)\n");
 			}
 			*phys = vmm_get_phys((uint32)addr, kernel_directory);
 		}
