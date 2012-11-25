@@ -126,8 +126,8 @@ void kill(task_t *task) {
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
 	/* Free the kernel stack, after re-mapping the guard pages again */
-	vmm_set_guard((uint32)task->stack - KERNEL_STACK_SIZE - 4096, kernel_directory, false);
-	vmm_set_guard((uint32)task->stack, kernel_directory, false);
+	vmm_clear_guard((uint32)task->stack - KERNEL_STACK_SIZE - 4096, kernel_directory);
+	vmm_clear_guard((uint32)task->stack, kernel_directory);
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 
 	kfree(task);
@@ -272,9 +272,9 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	/* Zero the stack, so user applications can't peer in to what may have been on the kernel heap */
 	memset((void *)tmp, 0, KERNEL_STACK_SIZE + 4*4096);
 
-	/* Unmap the guard pages */
-	vmm_set_guard(start_guard, kernel_directory, true);
-	vmm_set_guard(end_guard,   kernel_directory, true);
+	/* Set the guard pages */
+	vmm_set_guard(start_guard, kernel_directory);
+	vmm_set_guard(end_guard,   kernel_directory);
 
 	task->privilege = privilege;
 	strlcpy(task->name, name, TASK_NAME_LEN);
@@ -290,7 +290,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, PAGE_RW);
 
 		/* Set a guard page */
-		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory, true);
+		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory);
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));

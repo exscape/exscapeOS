@@ -121,8 +121,8 @@ uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir) {
 	return phys;
 }
 
-// Set a guard page, i.e. set present to 0, to catch invalid reads/writes
-void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */) {
+// Set/clear a guard page
+static void _vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */) {
 	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	assert(guard == !!guard);
@@ -135,6 +135,14 @@ void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to 
 
 	_vmm_invalidate((void *)virtual);
 	INTERRUPT_UNLOCK;
+}
+
+void vmm_set_guard(uint32 virtual, page_directory_t *dir) {
+	_vmm_set_guard(virtual, dir, true);
+}
+
+void vmm_clear_guard(uint32 virtual, page_directory_t *dir) {
+	_vmm_set_guard(virtual, dir, false);
 }
 
 // Map a virtual address to a physical one, in kernel space, e.g. for MMIO
@@ -324,7 +332,7 @@ void init_paging(unsigned long upper_mem) {
 	}
 
 	// Set address 0 as a guard page, to catch NULL pointer dereferences
-	vmm_set_guard(0 /* address */, kernel_directory, true);
+	vmm_set_guard(0 /* address */, kernel_directory);
 
 	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate

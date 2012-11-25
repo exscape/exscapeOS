@@ -78,8 +78,9 @@ void vmm_free(uint32 virtual, page_directory_t *dir);
 // Calculate the physical address for a known virtual one
 uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir);
 
-// Set a page as guard page, i.e. present = 0, to catch invalid reads/writes
-void vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */);
+// Manage guard pages, i.e. pages with present = 0 to catch invalid reads/writes
+void vmm_set_guard(uint32 virtual, page_directory_t *dir);
+void vmm_clear_guard(uint32 virtual, page_directory_t *dir);
 
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem);
