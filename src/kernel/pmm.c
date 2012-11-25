@@ -37,6 +37,7 @@ void pmm_init(uint32 upper_mem) {
 
 /* Set a bit in the used_frames bitmap */
 static void _pmm_set_frame(uint32 phys_addr) {
+	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
 	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
@@ -47,6 +48,7 @@ static void _pmm_set_frame(uint32 phys_addr) {
 
 /* Clear a bit in the used_frames bitmap */
 static void _pmm_clear_frame(uint32 phys_addr) {
+	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
 	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
@@ -57,6 +59,7 @@ static void _pmm_clear_frame(uint32 phys_addr) {
 
 /* Test whether a bit is set in the used_frames bitmap */
 static bool _pmm_test_frame(uint32 phys_addr) {
+	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
 	uint32 index = INDEX_FROM_BIT(frame_index);
 	assert (index <= nframes/32 - 1);
@@ -69,6 +72,7 @@ static bool _pmm_test_frame(uint32 phys_addr) {
 
 /* Returns the first free frame, roughly after (or at) /start_addr/ */
 static uint32 _pmm_first_free_frame(uint32 start_addr) {
+	assert(interrupts_enabled() == false);
 	uint32 index = start_addr / PAGE_SIZE / 32;
 	if (index != 0)
 		index -= 1; // TODO: fix this - this is to be on the safe side by wasting time instead of getting bad results during the initial implementation phase
@@ -122,10 +126,11 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 		last = 0;
 	}
 
-	uint32 start = _pmm_first_free_frame(last);
 	bool success = false;
 
 	INTERRUPT_LOCK;
+
+	uint32 start = _pmm_first_free_frame(last);
 
 	/*
 	 * The idea behind this (naïve but relatively simple) algorithm is:
@@ -164,8 +169,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 
 void pmm_free(uint32 phys_addr) {
 	INTERRUPT_LOCK;
-	assert(_pmm_test_frame(phys_addr) != 0);
-	_pmm_clear_frame(phys_addr);
+	_pmm_clear_frame(phys_addr); // Also checks that it's currently set to being used
 	INTERRUPT_UNLOCK;
 }
 
