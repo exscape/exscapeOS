@@ -4,11 +4,11 @@
 #include <kernel/console.h>
 #include <kernel/pci.h>
 #include <kernel/vmm.h>
-#include <kernel/rtl8139.h>
-#include <kernel/ipicmp.h>
 #include <kernel/timer.h>
-#include <kernel/nethandler.h>
-#include <kernel/arp.h>
+#include <kernel/net/rtl8139.h>
+#include <kernel/net/nethandler.h>
+#include <kernel/net/arp.h>
+#include <kernel/net/ipicmp.h>
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card

@@ -1,13 +1,13 @@
 #include <string.h>
-#include <kernel/arp.h>
 #include <kernel/kernutil.h>
 #include <kernel/kheap.h>
 #include <kernel/console.h>
 #include <kernel/pci.h>
 #include <kernel/vmm.h>
-#include <kernel/rtl8139.h>
 #include <kernel/timer.h>
-#include <kernel/nethandler.h>
+#include <kernel/net/arp.h>
+#include <kernel/net/nethandler.h>
+#include <kernel/net/rtl8139.h>
 
 extern uint8 ip_address[4];
 

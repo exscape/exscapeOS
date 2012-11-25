@@ -3,7 +3,7 @@
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
 #include <kernel/kheap.h>
-#include <kernel/nethandler.h>
+#include <kernel/net/nethandler.h>
 
 /*
  * This "class" (collection functions and structs, rather) handles incoming network packets.

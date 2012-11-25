@@ -20,10 +20,10 @@
 #include <kernel/part.h>
 #include <kernel/fat.h>
 #include <kernel/pci.h>
-#include <kernel/rtl8139.h>
-#include <kernel/nethandler.h>
-#include <kernel/arp.h>
-#include <kernel/ipicmp.h>
+#include <kernel/net/rtl8139.h>
+#include <kernel/net/nethandler.h>
+#include <kernel/net/arp.h>
+#include <kernel/net/ipicmp.h>
 #include <kernel/serial.h>
 
 /* kheap.c */

@@ -4,9 +4,9 @@
 #include <kernel/console.h>
 #include <kernel/pci.h>
 #include <kernel/vmm.h>
-#include <kernel/rtl8139.h>
-#include <kernel/arp.h>
-#include <kernel/ipicmp.h>
+#include <kernel/net/rtl8139.h>
+#include <kernel/net/arp.h>
+#include <kernel/net/ipicmp.h>
 #include <kernel/timer.h>
 
 uint8 ip_address[] = {192, 168, 10, 10}; // My IP address
