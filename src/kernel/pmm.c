@@ -126,10 +126,9 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 		last = 0;
 	}
 
-	bool success = false;
-
 	INTERRUPT_LOCK;
 
+	bool success = false;
 	uint32 start = _pmm_first_free_frame(last);
 
 	/*

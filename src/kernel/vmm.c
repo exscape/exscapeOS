@@ -38,7 +38,6 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir);
 // Allocate physical memory for kernel space, possibly with continuous physical addresses, and map it to the selected virtual address range
 // Returns the first physical address in the range (even if the range may be discontinuous).
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable) {
-	INTERRUPT_LOCK;
 	assert(end_virtual > start_virtual);
 	assert((start_virtual & 0xfff) == 0);
 	assert((end_virtual & 0xfff) == 0);
@@ -46,13 +45,15 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 	assert(continuous_physical == !!continuous_physical);
 	assert(writable == !!writable);
 
+	// No interrupt "locking" is necessary since all called functions take care of that,
+	// and frame allocation + page mapping don't need to be atomic
+
 	if (continuous_physical) {
 		const uint32 ret = pmm_alloc_continuous((end_virtual - start_virtual) / PAGE_SIZE /* size */);
 		uint32 phys = ret;
 		for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE, phys += PAGE_SIZE) {
 			vmm_map_kernel(addr, phys, writable);
 		}
-		INTERRUPT_UNLOCK;
 		return ret;
 	}
 	else {
@@ -65,69 +66,62 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 
 			vmm_map_kernel(addr, phys, writable);
 		}
-		INTERRUPT_UNLOCK;
 		return ret;
 	}
 }
 
 // Allocate physical memory for user space and map it to the selected virtual address range
 void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable) {
-	INTERRUPT_LOCK;
 	assert(end_virtual > start_virtual);
 	assert((start_virtual & 0xfff) == 0);
 	assert((end_virtual & 0xfff) == 0);
 	assert(((end_virtual - start_virtual) & 0xfff) == 0);
 	assert(writable == !!writable);
 
+	// No interrupt "locking" is necessary since all called functions take care of that,
+	// and frame allocation + page mapping don't need to be atomic
+
 	for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE) {
 		uint32 phys = pmm_alloc();
 		_vmm_map(addr, phys, dir, false /* user mode */, writable);
 	}
-
-	INTERRUPT_UNLOCK;
 }
 
 // Unmap a virtual address. Does NOT free the associated physical memory (see vmm_free for that)
 void vmm_unmap(uint32 virtual, page_directory_t *dir) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	page_t *page = _vmm_get_page(virtual, dir);
 	assert(page != NULL);
 	*((uint32 *)page) = 0;
 
 	_vmm_invalidate((void *)virtual);
-	INTERRUPT_UNLOCK;
 }
 
 // Unmap a virtual address, and free its associated physical memory
 void vmm_free(uint32 virtual, page_directory_t *dir) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	pmm_free(vmm_get_phys(virtual, dir));
 	vmm_unmap(virtual, dir);
-	INTERRUPT_UNLOCK;
 }
 
 // Calculate and return the physical address for a given virtual one
 uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	page_t *page = _vmm_get_page(virtual, dir);
-	assert(page != 0);
+	assert(page != NULL);
 	uint32 phys = page->frame * PAGE_SIZE;
 	phys += (virtual & 0xfff); // add the offset into the page
 
-	INTERRUPT_UNLOCK;
 	return phys;
 }
 
 // Set/clear a guard page
 static void _vmm_set_guard(uint32 virtual, page_directory_t *dir, bool guard /* true to set, false to clear */) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	assert(guard == !!guard);
 
 	page_t *page = _vmm_get_page(virtual, dir);
+	INTERRUPT_LOCK;
 	assert(page->present == guard); // if guard is true: should be true (before), else false
 	assert(page->guard == !guard);  // if guard is true: should be false (before), else true
 	page->present = !guard;
@@ -152,12 +146,13 @@ void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable) {
 
 // Internal function: map a virtual address to a physical one, for kernel- or userspace
 static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 	assert(kernelmode == !!kernelmode);
 	assert(writable == !!writable);
 
 	page_t *page = _vmm_get_page(virtual, dir);
+
+	INTERRUPT_LOCK;
 	assert(*((uint32 *)page) == 0);
 
 	page->frame = (physical / PAGE_SIZE);
@@ -178,12 +173,13 @@ static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, boo
 
 // Internal function: get a pointer to a page entry; create the page table containing it if necessary
 static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir) {
-	INTERRUPT_LOCK;
 	assert(dir != NULL);
 
 	// 4096: page size; 1024: number of pages per page table
 	uint32 pt_index = virtual / 4096 / 1024;
 	uint32 pt_offset = (virtual / 4096) % 1024;
+
+	INTERRUPT_LOCK;
 	page_table_t *table = dir->tables[pt_index];
 
 	if (table == NULL) {
@@ -201,7 +197,7 @@ static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir) {
 
 // Internal function: create and set up a page table
 static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
-	INTERRUPT_LOCK;
+	assert(interrupts_enabled() == false);
 
 	assert(dir->tables[pt_index] == NULL);
 
@@ -229,7 +225,6 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 	//else // TODO: this can be enabled only when the kernel space is set to kernel mode in the paging structures!
 	//assert(dir != kernel_directory);
 
-	INTERRUPT_UNLOCK;
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
@@ -261,7 +256,6 @@ static void enable_paging(void) {
 	INTERRUPT_UNLOCK;
 }
 
-
 extern uint32 __start_text;
 extern uint32 __end_text;
 
@@ -281,6 +275,8 @@ void init_paging(unsigned long upper_mem) {
 	kernel_directory->physical_address = (uint32)kernel_directory->tables_physical;
 
 	list_append(pagedirs, kernel_directory); // TODO: should this be the one left out of the list?
+
+	INTERRUPT_LOCK;
 
 	/* Create ALL the page tables that may be necessary for the kernel heap.
 	 * This way, we cannot run in to the godawful situation of malloc() -> heap full -> heap_expand() -> get_page() -> malloc() new page table (while heap is full!)! */
@@ -330,6 +326,7 @@ void init_paging(unsigned long upper_mem) {
 
 		addr += PAGE_SIZE;
 	}
+	INTERRUPT_UNLOCK;
 
 	// Set address 0 as a guard page, to catch NULL pointer dereferences
 	vmm_set_guard(0 /* address */, kernel_directory);
