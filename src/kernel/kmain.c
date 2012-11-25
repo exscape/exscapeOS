@@ -17,7 +17,7 @@
 #include <kernel/syscall.h>
 #include <kernel/kshell.h>
 #include <kernel/ata.h>
-#include <kernel/part.h>
+#include <kernel/partition.h>
 #include <kernel/fat.h>
 #include <kernel/pci.h>
 #include <kernel/net/rtl8139.h>

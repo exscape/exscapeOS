@@ -4,7 +4,7 @@
 #include <types.h>
 
 struct ata_device;
-#include <kernel/part.h> /* partition_t */
+#include <kernel/partition.h> /* partition_t */
 
 typedef struct ata_channel {
 	uint16 base; /* IO base address */

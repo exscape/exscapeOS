@@ -1,5 +1,5 @@
 #include <types.h>
-#include <kernel/part.h>
+#include <kernel/partition.h>
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
 #include <kernel/ata.h>
@@ -26,7 +26,6 @@ void parse_mbr(ata_device_t *dev) {
 	assert(sizeof(struct mbr_ptable) == 16);
 
 	memset(dev->partition, 0, sizeof(partition_t) * 4);
-
 
 	/* If this device is nonexistant or an ATAPI device, set all partitions to
 	 * not present. */

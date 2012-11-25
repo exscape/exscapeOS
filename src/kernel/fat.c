@@ -5,7 +5,7 @@
 #include <kernel/kheap.h>
 #include <kernel/list.h>
 #include <string.h>
-#include <kernel/part.h>
+#include <kernel/partition.h>
 #include <kernel/vfs.h>
 
 /* TODO: Add more comments! */

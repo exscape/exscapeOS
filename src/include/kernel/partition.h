@@ -1,5 +1,5 @@
-#ifndef _PART_H
-#define _PART_H
+#ifndef _PARTITION_H
+#define _PARTITION_H
 
 #include <types.h>
 
@@ -18,6 +18,7 @@ typedef struct partition {
 	 * /filesystem/, on the other hand, is set depending on the exact
 	 * filesystem used, e.g. ext2, ext3, FAT32, ReiserFS, XFS, ...
 	 * The filesystem member should be one of the FS_* values.
+	 * As of right now only FAT32 is supported, and far from completely.o
 	 */
 } partition_t;
 
