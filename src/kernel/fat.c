@@ -179,7 +179,7 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluste
  * human-readable form (e.g. "FOO.BAR") */
 static void fat_parse_short_name(char *buf) {
 	/*
-	 * I'm not proud about this function... I did try to re-think, but
+	 * I'm not proud of this function... I did try to re-think, but
 	 * I didn't end up with anything much better than this.
 	 */
 

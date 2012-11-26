@@ -44,7 +44,7 @@ extern nethandler_t *nethandler_icmp;
 	//}
 //}
 
-volatile extern list_t ready_queue;
+extern volatile list_t ready_queue;
 
 extern heap_t *kheap;
 
@@ -65,7 +65,12 @@ void cleanup_tasks(void *data, uint32 length) {
 	}
 }
 
+extern uint32 end; // defined in linker.ld
+
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
+
+	placement_address = (uint32)&end;
+
 	/* This must be done before anything below (GDTs, etc.), since kmalloc() may overwrite the initrd otherwise! */
 	uint32 initrd_location = *((uint32 *)mbd->mods_addr);
 	uint32 initrd_end = *((uint32 *)(mbd->mods_addr + 4));

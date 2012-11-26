@@ -11,8 +11,8 @@
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
 
-/* for heaptest() */
 #include <kernel/vmm.h>
+#include <kernel/pmm.h>
 #include <kernel/timer.h>
 #include <stdlib.h>
 

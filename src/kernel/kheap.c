@@ -20,13 +20,10 @@
 /* The kernel heap */
 heap_t *kheap = NULL;
 
-/* Defined in linker.ld */
-extern uint32 end;
-
 // Set in isr.s, defined in interrupts.c
 extern bool in_isr;
 
-uint32 placement_address = (uint32)&end;
+uint32 placement_address; // set up in kmain()
 
 static sint8 area_header_t_less_than(void *a, void*b) {
 	return ( ((area_header_t *)a)->size < ((area_header_t *)b)->size ) ? 1 : 0;

@@ -259,8 +259,6 @@ static void enable_paging(void) {
 extern uint32 __start_text;
 extern uint32 __end_text;
 
-extern uint32 mem_end_page;
-
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);

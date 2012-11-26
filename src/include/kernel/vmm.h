@@ -91,9 +91,6 @@ void switch_page_directory(page_directory_t *new);
 /* The page fault interrupt handler. */
 uint32 page_fault_handler(uint32);
 
-/* Returns the number of bytes free in PHYSICAL memory. */
-uint32 pmm_bytes_free(void);
-
 page_directory_t *create_user_page_dir(void);
 void destroy_user_page_dir(page_directory_t *dir);
 
