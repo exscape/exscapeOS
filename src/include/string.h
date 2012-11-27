@@ -18,6 +18,7 @@ char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 
 size_t strlcpy(char *dst, const char *src, size_t size);
+size_t strlcat(char *dst, const char *src, size_t size);
 
 int stricmp(const char *s1, const char *s2);
 
