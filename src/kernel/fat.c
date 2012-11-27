@@ -100,7 +100,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-#if 1
+#if 0
 	//DIR *dir = fat_opendir("/OS X/Dock Themes/Previews/../../../../../././..");
 	DIR *dir = fat_opendir("/../../../././.././.././OS X");
 	printk("%u entries in dir\n", dir->len);
@@ -454,7 +454,7 @@ struct dirent *fat_readdir(DIR *dir) {
 	assert(dent != NULL);
 
 	struct dirent *dirent = kmalloc(sizeof(struct dirent));
-	strcpy(dirent->d_name, dent->name);
+	strlcpy(dirent->d_name, dent->name, DIRENT_NAME_LEN);
 	dirent->d_ino = dent->data_cluster; /* FIXME: multiple partitions won't work here! */
 	dirent->is_dir = ((dent->attrib & ATTRIB_DIR) ? true : false);
 

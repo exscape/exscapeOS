@@ -179,7 +179,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	create_task(cleanup_tasks, "[cleanup_tasks]", false, NULL, 0);
 
-#if 0
+#if 1
 	printk("Detecting ATA devices and initializing them... ");
 	ata_init();
 	printc(BLACK, GREEN, "done\n");

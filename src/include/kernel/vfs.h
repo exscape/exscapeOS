@@ -69,9 +69,11 @@ typedef struct fs_node {
 /* The root of the filesystem hierarchy */
 extern fs_node_t *fs_root;
 
+#define DIRENT_NAME_LEN 256
+
 /* POSIX struct dirent */
 struct dirent {
-	char d_name[256];
+	char d_name[DIRENT_NAME_LEN];
 	uint32 d_ino;
 	bool is_dir;
 };

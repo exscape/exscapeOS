@@ -10,6 +10,7 @@
 #include <kernel/syscall.h>
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
+#include <kernel/fat.h>
 
 #include <kernel/vmm.h>
 #include <kernel/pmm.h>
@@ -22,10 +23,14 @@
 /* for lspci() */
 #include <kernel/pci.h>
 
+#define MAX_PATH 1024 // TODO: move this
+
 void heaptest(void *data, uint32 length);
 void ls_initrd(void *data, uint32 length);
 
 extern volatile list_t ready_queue;
+
+char *_pwd;
 
 static void infinite_loop(void *data, uint32 length) {
 	for(;;);
@@ -74,6 +79,66 @@ static void create_pagefault(void *data, uint32 length) {
 static void create_pagefault_delay(void *data, uint32 length) {
 	sleep(2000);
 	create_pagefault(NULL, 0);
+}
+
+static void ls(void *data, uint32 length) {
+	DIR *dir = fat_opendir(_pwd);
+	printk("ls for %s: %u entries\n", _pwd, dir->len);
+	struct dirent *dirent;
+	while ((dirent = fat_readdir(dir)) != NULL) {
+		printk("Found a %s: %s\n",
+				(dirent->is_dir ? "directory" : "file"),
+				dirent->d_name);
+	}
+
+	fat_closedir(dir);
+}
+
+static void pwd(void *data, uint32 length) {
+	printk("%s\n", _pwd);
+}
+
+static void cd(void *data, uint32 length) {
+	printk("cd called with argument: %s\n", data);
+	if (strcmp(data, ".") == 0)
+		return;
+
+	if (strcmp(data, "/") == 0) {
+		strcpy(_pwd, "/");
+		return;
+	}
+
+	if (strcmp(data, "..") == 0) {
+		if (strcmp(_pwd, "/") == 0)
+			return;
+
+		char *p = strrchr(_pwd, '/');
+		if (p) {
+			if (p != _pwd) // not the / all paths begin with
+				*p = 0;
+			else
+				*(p+1) = 0;
+			return;
+		}
+		else
+			panic("invalid _pwd!");
+	}
+	DIR *dir = fat_opendir(_pwd);
+	// TODO: fat_finddir + VFS integration!
+
+	struct dirent *dirent;
+	while ((dirent = fat_readdir(dir)) != NULL) {
+		if (strcmp(dirent->d_name, data) == 0 && dirent->is_dir) {
+			if (_pwd[strlen(_pwd) -1] != '/')
+				strlcat(_pwd, "/", MAX_PATH);
+			strlcat(_pwd, dirent->d_name, MAX_PATH);
+
+			fat_closedir(dir);
+			return;
+		}
+	}
+	printk("cd: no such directory: %s\n", (char *)data);
+	fat_closedir(dir);
 }
 
 static void print_1_sec(void *data, uint32 length) {
@@ -259,6 +324,9 @@ void kshell(void *data, uint32 length) {
 	char *last_cmd = kmalloc(1024);
 	memset(last_cmd, 0, 1024);
 
+	_pwd = kmalloc(MAX_PATH);
+	strcpy(_pwd, "/");
+
 	task_t *task = NULL;
 
 	/* Make sure the current code spawns a new task for the kernel shell */
@@ -330,7 +398,7 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "fill_scrollback") == 0) {
 			task = create_task(&fill_scrollback, "fill_scrollback", con, NULL, 0);
 		}
-		else if (strcmp(p, "ls") == 0) {
+		else if (strcmp(p, "ls_initrd") == 0) {
 			ls_initrd(NULL, 0);
 		}
 		else if (strcmp(p, "print_heap") == 0) {
@@ -425,6 +493,12 @@ void kshell(void *data, uint32 length) {
 		else if(strcmp(p, "divzero") == 0) {
 			divzero(NULL, 0);
 		}
+		else if (strcmp(p, "ls") == 0) {
+			task = create_task(&ls, "ls", con, NULL, 0);
+		}
+		else if (strcmp(p, "pwd") == 0) {
+			task = create_task(&pwd, "pwd", con, NULL, 0);
+		}
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
@@ -449,6 +523,10 @@ void kshell(void *data, uint32 length) {
 			else {
 				printk("unable to kill task with PID %d; task not found?\n", pid);
 			}
+		}
+		else if (strncmp(p, "cd ", 3) == 0) {
+			p += 3;
+			task = create_task(&cd, "cd", con, p, strlen(p));
 		}
 		else if (strcmp(p, "testbench") == 0) {
 			testbench(NULL, 0);
