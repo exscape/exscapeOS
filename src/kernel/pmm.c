@@ -10,8 +10,11 @@
 uint32 *used_frames;
 uint32 nframes;
 
-uint32 mem_end_page;
+// Store the last allocated frame address, and only bother searching for free
+// frames prior to it we've freed a frame since. This is not optimal as-is, but simple.
+uint32 last_allocated_frame;
 
+uint32 mem_end_page;
 extern uint32 placement_address;
 
 void pmm_init(uint32 upper_mem) {
@@ -27,21 +30,23 @@ void pmm_init(uint32 upper_mem) {
 	/* allocate and initialize the bitmap */
 	used_frames = (uint32 *)kmalloc((nframes / 32 + 1) * sizeof(uint32));
 	memset(used_frames, 0, (nframes / 32 + 1) * sizeof(uint32));
+
+	last_allocated_frame = 0xffffffff; // we can't use 0 since that's a valid frame
 }
 
 /* Bitmap macros */
 /* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
  * and the number of bits to shift that dword to find it, respectively. */
-#define INDEX_FROM_BIT(a) (a / 32)
-#define OFFSET_FROM_BIT(a) (a % 32)
+#define ARRAY_INDEX(a) (a >> 5) // divide by 32
+#define OFFSET_INTO_DWORD(a)(a & 31) // mod 32
 
 /* Set a bit in the used_frames bitmap */
 static void _pmm_set_frame(uint32 phys_addr) {
 	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(frame_index);
+	uint32 index = ARRAY_INDEX(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_index);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
 	assert((used_frames[index] & (1 << offset)) == 0);
 	used_frames[index] |= (1 << offset);
 }
@@ -50,9 +55,9 @@ static void _pmm_set_frame(uint32 phys_addr) {
 static void _pmm_clear_frame(uint32 phys_addr) {
 	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(frame_index);
+	uint32 index = ARRAY_INDEX(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_index);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
 	assert((used_frames[index] & (1 << offset)) != 0);
 	used_frames[index] &= ~(1 << offset);
 }
@@ -61,9 +66,9 @@ static void _pmm_clear_frame(uint32 phys_addr) {
 static bool _pmm_test_frame(uint32 phys_addr) {
 	assert(interrupts_enabled() == false);
 	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = INDEX_FROM_BIT(frame_index);
+	uint32 index = ARRAY_INDEX(frame_index);
 	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_FROM_BIT(frame_index);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
 	if ((used_frames[index] & (1 << offset)) != 0)
 		return true;
 	else
@@ -100,11 +105,14 @@ static uint32 _pmm_first_free_frame(uint32 start_addr) {
 
 uint32 pmm_alloc(void) {
 	INTERRUPT_LOCK;
-	// TODO: keep track of the first free frame for quicker access
-	uint32 phys_addr = _pmm_first_free_frame(0);
+	if (last_allocated_frame == 0xffffffff)
+		last_allocated_frame = 0;
+	uint32 phys_addr = _pmm_first_free_frame(last_allocated_frame);
 	if (phys_addr == 0xffffffff) {
 		panic("pmm_alloc: no free frames (out of memory)!");
 	}
+
+	last_allocated_frame = phys_addr;
 
 	_pmm_set_frame(phys_addr); // also tests that it's actually free
 	INTERRUPT_UNLOCK;
@@ -169,6 +177,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 void pmm_free(uint32 phys_addr) {
 	INTERRUPT_LOCK;
 	_pmm_clear_frame(phys_addr); // Also checks that it's currently set to being used
+	last_allocated_frame = 0xffffffff;
 	INTERRUPT_UNLOCK;
 }
 
