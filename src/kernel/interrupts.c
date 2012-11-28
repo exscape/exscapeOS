@@ -113,6 +113,7 @@ static uint32 divzero_handler(uint32 esp) {
 	printk("In divzero handler, esp = %p\n", esp);
 	if (current_task != &kernel_task) {
 		kill((task_t *)current_task);
+		YIELD;
 	}
 	else
 		panic("Division by zero in kernel_task!");

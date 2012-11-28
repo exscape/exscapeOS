@@ -26,6 +26,7 @@
 
 #define INTERRUPT_LOCK bool reenable_interrupts = interrupts_enabled(); disable_interrupts()
 #define INTERRUPT_UNLOCK if (reenable_interrupts) enable_interrupts()
+#define YIELD asm volatile("int $0x7e")
 
 void idt_install(void);
 

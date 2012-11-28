@@ -208,7 +208,7 @@ static void user_stress_elf(void *data, uint32 length) {
 		assert(node != NULL);
 		create_task_elf(node, (console_t *)data, NULL, 0);
 
-        asm volatile("int $0x7e");
+        YIELD;
     }
     printk("ran for %u ticks\n", gettickcount() - start);
 }
@@ -216,7 +216,7 @@ static void user_stress_elf(void *data, uint32 length) {
 static void kernel_stress(void *data, uint32 length) {
 	for (int i=0; i < 1000; i++) {
 		create_task(kernel_test, "kernel_test", (console_t *)data, NULL, 0);
-		asm volatile("int $0x7e");
+		YIELD;
 	}
 }
 

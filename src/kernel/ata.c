@@ -485,7 +485,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* The process state is set, the ATA command is sent... take us out of here! */
 	enable_interrupts();
-	asm volatile("int $0x7e"); /* force a task switch */
+	YIELD; /* force a task switch */
 
 	/*************************************************************************
 	 * This void between these two lines is where we should return           *
@@ -584,7 +584,7 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* The process state is set. Let's go! */
 	enable_interrupts();
-	asm volatile("int $0x7e"); /* force a task switch */
+	YIELD; /* force a task switch */
 
 	/*************************************************************************
 	 * This void between these two lines is where we should return           *

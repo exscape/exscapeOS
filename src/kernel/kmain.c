@@ -56,12 +56,12 @@ void cleanup_tasks(void *data, uint32 length) {
 			task_t *p = (task_t *)it->data;
 			assert((uint32)p < (uint32)kheap->end_address);
 			if (p->state == TASK_EXITING) {
-				kill(p);
+				destroy_task(p);
 			}
 		}
 		INTERRUPT_UNLOCK;
 		sleep(10);
-		//asm volatile("int $0x7e");
+		//YIELD;
 	}
 }
 
@@ -281,7 +281,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	while (true) {
 		sleep(100000);
 		//asm volatile("sti; hlt");
-		//asm volatile("int $0x7e");
+		//YIELD;
 	}
 
 	printk("\n\n");

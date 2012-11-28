@@ -44,7 +44,7 @@ void mutex_lock(mutex_t *mutex) {
 		else {
 			//sleep(10);
 			if (task_switching)
-				asm volatile("int $0x7e");
+				YIELD;
 		}
 	}
 #endif

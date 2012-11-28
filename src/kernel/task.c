@@ -81,7 +81,7 @@ bool does_task_exist(task_t *task) {
 
 extern list_t *pagedirs;
 
-void kill(task_t *task) {
+void destroy_task(task_t *task) {
 	assert(task != &kernel_task);
 	assert(task != current_task);
 	assert(task->state == TASK_EXITING);
@@ -138,6 +138,7 @@ void kill(task_t *task) {
 	 * The pointer is still valid, even though the memory it's pointing to is not, so we can still use it for a comparison. */
 }
 
+
 bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
 	assert(pid != 1); /* kernel_task has PID 1 */
@@ -157,10 +158,13 @@ bool kill_pid(int pid) {
 	return false;
 }
 
+void kill(task_t *task) {
+	task->state = TASK_EXITING;
+}
+
 void exit_proc(void) {
-	//kill((task_t *)current_task);
-	current_task->state = TASK_EXITING; // set task to terminate
-	asm volatile("int $0x7e");
+	kill((task_t *)current_task);
+	YIELD;
 	panic("this should never be reached (in exit_proc after switching tasks)");
 }
 
@@ -597,5 +601,5 @@ void sleep(uint32 milliseconds) {
 	current_task->wakeup_time = start_ticks + ticks_to_wait;
 
 	/* Force a task switch */
-	asm volatile("int $0x7e");
+	YIELD;
 }
