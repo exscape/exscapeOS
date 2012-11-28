@@ -222,8 +222,8 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 				}
 			}
 	}
-	//else // TODO: this can be enabled only when the kernel space is set to kernel mode in the paging structures!
-	//assert(dir != kernel_directory);
+	else
+		assert(dir != kernel_directory);
 
 }
 
@@ -303,15 +303,14 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	// Map the virtual addresses for the kernel, with their respective permissions
 	uint32 addr = 0x100000;
 	while (addr < placement_address + PAGE_SIZE) {
-		// TODO: change this to map kernel pages as kernel mode; read-only for .text and read-write for the rest, when user tasks are no longer started in-kernel!
 		if (addr >= start_text && addr < end_text) {
-			// This is a kernel .text page - map it as user mode, read-only
-			_vmm_map(addr, addr, kernel_directory, false, false); // user mode!
+			// This is a kernel .text page - map it as read-only
+			vmm_map_kernel(addr, addr, PAGE_RO);
 			_pmm_set_frame(addr);
 		}
 		else {
-			// Kernel data - mark it as user mode, read-write, for now - VERY bad. TODO
-			_vmm_map(addr, addr, kernel_directory, false, true); // user mode, writable! not good!
+			// Kernel data - mark it as read-write
+			vmm_map_kernel(addr, addr, PAGE_RW);
 			_pmm_set_frame(addr);
 		}
 
@@ -319,7 +318,7 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	}
 	INTERRUPT_UNLOCK;
 
-	/* Map the video RAM region */
+	/* Map the video RAM region (one page is enough for what we use) */
 	_vmm_map(0xb8000, 0xb8000, kernel_directory, true, PAGE_RW);
 
 	// Set address 0 as a guard page, to catch NULL pointer dereferences
