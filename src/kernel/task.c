@@ -181,7 +181,7 @@ void init_tasking(uint32 kerntask_esp0) {
 	kernel_task.stack = (void *)kerntask_esp0;
 	strlcpy(kernel_task.name, "[kernel_task]", TASK_NAME_LEN);
 
-	idle_task = create_task(&idle_task_func, "[idle_task]", NULL, NULL, 0);
+	idle_task = create_task(&idle_task_func, "idle_task", NULL, NULL, 0);
 	idle_task->state = TASK_IDLE; /* TODO(?): should really be ->priority, but there is no such thing yet */
 
 	task_switching = true;
@@ -277,7 +277,14 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	vmm_set_guard(end_guard,   kernel_directory);
 
 	task->privilege = privilege;
-	strlcpy(task->name, name, TASK_NAME_LEN);
+
+	if (task->privilege == 0) {
+		strcpy(task->name, "[");
+		strlcat(task->name, name, TASK_NAME_LEN - 1);
+		strlcat(task->name, "]", TASK_NAME_LEN);
+	}
+	else
+		strlcpy(task->name, name, TASK_NAME_LEN);
 
 	if (task->privilege == 3) {
 		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
