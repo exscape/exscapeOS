@@ -198,8 +198,9 @@ node_t *list_node_insert_before(node_t *node, void *data) {
 		/* This node in the head of the list, and we want to insert a new node *before* it -
 		 * which means we want the new node to be the new head. Easy! */
 		assert(list->head == node);
-		INTERRUPT_UNLOCK; // TODO: ugh!
-		return list_prepend(list, data);
+		node_t *tmp = list_prepend(list, data);
+		INTERRUPT_UNLOCK;
+		return tmp;
 	}
 	else {
 		/* We're inserting to somewhere in the middle of the list */
@@ -242,8 +243,9 @@ node_t *list_node_insert_after(node_t *node, void *data) {
 	if (node->next == NULL) {
 		/* This node in the tail of the list, and we want to insert a new node *after* it - that's easy! */
 		assert(list->tail == node);
-		INTERRUPT_UNLOCK; // TODO: ugh!
-		return list_append(list, data);
+		node_t *tmp = list_append(list, data);
+		INTERRUPT_UNLOCK;
+		return tmp;
 	}
 	else {
 		/* We're inserting to somewhere in the middle of the list */
