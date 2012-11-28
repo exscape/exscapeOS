@@ -93,26 +93,11 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		panic("FAT partition is not root - other mountpoints are not yet supported!");
 	}
 
-
 	/* We now have no real use of the old stuff any longer */
 	kfree(buf);
 
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
-
-#if 0
-	//DIR *dir = fat_opendir("/OS X/Dock Themes/Previews/../../../../../././..");
-	DIR *dir = fat_opendir("/../../../././.././.././OS X");
-	printk("%u entries in dir\n", dir->len);
-	struct dirent *dirent;
-	while ((dirent = fat_readdir(dir)) != NULL) {
-		printk("Found a %s: %s\n", 
-				(dirent->is_dir ? "directory" : "file"),
-				dirent->d_name);
-	}
-
-	fat_closedir(dir);
-#endif
 
 	return true;
 }
@@ -351,7 +336,6 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 
 			dirent = fat_readdir(dir);
 		}
-		panic("File/directory not found! FIXME: error reporting!");
 		return 0; /* File/directory not found. FIXME: errno or somesuch? */
 nextloop:
 		token = token; /* having this label here is an error without a statement */
@@ -392,6 +376,9 @@ DIR *fat_opendir(const char *path) {
 	fat32_partition_t *part = (fat32_partition_t *)fat32_partitions->head->data;
 
 	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
+
+	if (cluster == 0)
+		return NULL;
 
 	return fat_opendir_cluster(part, cluster);
 }
@@ -441,7 +428,7 @@ struct dirent *fat_readdir(DIR *dir) {
 	if (dir->entries == NULL) {
 		/* Create the list of directory entries (this is the first call to readdir()) */
 		dir->entries = list_create();
-		fat_parse_dir(dir->partition, dir->dir_cluster, dir->entries);
+		fat_parse_dir(dir->partition, dir->dir_cluster, dir->entries); // TODO: fat_parse_dir(DIR *dir)? Or will it be used in other ways, too?
 
 		dir->len = dir->entries->count;
 		dir->ptr = dir->entries->head;

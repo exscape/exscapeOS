@@ -99,7 +99,6 @@ static void pwd(void *data, uint32 length) {
 }
 
 static void cd(void *data, uint32 length) {
-	printk("cd called with argument: %s\n", data);
 	if (strcmp(data, ".") == 0)
 		return;
 

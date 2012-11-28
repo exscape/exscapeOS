@@ -618,6 +618,9 @@ bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer)
 	if (sectors == 0)
 		sectors = 1;
 
+	// TODO: read the last sector to a local buffer and copy the data over,
+	// such that we never write more than /bytes/ bytes to the buffer.
+
 	assert(dev != NULL);
 	assert(dev->exists && !dev->is_atapi);
 	assert(start_lba + sectors <= dev->size - 1); /* TODO: OBOE? */
