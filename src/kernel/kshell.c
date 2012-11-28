@@ -426,24 +426,30 @@ void kshell(void *data, uint32 length) {
 			while (cur_task_node != NULL) {
 				task_t *cur_task = (task_t *)cur_task_node->data;
 				n++;
-				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, (cur_task->state == TASK_RUNNING ? "RUN" : (cur_task->state & TASK_SLEEPING ? "SLEEP" : (cur_task->state == TASK_IOWAIT ? "IOWAIT" : (cur_task->state == TASK_EXITING ? "EXIT" : (cur_task->state == TASK_IDLE ? "IDLE" : "UNKN."))))), cur_task->name);
-/*				printk("PID: %d\nNAME: %s\nstack start (highest address): 0x%08x\npage dir: 0x%08x\nstate: %s\n", cur_task->id, cur_task->name, cur_task->stack, cur_task->page_directory,
-						(cur_task->state == TASK_RUNNING ? "RUNNING" : (cur_task->state == TASK_SLEEPING ? "SLEEPING" : "UNKNOWN")));
-
-						*/
-#if 0
-				/* Doesn't work in VMware/Parallels! The alignment is off somehow, so all the values are wrong... */
-				if (current_task != cur_task) {
-					registers_t *regs = (registers_t *)( (uint32)cur_task->esp );
-					assert(regs->ds == 0x10 || regs->ds == 0x23);
-					assert(regs->cs == 0x08 || regs->cs == 0x1b);
-					printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
-					printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, cur_task->esp, regs->ebp);
-					printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+				const char *state_str;
+				switch(cur_task->state) {
+					case TASK_RUNNING:
+						state_str = "RUN";
+						break;
+					case TASK_WAKING_UP:
+					case TASK_SLEEPING:
+						state_str = "SLEEP";
+						break;
+					case TASK_IOWAIT:
+						state_str = "IOWAIT";
+						break;
+					case TASK_EXITING:
+						state_str = "EXIT";
+						break;
+					case TASK_IDLE:
+						state_str = "IDLE";
+						break;
+					default:
+						state_str = "UNKN.";
+						break;
 				}
-#endif
 
-//				printk("--------------\n");
+				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, state_str, cur_task->name);
 
 				cur_task_node = cur_task_node->next;
 			}
