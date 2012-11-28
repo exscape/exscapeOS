@@ -161,35 +161,6 @@ static void fpu_task(void *data, uint32 length) {
 	asm volatile("fldpi");
 }
 
-static void guess_num_user(void *data, uint32 length) {
-	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
-	 * for keyboard input. */
-
-	int num = RAND_RANGE(0, 9);
-	int guess = -1;
-	int num_guesses = 0;
-
-	while (guess != num) {
-		num_guesses++;
-		syscall_puts("Guess the number, from user mode (0-9): ");
-		guess = syscall_getchar();
-		syscall_putchar(guess);
-		syscall_puts("  ");
-		guess -= 0x30; /* ASCII to num */
-		if (guess == num) {
-			syscall_puts("You got it!\n");
-			//printk("You got it! I was looking for %d.\nIt took you %d guesses to find it.\n", num, num_guesses);
-			break;
-		}
-		else if (guess > num) {
-			syscall_puts("Nope. Try lower.\n");
-		}
-		else if (guess < num) {
-			syscall_puts("Nope. Try higher.\n");
-		}
-	}
-}
-
 static void guess_num(void *data, uint32 length) {
 	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
 	 * for keyboard input. */
@@ -227,23 +198,8 @@ static void test_stackof(void *data, uint32 length) {
 	asm volatile("0: push %eax; jmp 0b");
 }
 
-static void user_test(void *data, uint32 length) {
-	/* A task that runs in user mode */
-	syscall_puts("User mode puts()!\n");
-}
-
 static void kernel_test(void *data, uint32 length) {
 	printk("Kernel mode printk(), ticks = %u\n", gettickcount());
-}
-
-static void user_stress(void *data, uint32 length) {
-    // User mode task creation stress test -- the 7th task used to crash
-    uint32 start = gettickcount();
-    for (int i=0; i < 2500; i++) {
-		create_task_user(user_test, "user_test", (console_t *)data, NULL, 0);
-        asm volatile("int $0x7e");
-    }
-    printk("ran for %u ticks\n", gettickcount() - start);
 }
 
 static void user_stress_elf(void *data, uint32 length) {
@@ -505,9 +461,6 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
-		else if (strcmp(p, "guess_user") == 0) {
-			task = create_task_user(&guess_num_user, "guess_num_user", con, NULL, 0);
-		}
 		else if(strcmp(p, "divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con, NULL, 0);
 		}
@@ -536,13 +489,6 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "testbench_task") == 0) {
 			task = create_task(&testbench, "testbench", con, NULL, 0);
-		}
-		else if (strcmp(p, "user_test") == 0) {
-			/* launch a user mode test task */
-			task = create_task_user(&user_test, "user_test", con, NULL, 0);
-		}
-		else if (strcmp(p, "user_stress") == 0) {
-			task = create_task(&user_stress, "user_stress", con, con, 0);
 		}
 		else if (strcmp(p, "user_stress_elf") == 0) {
 			task = create_task(&user_stress_elf, "user_stress_elf", con, con, 0);
