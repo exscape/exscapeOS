@@ -83,7 +83,7 @@ void vmm_set_guard(uint32 virtual, page_directory_t *dir);
 void vmm_clear_guard(uint32 virtual, page_directory_t *dir);
 
 /* Sets up everything required and activates paging. */
-void init_paging(unsigned long upper_mem);
+void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, unsigned long upper_mem);
 
 /* Loads the page directory at /new/ into the CR3 register. */
 void switch_page_directory(page_directory_t *new);

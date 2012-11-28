@@ -3,8 +3,8 @@
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h>
 #include <kernel/pmm.h>
-
-#define PAGE_SIZE 4096
+#include <kernel/multiboot.h>
+#include <kernel/console.h> // TODO: debugging only
 
 /* The bitset of free/used frames */
 uint32 *used_frames;
@@ -17,7 +17,48 @@ uint32 last_allocated_frame;
 uint32 mem_end_page;
 extern uint32 placement_address;
 
-void pmm_init(uint32 upper_mem) {
+/* Bitmap macros */
+/* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
+ * and the number of bits to shift that dword to find it, respectively. */
+#define ARRAY_INDEX(a) (a >> 5) // divide by 32
+#define OFFSET_INTO_DWORD(a)(a & 31) // mod 32
+
+/* Set a bit in the used_frames bitmap */
+void _pmm_set_frame(uint32 phys_addr) { // TODO: static!
+	assert(interrupts_enabled() == false);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = ARRAY_INDEX(frame_index);
+	assert (index <= nframes/32);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
+	assert((used_frames[index] & (1 << offset)) == 0);
+	used_frames[index] |= (1 << offset);
+}
+
+/* Clear a bit in the used_frames bitmap */
+static void _pmm_clear_frame(uint32 phys_addr) {
+	assert(interrupts_enabled() == false);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = ARRAY_INDEX(frame_index);
+	assert (index <= nframes/32);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
+	assert((used_frames[index] & (1 << offset)) != 0);
+	used_frames[index] &= ~(1 << offset);
+}
+
+/* Test whether a bit is set in the used_frames bitmap */
+static bool _pmm_test_frame(uint32 phys_addr) {
+	assert(interrupts_enabled() == false);
+	uint32 frame_index = phys_addr / PAGE_SIZE;
+	uint32 index = ARRAY_INDEX(frame_index);
+	assert (index <= nframes/32);
+	uint32 offset = OFFSET_INTO_DWORD(frame_index);
+	if ((used_frames[index] & (1 << offset)) != 0)
+		return true;
+	else
+		return false;
+}
+
+void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 	/* upper_mem is provided by GRUB; it's the number of *continuous* kilobytes of memory starting at 1MB (0x100000). */
 	mem_end_page = 0x100000 + (uint32)upper_mem*1024;
 
@@ -29,50 +70,97 @@ void pmm_init(uint32 upper_mem) {
 
 	/* allocate and initialize the bitmap */
 	used_frames = (uint32 *)kmalloc((nframes / 32 + 1) * sizeof(uint32));
-	memset(used_frames, 0, (nframes / 32 + 1) * sizeof(uint32));
+
+	// Set all frames to used, and clear the free areas below
+	// (Reserved areas are set to "used", and never cleared, so they are always left alone.)
+	memset(used_frames, 0xff, (nframes / 32 + 1) * sizeof(uint32));
 
 	last_allocated_frame = 0xffffffff; // we can't use 0 since that's a valid frame
-}
 
-/* Bitmap macros */
-/* 32 == sizeof(uint32) in bits, so these simply calculate which dword a bit belongs to,
- * and the number of bits to shift that dword to find it, respectively. */
-#define ARRAY_INDEX(a) (a >> 5) // divide by 32
-#define OFFSET_INTO_DWORD(a)(a & 31) // mod 32
+	INTERRUPT_LOCK;
 
-/* Set a bit in the used_frames bitmap */
-static void _pmm_set_frame(uint32 phys_addr) {
-	assert(interrupts_enabled() == false);
-	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = ARRAY_INDEX(frame_index);
-	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_INTO_DWORD(frame_index);
-	assert((used_frames[index] & (1 << offset)) == 0);
-	used_frames[index] |= (1 << offset);
-}
+	/*
+	 * Utilize the GRUB memory map, if we got one.
+	 * All frames are set to used (above), so that reserved areas
+	 * are never used.
+	 * Then, we loop through the frames in the free areas, and
+	 * set them to free, so that they can be allocated by pmm_alloc*.
+	 * We only use full pages/frames, so if there's memory available
+	 * from 0x500 to 0x9f400, we use the range [0x1000, 0x9f000) and
+	 * ignore the rest.
+	 */
+	if (mbd_mmap_addr != 0 && mbd_mmap_length != 0) {
+		// We got a memory map from GRUB
+		memory_map_t *mm = (memory_map_t *)mbd_mmap_addr;
 
-/* Clear a bit in the used_frames bitmap */
-static void _pmm_clear_frame(uint32 phys_addr) {
-	assert(interrupts_enabled() == false);
-	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = ARRAY_INDEX(frame_index);
-	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_INTO_DWORD(frame_index);
-	assert((used_frames[index] & (1 << offset)) != 0);
-	used_frames[index] &= ~(1 << offset);
-}
+		while ((uint32)mm < mbd_mmap_addr + mbd_mmap_length) {
+			if (mm->type == 1) {
+				// type == 1 means this area is free; all other types are reserved
+				// and not available for use
+#if 0
+				printk("entry 0x%p: base 0x%p%p length 0x%p%p (free)\n", mm,
+					mm->base_addr_high,
+					mm->base_addr_low,
+					mm->length_high,
+					mm->length_low);
+#endif
 
-/* Test whether a bit is set in the used_frames bitmap */
-static bool _pmm_test_frame(uint32 phys_addr) {
-	assert(interrupts_enabled() == false);
-	uint32 frame_index = phys_addr / PAGE_SIZE;
-	uint32 index = ARRAY_INDEX(frame_index);
-	assert (index <= nframes/32 - 1);
-	uint32 offset = OFFSET_INTO_DWORD(frame_index);
-	if ((used_frames[index] & (1 << offset)) != 0)
-		return true;
-	else
-		return false;
+				if (mm->base_addr_high != 0) {
+					printk("Warning: ignoring available RAM area above 4 GB\n");
+					mm++;
+					continue;
+				}
+				if (mm->length_high != 0) {
+					printk("Warning: ignoring part of available RAM (length > 4 GB)\n");
+					// no continue, let's use the low 32 bits
+				}
+
+				/* Page align addresses etc. */
+				uint32 addr_lo = mm->base_addr_low;
+				if (addr_lo < 0x1000) // ignore the first page
+					addr_lo = 0x1000;
+				if (addr_lo & 0xfff) {
+					addr_lo &= 0xfffff000;
+					addr_lo += 0x1000;
+				}
+
+				uint32 addr_hi = addr_lo + (mm->length_low);
+				if (addr_hi & 0xfff)
+					addr_hi &= 0xfffff000;
+
+				if (addr_lo >= addr_hi) {
+					// TODO: is this logic correct?
+					// This is probably very unlikely, but not impossible; we used up this area in alignment
+					continue;
+				}
+
+				// Make sure the alignment worked and won't cause us to
+				// access memory outside the area
+				assert(IS_PAGE_ALIGNED(addr_lo));
+				assert(IS_PAGE_ALIGNED(addr_hi));
+				assert(addr_lo >= mm->base_addr_low);
+
+				// Clear the addresses in this area
+				uint32 addr;
+				for (addr = addr_lo; addr < addr_hi; addr += PAGE_SIZE) {
+					assert(addr < mm->base_addr_low + mm->length_low);
+					_pmm_clear_frame(addr);
+				}
+			} // if type == 1 (free)
+			mm++;
+		}
+	}
+	else {
+		printk("Warning: no GRUB memory map found; ignoring/wasting all RAM below 1 MB\n");
+		for (uint32 addr = 0x100000; addr < mem_end_page; addr += PAGE_SIZE) {
+			// I would optimize this (memset() most of it), but even with 4 GB RAM,
+			// QEMU does this in a lot less than a second... real computers are likely
+			// faster.
+			_pmm_clear_frame(addr);
+		}
+	}
+
+	INTERRUPT_UNLOCK;
 }
 
 /* Returns the first free frame, roughly after (or at) /start_addr/ */
@@ -124,7 +212,8 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 	if (num_frames < 2)
 		return pmm_alloc();
 
-	uint32 last;
+	uint32 last = 0;
+	/*
    	if (num_frames < (placement_address / PAGE_SIZE)) {
 		// This is a regular allocation: there won't be stuff free below the placement address, so don't bother trying
 		last = placement_address + PAGE_SIZE;
@@ -133,6 +222,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 		// This is (most likely!) the very FIRST "allocation" where we identity map the lower addresses. Always start at zero here.
 		last = 0;
 	}
+	*/
 
 	INTERRUPT_LOCK;
 
@@ -209,4 +299,31 @@ uint32 pmm_bytes_free(void) {
 	INTERRUPT_UNLOCK;
 	assert(unused % 4096 == 0);
 	return unused;
+}
+
+uint32 pmm_bytes_used(void) {
+	uint32 used = 0;
+	INTERRUPT_LOCK;
+
+	for (uint32 index = 0; index < nframes/32; index++) {
+		if (used_frames[index] == 0) {
+			/* All 32 frames in this bitmap chunk are free */
+			continue;
+		}
+		else if (used_frames[index] == 0xffffffff) {
+			/* All 32 frames in this bitmap chunk are used */
+			used += 32*4096;
+			continue;
+		}
+
+		/* We're somewhere in between all used and all free; let's check a bit closer */
+		for (uint32 offset = 0; offset < 32; offset++) {
+			if ( (used_frames[index] & (1 << offset)) != 0 ) {
+				used += PAGE_SIZE;
+			}
+		}
+	}
+
+	INTERRUPT_UNLOCK;
+	return used;
 }

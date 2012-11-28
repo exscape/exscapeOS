@@ -259,11 +259,13 @@ static void enable_paging(void) {
 extern uint32 __start_text;
 extern uint32 __end_text;
 
+void _pmm_set_frame(uint32 phys_addr);
+
 /* Sets up everything required and activates paging. */
-void init_paging(unsigned long upper_mem) {
+void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, unsigned long upper_mem) {
 	assert(sizeof(page_t) == 4);
 
-	pmm_init(upper_mem);
+	pmm_init(mbd_mmap_addr, mbd_mmap_length, upper_mem);
 
 	pagedirs = list_create();
 
@@ -282,12 +284,6 @@ void init_paging(unsigned long upper_mem) {
 		_vmm_create_page_table(index, kernel_directory);
 	}
 
-	/*
-	 * Identity map from the beginning (0x0) of memory to
-	 * to the end of used memory, so that we can access it
-	 * as if paging wasn't enabled.
-	 */
-
 	// We currently need the kernel's .text to be readable to user mode as well...
 	// Tasks created in-kernel (not via ELF files) run code here.
 	// This reads the start and end addresses of .text from the linker script,
@@ -304,30 +300,37 @@ void init_paging(unsigned long upper_mem) {
 		end_text += 0x1000;
 	}
 
-	// Allocate the physical addresses - this should ALWAYS be the FIRST call to
-	// *ANY* pmm_ function, so whe should ALWAYS get 0 back as the first address.
-	uint32 first_addr = pmm_alloc_continuous((placement_address / PAGE_SIZE) + 2);
-	assert(first_addr == 0);
-
-	// Map the virtual addresses, with their respective permissions
-	uint32 addr = 0;
+	// Map the virtual addresses for the kernel, with their respective permissions
+	uint32 addr = 0x100000;
 	while (addr < placement_address + PAGE_SIZE) {
 		// TODO: change this to map kernel pages as kernel mode; read-only for .text and read-write for the rest, when user tasks are no longer started in-kernel!
 		if (addr >= start_text && addr < end_text) {
 			// This is a kernel .text page - map it as user mode, read-only
 			_vmm_map(addr, addr, kernel_directory, false, false); // user mode!
+			_pmm_set_frame(addr);
 		}
 		else {
 			// Kernel data - mark it as user mode, read-write, for now - VERY bad. TODO
 			_vmm_map(addr, addr, kernel_directory, false, true); // user mode, writable! not good!
+			_pmm_set_frame(addr);
 		}
 
 		addr += PAGE_SIZE;
 	}
 	INTERRUPT_UNLOCK;
 
+	/* Map the video RAM region */
+	_vmm_map(0xb8000, 0xb8000, kernel_directory, true, PAGE_RW);
+
 	// Set address 0 as a guard page, to catch NULL pointer dereferences
+	_vmm_map(0, 0, kernel_directory, true /* kernel mode */, PAGE_RO);
 	vmm_set_guard(0 /* address */, kernel_directory);
+
+	/*
+	 * Low addresses, i.e. addresses < 0x100000, are used for allocations,
+	 * such as the one below, if we got a memory map from GRUB. If we didn't,
+	 * they are ignored.
+	 */
 
 	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
 	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate

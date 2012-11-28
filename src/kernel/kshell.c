@@ -307,8 +307,11 @@ static void permaidle(void *data, uint32 length) {
 	}
 }
 
+uint32 pmm_bytes_used(void);
+
 static void free(void *data, uint32 length) {
-	printk("Free RAM: %u bytes\n", pmm_bytes_free());
+	printk("Free RAM: %u kbytes\n", pmm_bytes_free() / 1024);
+	printk("Used RAM: %u kbytes\n", pmm_bytes_used() / 1024);
 	printk("kheap used: %u bytes\n", kheap_used_bytes());
 }
 

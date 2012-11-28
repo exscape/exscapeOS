@@ -153,7 +153,15 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
-	init_paging(mbd->mem_upper);
+
+	//mbd->flags &= ~(1<<6); // Uncomment to test with no memory map
+	if (mbd->flags & (1 << 6)) {
+		// If the memory map is available
+		init_paging(mbd->mmap_addr, mbd->mmap_length, mbd->mem_upper);
+	}
+	else
+		init_paging(0, 0, mbd->mem_upper);
+
 	printc(BLACK, GREEN, "done\n");
 
 	printk("Detecting and initializing PCI devices... ");
