@@ -10,6 +10,7 @@
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */
+/* TODO: don't kmalloc LFN buffers all the time */
 
 /* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
 typedef uint16 UTF16_char;
@@ -26,8 +27,8 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries);
-static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
+static void fat_parse_dir(DIR *dir);
+//static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
@@ -243,6 +244,7 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 
 /* Reads a cluster (or a whole chain) from disk and figures out
  * how many files (and/or directories) it contains. */
+#if 0
 static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 	uint32 cur_cluster = cluster;
 	uint8 *disk_data = kmalloc(part->cluster_size);
@@ -296,6 +298,7 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 
 	return num_entries;
 }
+#endif
 
 /* Locates the (first) cluster number associated with a path. */
 static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type) {
@@ -341,7 +344,7 @@ nextloop:
 		token = token; /* having this label here is an error without a statement */
 	}
 
-	if (dirent->is_dir != (type == FS_DIRECTORY)) {
+	if ((dirent->d_type == DT_DIR) != (type == FS_DIRECTORY)) {
 		/* If the user requested a file, but this is a directory, or the other way around... */
 		panic("Found a file where a directory was requested, or the other way around");
 	}
@@ -359,8 +362,11 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 
 	dir->partition = part;
 	dir->dir_cluster = cluster;
-	dir->len = fat_dir_num_entries(part, part->root_dir_first_cluster);
-	dir->entries = NULL; /* created in fat_readdir */
+
+	// These are set up in fat_readdir, when needed
+	dir->buf = NULL;
+	dir->pos = 0;
+	dir->len = 0;
 
 	return dir;
 }
@@ -377,8 +383,10 @@ DIR *fat_opendir(const char *path) {
 
 	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
 
-	if (cluster == 0)
+	if (cluster == 0) {
+		// TODO: error reporting
 		return NULL;
+	}
 
 	return fat_opendir_cluster(part, cluster);
 }
@@ -388,126 +396,123 @@ void fat_closedir(DIR *dir) {
 	if (dir == NULL)
 		return;
 
-	if (dir->entries != NULL) {
-		/* Loop through the list and free the direntry_t's.
-		 * Also free the nodes, since list_destroy() would loop through the list again... */
-		node_t *it = dir->entries->head;
-		while (it != NULL) {
-			node_t *next = it->next;
-			if (it->data)
-				kfree(it->data);
-			kfree(it);
-			it = next;
-		}
+	if (dir->buf != NULL) {
+		kfree(dir->buf);
 	}
 
+	memset(dir, 0, sizeof(DIR));
 	kfree(dir);
-}
 
-/* Used to describe a FAT directory entry (not on disk!) */
-typedef struct direntry {
-	char name[256];
-	char short_name[13];
-	uint8 attrib;
-	uint32 data_cluster;
-	uint32 size;
-} direntry_t;
+	return;
+}
 
 /* Parses a directory structure, as returned by fat_opendir().
  * Returns one entry at a time (tracking is done inside the DIR struct).
  * Returns NULL when the entire directory has been read. */
 struct dirent *fat_readdir(DIR *dir) {
-	if (dir == NULL || dir->len == 0)
-		return NULL;
-
-	if (dir->entries != NULL && dir->ptr == NULL) {
-		/* There is a list, but we've read it all. */
+	// Dir is NULL, or we've read it all
+	if (dir == NULL || (dir->len != 0 && dir->pos >= dir->len)) {
+		assert(dir->pos == dir->len); // It shouldn't be >, really
 		return NULL;
 	}
 
-	if (dir->entries == NULL) {
+	if (dir->buf == NULL) {
 		/* Create the list of directory entries (this is the first call to readdir()) */
-		dir->entries = list_create();
-		fat_parse_dir(dir->partition, dir->dir_cluster, dir->entries); // TODO: fat_parse_dir(DIR *dir)? Or will it be used in other ways, too?
-
-		dir->len = dir->entries->count;
-		dir->ptr = dir->entries->head;
+		fat_parse_dir(dir);
 	}
 
-	if (dir->ptr == NULL)
+	if (dir->buf == NULL) {
+		// If we get here, fat_parse_dir failed
+		// TODO: error reporting
 		return NULL;
+	}
 
-	direntry_t *dent = (direntry_t *)dir->ptr->data;
-	assert(dent != NULL);
+	assert(dir->len > dir->pos);
+	assert((dir->pos & 3) == 0);
+	assert(dir->_buflen > dir->len);
 
-	struct dirent *dirent = kmalloc(sizeof(struct dirent));
-	strlcpy(dirent->d_name, dent->name, DIRENT_NAME_LEN);
-	dirent->d_ino = dent->data_cluster; /* FIXME: multiple partitions won't work here! */
-	dirent->is_dir = ((dent->attrib & ATTRIB_DIR) ? true : false);
+	struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
+	//printk("reading dent at pos %u\n", dir->pos);
 
-	/* Advance the pointer. Don't check for NULL; we'll check on the next call to readdir */
-	dir->ptr = dir->ptr->next;
+	assert(dent->d_reclen != 0);
 
-	return dirent;
+	dir->pos += dent->d_reclen;
+	assert((dir->pos & 3) == 0);
+
+	return dent;
 }
 
 /* Internal function, used by fat_readdir().
  * This reads the ENTIRE directory (no matter how many entries) into the list at /entries/.
  * This one's quite slow. */
-static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entries) {
-	assert(part != NULL);
-	assert(cluster >= 2);
-	assert(entries != NULL);
+static void fat_parse_dir(DIR *dir) {
+	assert(dir != NULL);
+	assert(dir->buf == NULL);
+	assert(dir->pos == 0);
+	assert(dir->len == 0);
 
-	uint32 cur_cluster = cluster;
-	uint8 *disk_data = kmalloc(part->cluster_size);
+	// Due to overlapping storage, this can store more than 2 entries
+	dir->_buflen = sizeof(struct dirent) * 2;
+	dir->buf = kmalloc(dir->_buflen);
+	memset(dir->buf, 0, dir->_buflen);
+
+	uint32 cur_cluster = dir->dir_cluster;
+	uint8 *disk_data = kmalloc(dir->partition->cluster_size);
 
 	UTF16_char *lfn_buf = NULL; /* allocated when needed */
 	uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
 	/* Read the first cluster from disk */
-	assert(fat_read_cluster(part, cur_cluster, disk_data));
+	assert(fat_read_cluster(dir->partition, cur_cluster, disk_data));
 
-	fat32_direntry_t *dir = (fat32_direntry_t *)disk_data;
+	fat32_direntry_t *disk_direntry = (fat32_direntry_t *)disk_data;
+
+	struct dirent *dent = NULL;
 
 	/* Special case: pretend there's a . and .. entry for the root directory.
 	 * They both link back to the root, so /./../../. == / */
-	if (cluster == part->root_dir_first_cluster) {
-		direntry_t *entry = kmalloc(sizeof(direntry_t));
-		strlcpy(entry->short_name, ".", 13);
-		strlcpy(entry->name, ".", 256);
-		entry->attrib = ATTRIB_DIR;
-		entry->data_cluster = cluster;
-		entry->size = 0;
-		list_append(entries, entry);
+	if (dir->dir_cluster == dir->partition->root_dir_first_cluster) {
+		/* No bounds checking is done here as this is always done just after
+		 * allocating more than enough space for these two entries. */
 
-		entry = kmalloc(sizeof(direntry_t));
-		strlcpy(entry->short_name, "..", 13);
-		strlcpy(entry->name, "..", 256);
-		entry->attrib = ATTRIB_DIR;
-		entry->data_cluster = cluster;
-		entry->size = 0;
-		list_append(entries, entry);
+		//printk("writing dent at %u\n", dir->len);
+
+		dent = (struct dirent *)(dir->buf);
+		strlcpy(dent->d_name, ".", DIRENT_NAME_LEN);
+		dent->d_ino = 0; // this isn't a real entry on disk
+		dent->d_type = DT_DIR;
+		dent->d_namlen = 1;
+		dent->d_reclen = 12; // 8 bytes for all but the name, plus '.' + NULL + padding
+		dir->len += dent->d_reclen;
+
+		//printk("writing dent at %u\n", dir->len);
+		dent = (struct dirent *)(dir->buf + dir->len);
+		strlcpy(dent->d_name, "..", DIRENT_NAME_LEN);
+		dent->d_ino = 0; // this isn't a real entry on disk
+		dent->d_type = DT_DIR;
+		dent->d_namlen = 2;
+		dent->d_reclen = 12; // 8 bytes for all but the name, plus '..' + NULL + padding
+		dir->len += dent->d_reclen;
 	}
 
-	while (dir->name[0] != 0) {
+	while (disk_direntry->name[0] != 0) {
 		/* Run until we hit a 0x00 starting byte, signifying the end of
 		 * the directory entry. */
 
-		if ((uint8)dir->name[0] == 0xe5) {
+		if ((uint8)disk_direntry->name[0] == 0xe5) {
 			/* 0xe5 means unused directory entry. Try the next one. */
 			goto next;
 		}
 
 		/* This attribute is only valid for the volume ID (aka label) "file". */
-		if (dir->attrib & ATTRIB_VOLUME_ID && dir->attrib != ATTRIB_LFN)
+		if (disk_direntry->attrib & ATTRIB_VOLUME_ID && disk_direntry->attrib != ATTRIB_LFN)
 			goto next;
 
-		if (dir->attrib == ATTRIB_LFN) {
+		if (disk_direntry->attrib == ATTRIB_LFN) {
 			/* This is a LFN entry. They are stored before the "short" (8.3) entry
 			 * on disk. */
 
-			fat32_lfn_t *lfn = (fat32_lfn_t *)dir;
+			fat32_lfn_t *lfn = (fat32_lfn_t *)disk_direntry;
 
 			if (lfn->entry & 0x40) {
 				/* This is the "last" LFN entry. They are stored in reverse, though,
@@ -537,8 +542,15 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 		else {
 			/* This is a regular directory entry. */
 
-			/* We want to store info about this entry! */
-			direntry_t *entry = kmalloc(sizeof(direntry_t));
+			dent = (struct dirent *)(dir->buf + dir->len);
+			if ((uint32)dent + sizeof(struct dirent) >= (uint32)(dir->buf + dir->_buflen)) {
+				// Grow the buffer
+				// Again: 2 * sizeof(struct dirent) can store much more than two
+				// average-length directory entries.
+				dir->_buflen += 2 * sizeof(struct dirent);
+				dir->buf = krealloc(dir->buf, dir->_buflen);
+				dent = (struct dirent *)(dir->buf + dir->len);
+			}
 
 			/* Only used if lfn_buf != NULL */
 			char *long_name_ascii = NULL;
@@ -557,59 +569,77 @@ static void fat_parse_dir(fat32_partition_t *part, uint32 cluster, list_t *entri
 				num_lfn_entries = 0;
 			}
 
-			uint32 data_cluster = ((uint32)dir->high_cluster_num << 16) | (dir->low_cluster_num);
+			uint32 data_cluster = ((uint32)disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
 
 			char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
-			memcpy(short_name, dir->name, 11);
+			memcpy(short_name, disk_direntry->name, 11);
 			short_name[11] = 0;
 
 			/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
 			fat_parse_short_name(short_name);
 
 			/* Store the info! */
-			if (long_name_ascii != NULL)
-				strlcpy(entry->name, long_name_ascii, 256);
-			else
-				strlcpy(entry->name, short_name, 256);
-	
-			strlcpy(entry->short_name, short_name, 13);
-			entry->attrib = dir->attrib;
-			entry->data_cluster = data_cluster;
-			entry->size = dir->file_size;
+			if (disk_direntry->attrib & ATTRIB_DIR) {
+				dent->d_type = DT_DIR;
+			}
+			else {
+				dent->d_type = DT_REG;
+			}
 
 			/* .. to the root directory appears to be a special case. Ugh. */
 			if (data_cluster == 0 && strcmp(short_name, "..") == 0)
-				entry->data_cluster = part->root_dir_first_cluster;
+				dent->d_ino = dir->partition->root_dir_first_cluster;
+			else
+				dent->d_ino = data_cluster;
 
-			list_append(entries, entry);
+			if (long_name_ascii != NULL) {
+				strlcpy(dent->d_name, long_name_ascii, DIRENT_NAME_LEN);
+				kfree(long_name_ascii);
+			}
+			else {
+				strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
+			}
+
+			dent->d_namlen = strlen(dent->d_name);
+			dent->d_reclen = 8 /* the fixed fields */ + dent->d_namlen + 1 /* NULL byte */;
+
+			if (dent->d_reclen & 3) {
+				// Pad such that the record length is divisible by 4
+				dent->d_reclen &= ~3;
+				dent->d_reclen += 4;
+			}
+
+			// Move the directory buffer pointer forward
+			//printk("writing dent at %u\n", dir->len);
+			dir->len += dent->d_reclen;
 
 #if 0
-			if (dir->name[0] != '.') {
+			if (disk_direntry->name[0] != '.') {
 				printk("%16s (short: %s) %s (%u bytes) @ %u (attribs: %s%s%s%s)\n", (long_name_ascii != NULL ? long_name_ascii : short_name), short_name,
-						((dir->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
-						dir->file_size,
+						((disk_direntry->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
+						disk_direntry->file_size,
 						data_cluster,
-						((dir->attrib & ATTRIB_ARCHIVE) ? "A" : ""),
-						((dir->attrib & ATTRIB_HIDDEN) ? "H" : ""),
-						((dir->attrib & ATTRIB_SYSTEM) ? "S" : ""),
-						((dir->attrib & ATTRIB_READONLY) ? "R" : ""));
+						((disk_direntry->attrib & ATTRIB_ARCHIVE) ? "A" : ""),
+						((disk_direntry->attrib & ATTRIB_HIDDEN) ? "H" : ""),
+						((disk_direntry->attrib & ATTRIB_SYSTEM) ? "S" : ""),
+						((disk_direntry->attrib & ATTRIB_READONLY) ? "R" : ""));
 			}
 #endif
 		}
 
 	next:
-		dir++;
+		disk_direntry++;
 
 		/* Read a new cluster if we've read past this one */
-		if ((uint32)dir >= (uint32)disk_data + part->cluster_size) {
+		if ((uint32)disk_direntry >= (uint32)disk_data + dir->partition->cluster_size) {
 			/* Read the next cluster in this directory, if there is one */
-			if (!fat_read_next_cluster(part, disk_data, &cur_cluster)) {
+			if (!fat_read_next_cluster(dir->partition, disk_data, &cur_cluster)) {
 				/* No more clusters in this chain */
 				break;
 			}
 
 			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
-			dir = (fat32_direntry_t *)disk_data;
+			disk_direntry = (fat32_direntry_t *)disk_data;
 		}
 	}
 

@@ -32,9 +32,10 @@ typedef struct dir {
 	struct fat32_partition *partition;
 	uint32 dir_cluster;
 
-	list_t *entries; /* used by readdir() */
-	node_t *ptr;
-	uint32 len; /* how many entries there are */
+	uint8 *buf;
+	uint32 _buflen; /* buffer's malloc'ed size */
+	uint32 pos;
+	uint32 len; /* number of valid data bytes in the buffer */
 } DIR;
 
 /* A list of the mountpoints currently used */
@@ -73,9 +74,24 @@ extern fs_node_t *fs_root;
 
 /* POSIX struct dirent */
 struct dirent {
-	char d_name[DIRENT_NAME_LEN];
 	uint32 d_ino;
-	bool is_dir;
+	uint16 d_reclen;
+	uint8 d_type;
+	uint8 d_namlen;
+	char d_name[DIRENT_NAME_LEN];
+};
+
+// struct dirent.flags
+enum {
+	DT_UNKNOWN = 0,
+	DT_FIFO = 1,
+	DT_CHR = 2,
+	DT_DIR = 4,
+	DT_BLK = 6,
+	DT_REG = 8,
+	DT_LNK = 10,
+	DT_SOCK = 12,
+    DT_WHT = 14
 };
 
 /* Flags used in struct fs_node */

@@ -83,11 +83,11 @@ static void create_pagefault_delay(void *data, uint32 length) {
 
 static void ls(void *data, uint32 length) {
 	DIR *dir = fat_opendir(_pwd);
-	printk("ls for %s: %u entries\n", _pwd, dir->len);
+	printk("ls for %s\n", _pwd);
 	struct dirent *dirent;
 	while ((dirent = fat_readdir(dir)) != NULL) {
 		printk("Found a %s: %s\n",
-				(dirent->is_dir ? "directory" : "file"),
+				(dirent->d_type == DT_DIR ? "directory" : "file"),
 				dirent->d_name);
 	}
 
@@ -127,7 +127,7 @@ static void cd(void *data, uint32 length) {
 
 	struct dirent *dirent;
 	while ((dirent = fat_readdir(dir)) != NULL) {
-		if (strcmp(dirent->d_name, data) == 0 && dirent->is_dir) {
+		if (strcmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
 			if (_pwd[strlen(_pwd) -1] != '/')
 				strlcat(_pwd, "/", MAX_PATH);
 			strlcat(_pwd, dirent->d_name, MAX_PATH);
@@ -466,7 +466,7 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
-		else if(strcmp(p, "divzero_task") == 0) {
+		else if(strcmp(p, "Divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con, NULL, 0);
 		}
 		else if (strcmp(p, "delaymput") == 0) {
