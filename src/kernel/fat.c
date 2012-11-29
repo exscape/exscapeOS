@@ -588,6 +588,7 @@ static void fat_parse_dir(DIR *dir) {
 
 			if (have_lfn) {
 				strlcpy(dent->d_name, long_name_ascii, DIRENT_NAME_LEN);
+				have_lfn = false; // clear for the next loop
 			}
 			else {
 				strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
