@@ -479,6 +479,37 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	return (void *)ret;
 }
 
+bool find_area_and_validate(void *p, area_header_t **header, area_footer_t **footer, heap_t *heap) {
+	/* Don't try to free memory that is clearly not from the heap.
+	 * Note that max_address is NOT the current highest address (as determined by heap size),
+	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
+	 */
+	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address ) {
+		return false;
+	}
+
+	/* Calculate the header and footer locations */
+	*header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
+	/* "p" might not be exactly sizeof(area_header_t) bytes ahead of the header,
+	   if it was DWORD-aligned upon creation. Handle that case. */
+	int count = 0;
+	while ((*header)->magic != HEAP_MAGIC && count < 4) {
+		*header = (area_header_t *)( (uint32)(*header) - 1);
+	}
+	if ((*header)->magic != HEAP_MAGIC)
+		panic("Can't find area header - corrupt heap!");
+
+	*footer = FOOTER_FROM_HEADER((*header));
+
+	/* Sanity checks */
+	assert((*header)->magic == HEAP_MAGIC);
+	assert((*header)->type == AREA_USED);
+	assert((*footer)->magic == HEAP_MAGIC);
+	assert((*footer)->header == *header);
+
+	return true;
+}
+
 void heap_free(void *p, heap_t *heap) {
 	/* free() of a NULL pointer should be valid */
 	if (p == NULL)
@@ -486,32 +517,14 @@ void heap_free(void *p, heap_t *heap) {
 
 	INTERRUPT_LOCK;
 
-	/* Don't try to free memory that is clearly not from the heap.
-	 * Note that max_address is NOT the current highest address (as determined by heap size),
-	 * but rather the highest allowed address for the heap (around 0xcfffffff for the kernel heap).
-	 */
-	if ( (uint32)p > heap->max_address || (uint32)p < heap->start_address ) {
+	area_header_t *header;
+	area_footer_t *footer;
+
+	if (!find_area_and_validate(p, &header, &footer, heap)) {
+		// This address doesn't belong to the heap
 		INTERRUPT_UNLOCK;
 		return;
 	}
-
-	/* Calculate the header and footer locations */
-	area_header_t *header = (area_header_t *)( (uint32)p - sizeof(area_header_t) );
-	/* "p" might not be exactly sizeof(area_header_t) bytes ahead of the header,
-	   if it was DWORD-aligned upon creation. Handle that case. */
-	int count = 0;
-	while (header->magic != HEAP_MAGIC && count < 4) {
-		header = (area_header_t *)( (uint32)header - 1);
-	}
-	if (header->magic != HEAP_MAGIC)
-		panic("Can't find area header - corrupt heap!");
-	area_footer_t *footer = FOOTER_FROM_HEADER(header);
-
-	/* Sanity checks */
-	assert(header->magic == HEAP_MAGIC);
-	assert(header->type == AREA_USED);
-	assert(footer->magic == HEAP_MAGIC);
-	assert(footer->header == header);
 
 	/* Remove this area from the used index. We'll wait a little before adding it as a free area, though. */
 	remove_ordered_array_item((void *)header, &kheap->used_index);
@@ -775,6 +788,45 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 
 		return (void *)ret;
 	}
+}
+
+void *krealloc(void *p, size_t new_size) {
+	if (p == NULL || new_size == 0)
+		return NULL;
+
+	INTERRUPT_LOCK;
+
+	area_header_t *header;
+	area_footer_t *footer;
+
+	if (!find_area_and_validate(p, &header, &footer, kheap)) {
+		// This address doesn't belong to the heap
+		INTERRUPT_UNLOCK;
+		return NULL;
+	}
+
+	assert(header != NULL);
+	assert(footer != NULL);
+
+	if (header->size - sizeof(area_header_t) - sizeof(area_footer_t) - 3 /* alignment */ >= new_size) {
+		// The old size is still big enough
+		INTERRUPT_UNLOCK;
+		return p;
+	}
+
+	if (new_size <= header->size) {
+		// Might still be possible due to not subtracting the headers etc.
+		new_size = header->size;
+	}
+
+	// TODO: attempt to expand the area if there is space to the right of it, before resorting to this
+	void *p2 = kmalloc(new_size);
+	memcpy(p2, p, header->size);
+	kfree(p);
+
+	INTERRUPT_UNLOCK;
+
+	return p2;
 }
 
 void kfree(void *p) {

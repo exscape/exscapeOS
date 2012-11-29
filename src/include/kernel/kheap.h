@@ -93,3 +93,6 @@ void *kmalloc_p(uint32 size, uint32 *phys);
 
 /* Returns the physical address in phys, and page aligns. */
 void *kmalloc_ap(uint32 size, uint32 *phys);
+
+/* Expand the size of an existing allocation. */
+void *krealloc(void *p, size_t new_size);
