@@ -108,20 +108,20 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	assert(cur_cluster >= 2);
 
 	/* Formulas taken from the FAT spec */
-	uint32 fat_offset = cur_cluster; /* Spec has * 4, but the array is of uint32's here! */
+	uint32 fat_offset = cur_cluster * 4;
 	uint32 fat_sector = part->fat_start_lba + (fat_offset / 512);
 	uint32 entry_offset = fat_offset % 512;
-	assert(entry_offset <= 512/4 - 1);
 
 	/* Make sure the FAT LBA is within the FAT on disk */
 	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + part->bpb->sectors_per_fat));
 
 	/* Read the FAT sector to RAM */
-	uint32 fat[512/sizeof(uint32)];
+	uint8 fat[512];
 	assert(disk_read(part->dev, fat_sector, 512, (uint8 *)fat));
 
 	/* Read the FAT */
-	uint32 val = fat[entry_offset] & 0x0fffffff;
+	uint32 *addr = (uint32 *)(&fat[entry_offset]);
+	uint32 val = (*addr) & 0x0fffffff;
 
 	return val;
 }
