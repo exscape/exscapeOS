@@ -10,7 +10,6 @@
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */
-/* TODO: don't kmalloc LFN buffers all the time */
 
 /* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
 typedef uint16 UTF16_char;
@@ -436,6 +435,8 @@ struct dirent *fat_readdir(DIR *dir) {
 
 	assert(dent->d_reclen != 0);
 
+	assert((uint32)dent + sizeof(struct dirent) < ((uint32)(dir->buf + dir->_buflen)));
+
 	dir->pos += dent->d_reclen;
 	assert((dir->pos & 3) == 0);
 
@@ -553,18 +554,16 @@ static void fat_parse_dir(DIR *dir) {
 			}
 
 			/* Only used if have_lfn == true */
-			char *long_name_ascii = NULL;
+			char long_name_ascii[256] = {0};
 
 			if (have_lfn) {
 				/* Process LFN data! Since this is an ordinary entry, the buffer (lfn_buf)
 				 * should now contain the complete long file name. */
 				uint32 len = num_lfn_entries * 13; /* maximum length this might be */
-				long_name_ascii = kmalloc(len + 1);
 
 				/* Convert UTF-16 -> ASCII and store in long_name_ascii */
 				parse_lfn(lfn_buf, long_name_ascii, len);
 
-				have_lfn = false;
 				num_lfn_entries = 0;
 			}
 
@@ -591,9 +590,8 @@ static void fat_parse_dir(DIR *dir) {
 			else
 				dent->d_ino = data_cluster;
 
-			if (long_name_ascii != NULL) {
+			if (have_lfn) {
 				strlcpy(dent->d_name, long_name_ascii, DIRENT_NAME_LEN);
-				kfree(long_name_ascii);
 			}
 			else {
 				strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
@@ -611,19 +609,6 @@ static void fat_parse_dir(DIR *dir) {
 			// Move the directory buffer pointer forward
 			//printk("writing dent at %u\n", dir->len);
 			dir->len += dent->d_reclen;
-
-#if 0
-			if (disk_direntry->name[0] != '.') {
-				printk("%16s (short: %s) %s (%u bytes) @ %u (attribs: %s%s%s%s)\n", (long_name_ascii != NULL ? long_name_ascii : short_name), short_name,
-						((disk_direntry->attrib & ATTRIB_DIR) ? "<DIR>" : ""),
-						disk_direntry->file_size,
-						data_cluster,
-						((disk_direntry->attrib & ATTRIB_ARCHIVE) ? "A" : ""),
-						((disk_direntry->attrib & ATTRIB_HIDDEN) ? "H" : ""),
-						((disk_direntry->attrib & ATTRIB_SYSTEM) ? "S" : ""),
-						((disk_direntry->attrib & ATTRIB_READONLY) ? "R" : ""));
-			}
-#endif
 		}
 
 	next:
