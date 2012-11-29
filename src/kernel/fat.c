@@ -459,7 +459,8 @@ static void fat_parse_dir(DIR *dir) {
 	uint32 cur_cluster = dir->dir_cluster;
 	uint8 *disk_data = kmalloc(dir->partition->cluster_size);
 
-	UTF16_char *lfn_buf = NULL; /* allocated when needed */
+	UTF16_char lfn_buf[256];
+	bool have_lfn = false;
 	uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
 	/* Read the first cluster from disk */
@@ -525,7 +526,7 @@ static void fat_parse_dir(DIR *dir) {
 				 * part of the entry count.
 				 */
 				num_lfn_entries = lfn->entry & 0x3f;
-				lfn_buf = kmalloc(sizeof(UTF16_char) * 13 * num_lfn_entries);
+				have_lfn = true;
 			}
 
 			UTF16_char tmp[13]; /* let's store it in one chunk, first */
@@ -536,7 +537,6 @@ static void fat_parse_dir(DIR *dir) {
 
 			/* Copy it over to the actual buffer */
 			uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
-			assert(lfn_buf != NULL);
 			memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
 		}
 		else {
@@ -552,10 +552,10 @@ static void fat_parse_dir(DIR *dir) {
 				dent = (struct dirent *)(dir->buf + dir->len);
 			}
 
-			/* Only used if lfn_buf != NULL */
+			/* Only used if have_lfn == true */
 			char *long_name_ascii = NULL;
 
-			if (lfn_buf != NULL) {
+			if (have_lfn) {
 				/* Process LFN data! Since this is an ordinary entry, the buffer (lfn_buf)
 				 * should now contain the complete long file name. */
 				uint32 len = num_lfn_entries * 13; /* maximum length this might be */
@@ -564,8 +564,7 @@ static void fat_parse_dir(DIR *dir) {
 				/* Convert UTF-16 -> ASCII and store in long_name_ascii */
 				parse_lfn(lfn_buf, long_name_ascii, len);
 
-				kfree(lfn_buf);
-				lfn_buf = NULL;
+				have_lfn = false;
 				num_lfn_entries = 0;
 			}
 
