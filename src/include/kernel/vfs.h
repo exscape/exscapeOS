@@ -3,7 +3,7 @@
 
 #include <types.h>
 #include <kernel/list.h>
-#include <kernel/fat.h>
+//#include <kernel/fat.h>
 
 /* Forward declaration, since there's a catch 22 that the function prototypes and the struct need each other */
 struct fs_node; 
@@ -108,6 +108,35 @@ enum {
 #define FS_PIPE 0x05
 #define FS_SYMLINK 0x06
 #define FS_MOUNTPOINT 0x08
+
+// TODO: this REALLY doesn't belong here
+typedef uint16 dev_t;
+typedef uint16 mode_t;
+typedef uint16 nlink_t;
+typedef uint16 uid_t;
+typedef uint16 gid_t;
+typedef sint32 off_t;
+typedef sint32 blkcnt_t;
+typedef sint32 blksize_t;
+typedef uint32 ino_t;
+typedef sint32 time_t;
+
+// TODO: this doesn't really belong here
+struct stat {
+	dev_t	st_dev;
+	ino_t	st_ino;
+	mode_t	st_mode;
+	nlink_t	st_nlink;
+	uid_t	st_uid;
+	gid_t	st_gid;
+	dev_t	st_rdev;
+	off_t	st_size;
+	time_t	st_atime;
+	time_t	st_mtime;
+	time_t	st_ctime;
+	blksize_t st_blksize;
+	blkcnt_t st_blocks;
+};
 
 /* The set of standard VFS functions */
 uint32 read_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer);

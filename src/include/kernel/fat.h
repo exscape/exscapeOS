@@ -104,9 +104,9 @@ typedef struct fat32_direntry {
 	uint32 file_size;
 } __attribute__((packed)) fat32_direntry_t;
 
-struct dir;
 struct dir /* aka DIR */ *fat_opendir(const char *path);
 struct dirent *fat_readdir(struct dir *dir);
 void fat_closedir(struct dir *dir);
+int fat_stat(const char *in_path, struct stat *buf);
 
 #endif

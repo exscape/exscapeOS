@@ -26,7 +26,7 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *));
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
 
@@ -161,12 +161,15 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluste
 
 /* Converts a short name from the directory entry (e.g. "FOO     BAR") to
  * human-readable form (e.g. "FOO.BAR") */
-static void fat_parse_short_name(char *buf) {
-	if (*buf == 0)
+static void fat_parse_short_name(char *buf, const char *name) {
+	if (*name == 0)
 		return;
 
 	/* Make sure this is a valid directory entry */
-	assert(*buf > 0x20 || *buf == 0x05);
+	assert(*name > 0x20 || *name == 0x05);
+
+	memset(buf, 0, 13);
+	memcpy(buf, name, 11);
 
 	/* 0x05 really means 0xE5 for the first character; make sure we don't destroy that meaning */
 	if (buf[0] == 0x05)
@@ -363,6 +366,116 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 	return dir;
 }
 
+#define min(a,b) ( (a < b ? a : b) )
+
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *, void *);
+static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *, void *);
+
+struct stat_callback_data {
+	struct stat *st;
+	char *file;
+};
+
+int fat_stat(const char *in_path, struct stat *buf) {
+	assert(in_path != NULL);
+	assert(buf != NULL);
+
+	// TODO: create helper functions for path calculations!
+
+	size_t path_len = strlen(in_path);
+	char *path = kmalloc(path_len + 1);
+	strcpy(path, in_path);
+	char *file = kmalloc(min(path_len + 1, 256));
+
+	char *p = strrchr(path, '/');
+	strlcpy(file, p + 1, min(path_len + 1, 256));
+
+	if (strcmp(path, "/") != 0) {
+		// If the path is not simply the root directory, find the parent
+		if (path[path_len - 1] == '/')
+			path[path_len - 1] = 0;
+		p = strrchr(path, '/');
+		*p = 0;
+	}
+
+	if(strlen(path) == 0) {
+		// If this happens, the parent is the root directory
+		strcpy(path, "/");
+	}
+
+	DIR *dir = fat_opendir(path);
+	if (!dir) {
+		// TODO: errno
+		return -1;
+	}
+
+	struct stat_callback_data data;
+	data.st = buf;
+	data.file = file;
+
+	struct stat empty;
+	memset(buf, 0, sizeof(struct stat));
+	memset(&empty, 0, sizeof(struct stat));
+
+	fat_parse_dir(dir, fat_callback_stat, &data);
+	if (memcmp(buf, &empty, sizeof(struct stat)) != 0) {
+		// fat_parse_dir changed the struct, which means it was successful
+		return 0;
+	}
+	else {
+		// TODO: errno
+		return -1;
+	}
+}
+
+static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data) {
+	assert(disk_direntry != NULL);
+	assert(dir != NULL);
+	assert(in_data != NULL);
+
+	struct stat_callback_data *data = (struct stat_callback_data *)in_data;
+
+	char name[256] = {0};
+	if (lfn_buf)
+		strlcpy(name, lfn_buf, 256);
+	else
+		fat_parse_short_name(name, disk_direntry->name);
+
+	struct stat *st = data->st;
+	//printk("fat_callback_stat: name %s, file %s\n", name, data->file);
+
+	if (stricmp(name, data->file) == 0) {
+		// We found it! We can finally fill in the struct stat.
+
+		uint32 num_clusters = 0;
+		if (!(disk_direntry->attrib & ATTRIB_DIR)) {
+			// Calculate how many clusters this file uses. If the file size is evenly
+			// divisible into the cluster size, that's the count. If not, an additional cluster
+			// is used for the last part of the file.
+			num_clusters = disk_direntry->file_size / dir->partition->cluster_size;
+			if (disk_direntry->file_size % dir->partition->cluster_size != 0) {
+				num_clusters += 1;
+			}
+		}
+
+		st->st_dev = 0; // TODO: assign number to devices, like FDs
+		st->st_ino = (disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
+		st->st_mode = 0777; // TODO
+		st->st_nlink = 1;
+		st->st_size = (disk_direntry->attrib & ATTRIB_DIR) ? 0 : disk_direntry->file_size;
+		st->st_atime = 0; // TODO
+		st->st_ctime = 0; // TODO
+		st->st_mtime = 0; // TODO
+		st->st_blksize = dir->partition->cluster_size;
+		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_clusters;
+
+		return false; // Break the directory parsing, since we've found what we wanted
+	}
+
+	return true; // keep looking
+}
+
+
 /* Used to get a list of files/subdirectories at /path/...
  * Together with readdir() and closedir(), of course. */
 DIR *fat_opendir(const char *path) {
@@ -398,8 +511,6 @@ void fat_closedir(DIR *dir) {
 	return;
 }
 
-static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *);
-
 /* Parses a directory structure, as returned by fat_opendir().
  * Returns one entry at a time (tracking is done inside the DIR struct).
  * Returns NULL when the entire directory has been read. */
@@ -412,7 +523,7 @@ struct dirent *fat_readdir(DIR *dir) {
 
 	if (dir->buf == NULL) {
 		/* Create the list of directory entries (this is the first call to readdir()) */
-		fat_parse_dir(dir, fat_callback_create_dentries);
+		fat_parse_dir(dir, fat_callback_create_dentries, NULL /* callback-specific data, not used for this one */);
 	}
 
 	if (dir->buf == NULL) {
@@ -438,9 +549,10 @@ struct dirent *fat_readdir(DIR *dir) {
 	return dent;
 }
 
+
 // Used with fat_parse_dir to read a directory structure into a DIR struct,
 // which is then used by readdir() to return struct dirents to the caller.
-static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf) {
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *data) {
 	if (dir->_buflen == 0) {
 		// Initialize the buffer if this is the first call
 		// Due to overlapping storage, this can store more than 2 entries
@@ -448,6 +560,8 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dir->buf = kmalloc(dir->_buflen);
 		memset(dir->buf, 0, dir->_buflen);
 	}
+
+	data = data; // unused, shut the compiler up
 
 	struct dirent *dent = NULL;
 
@@ -488,11 +602,10 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 	uint32 data_cluster = ((uint32)disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
 
 	char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
-	memcpy(short_name, disk_direntry->name, 11);
-	short_name[11] = 0;
-
-	/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
-	fat_parse_short_name(short_name);
+	fat_parse_short_name(short_name, disk_direntry->name);
+	//memcpy(short_name, disk_direntry->name, 11);
+	//short_name[11] = 0;
+	//fat_parse_short_name(short_name);
 
 	/* Store the info! */
 	if (disk_direntry->attrib & ATTRIB_DIR) {
@@ -533,7 +646,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 // Reads a FAT directory cluster trail and calls the callback with info about each
 // directory entry on disk
-static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *)) {
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *data) {
 	assert(dir != NULL);
 	assert(dir->buf == NULL);
 	assert(dir->pos == 0);
@@ -606,7 +719,7 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, 
 				parse_lfn(lfn_buf, long_name_ascii);
 			// Do the heavy lifting elsewhere, as multiple functions - currently readdir
 			// and stat - use this function.
-			if (!callback(disk_direntry, dir, (have_lfn ? long_name_ascii : NULL)))
+			if (!callback(disk_direntry, dir, (have_lfn ? long_name_ascii : NULL), data))
 				break;
 
 			have_lfn = false;
@@ -622,6 +735,7 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, 
 				/* No more clusters in this chain */
 				break;
 			}
+			//printk("cur_cluster = %u from fat_read_next_cluster\n", cur_cluster);
 
 			/* The new cluster is read into the same memory area, so the next entry starts back there again. */
 			disk_direntry = (fat32_direntry_t *)disk_data;

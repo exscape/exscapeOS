@@ -85,10 +85,19 @@ static void ls(void *data, uint32 length) {
 	DIR *dir = fat_opendir(_pwd);
 	printk("ls for %s\n", _pwd);
 	struct dirent *dirent;
+	struct stat st;
 	while ((dirent = fat_readdir(dir)) != NULL) {
 		printk("Found a %s: %s\n",
 				(dirent->d_type == DT_DIR ? "directory" : "file"),
 				dirent->d_name);
+		char fullpath[1024] = {0};
+		strcpy(fullpath, _pwd);
+		if (fullpath[strlen(fullpath) - 1] != '/') {
+			strlcat(fullpath, "/", 1024);
+		}
+		strlcat(fullpath, dirent->d_name, 1024);
+		fat_stat(fullpath, &st);
+		printk("   stat: ino %u size %u bytes\n", st.st_ino, st.st_size);
 	}
 
 	fat_closedir(dir);
