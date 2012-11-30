@@ -1,8 +1,8 @@
 #all:
 #	i586-elf-gcc -o kernel.o -c kernel.c -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -ggdb3 -std=gnu99 && i586-elf-ld -T linker.ld -o kernel.bin loader.o kernel.o
 
-#CC = clang
-CC = i586-elf-gcc
+CC = clang
+#CC = i586-elf-gcc
 LD = i586-elf-ld
 
 AUXFILES := # FIXME: isofiles osv
@@ -24,8 +24,8 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wuninitialized -Wstrict-prototypes \
 				-Wno-unused-parameter -Wno-cast-align -Werror
 
-#CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign
-CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) # debug flags added below
+CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign -ggdb3
+#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) # debug flags added below
 
 #QEMU := /usr/local/bin/qemu
 QEMU := /opt/local/bin/qemu
@@ -54,16 +54,15 @@ todolist:
 %.o: %.s Makefile
 	@nasm -o $@ $< -f elf -F dwarf -g
 
-simics: CFLAGS += -gstabs
-simics: clean all
-	@echo "\nDone"
+#simics: CFLAGS += -gstabs
+#simics: clean all
+#@echo "ERROR: simics build is not currently automated (compiler + CFLAGS switch needed)"
 
 net: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
-run: CFLAGS += -ggdb3
+
 run: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
 
-debug: CFLAGS += -ggdb3
 debug: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64
