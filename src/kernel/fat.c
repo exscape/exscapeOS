@@ -26,7 +26,7 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_parse_dir(DIR *dir, void (*callback)(fat32_direntry_t *, DIR *));
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *));
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
 
@@ -401,7 +401,7 @@ void fat_closedir(DIR *dir) {
 	return;
 }
 
-static void fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir);
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir);
 
 /* Parses a directory structure, as returned by fat_opendir().
  * Returns one entry at a time (tracking is done inside the DIR struct).
@@ -441,7 +441,7 @@ struct dirent *fat_readdir(DIR *dir) {
 	return dent;
 }
 
-static void fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir) {
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir) {
 	if (dir->_buflen == 0) {
 		// Initialize the buffer if this is the first call
 		// Due to overlapping storage, this can store more than 2 entries
@@ -581,11 +581,13 @@ static void fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		//printk("writing dent at %u\n", dir->len);
 		dir->len += dent->d_reclen;
 	}
+
+	return true; // continue parsing if there are more entries
 }
 
 // Reads a FAT directory cluster trail and calls the callback with info about each
 // directory entry on disk
-static void fat_parse_dir(DIR *dir, void (*callback)(fat32_direntry_t *, DIR *)) {
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *)) {
 	assert(dir != NULL);
 	assert(dir->buf == NULL);
 	assert(dir->pos == 0);
@@ -616,7 +618,8 @@ static void fat_parse_dir(DIR *dir, void (*callback)(fat32_direntry_t *, DIR *))
 
 		// Do the heavy lifting elsewhere, as multiple functions - currently readdir
 		// and stat - use this function.
-		callback(disk_direntry, dir);
+		if (!callback(disk_direntry, dir))
+			break;
 
 	next:
 		disk_direntry++;
