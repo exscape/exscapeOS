@@ -439,6 +439,8 @@ struct dirent *fat_readdir(DIR *dir) {
 	return dent;
 }
 
+// Used with fat_parse_dir to read a directory structure into a DIR struct,
+// which is then used by readdir() to return struct dirents to the caller.
 static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir) {
 	if (dir->_buflen == 0) {
 		// Initialize the buffer if this is the first call
@@ -448,7 +450,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		memset(dir->buf, 0, dir->_buflen);
 	}
 
-	UTF16_char lfn_buf[256];
+	static UTF16_char lfn_buf[256];
 	static bool have_lfn = false;
 	static uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
@@ -461,7 +463,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, ".", DIRENT_NAME_LEN);
-		dent->d_ino = 0; // this isn't a real entry on disk
+		dent->d_ino = dir->partition->root_dir_first_cluster;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 1;
 		dent->d_reclen = 12; // 8 bytes for all but the name, plus '.' + NULL + padding
@@ -470,7 +472,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		//printk("writing dent at %u\n", dir->len);
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, "..", DIRENT_NAME_LEN);
-		dent->d_ino = 0; // this isn't a real entry on disk
+		dent->d_ino = dir->partition->root_dir_first_cluster;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 2;
 		dent->d_reclen = 12; // 8 bytes for all but the name, plus '..' + NULL + padding
@@ -515,7 +517,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
 
 		/* Copy it over to the actual buffer */
-		uint32 offset = ((lfn->entry & 0x3f) - 1) * 13;
+		uint32 offset = (num_lfn_entries - 1) * 13;
 		memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
 	}
 	else {
