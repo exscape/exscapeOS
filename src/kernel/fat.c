@@ -26,7 +26,7 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *));
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *));
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
 
@@ -127,9 +127,9 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 }
 
 /* Converts from the UTF-16 LFN buffer to a ASCII. Convert at most /len/ characters. */
-static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
+static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf) {
 	uint32 i = 0;
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < 256; i++) {
 		if (lfn_buf[i] == 0 || lfn_buf[i] == 0xffff) {
 			/* Values are NULL-terminated (except where len % 13 == 0), and 0xffff-padded.
 			 * If we run in to either, we've reached or passed the end. */
@@ -151,7 +151,6 @@ static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf, uint32 len) {
 		}
 	}
 
-	/* If len % 13 == 0, the loop will exit without NULL terminating the ASCII string. */
 	ascii_buf[i] = 0;
 }
 
@@ -399,7 +398,7 @@ void fat_closedir(DIR *dir) {
 	return;
 }
 
-static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir);
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *);
 
 /* Parses a directory structure, as returned by fat_opendir().
  * Returns one entry at a time (tracking is done inside the DIR struct).
@@ -441,7 +440,7 @@ struct dirent *fat_readdir(DIR *dir) {
 
 // Used with fat_parse_dir to read a directory structure into a DIR struct,
 // which is then used by readdir() to return struct dirents to the caller.
-static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir) {
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf) {
 	if (dir->_buflen == 0) {
 		// Initialize the buffer if this is the first call
 		// Due to overlapping storage, this can store more than 2 entries
@@ -449,10 +448,6 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dir->buf = kmalloc(dir->_buflen);
 		memset(dir->buf, 0, dir->_buflen);
 	}
-
-	static UTF16_char lfn_buf[256];
-	static bool have_lfn = false;
-	static uint32 num_lfn_entries = 0; /* we need to know how far to access into the array */
 
 	struct dirent *dent = NULL;
 
@@ -490,104 +485,55 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dent = (struct dirent *)(dir->buf + dir->len);
 	}
 
-	if (disk_direntry->attrib == ATTRIB_LFN) {
-		/* This is a LFN entry. They are stored before the "short" (8.3) entry
-		 * on disk. */
+	uint32 data_cluster = ((uint32)disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
 
-		fat32_lfn_t *lfn = (fat32_lfn_t *)disk_direntry;
+	char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
+	memcpy(short_name, disk_direntry->name, 11);
+	short_name[11] = 0;
 
-		if (lfn->entry & 0x40) {
-			/* This is the "last" LFN entry. They are stored in reverse, though,
-			 * so it's the first one we encounter. */
+	/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
+	fat_parse_short_name(short_name);
 
-			/* This might need some explaining...
-			 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
-			 * (lfn->entry & 0x3f) is how many entries there are.
-			 * We need to AND away the 0x40 bit first, since it is not
-			 * part of the entry count.
-			 */
-			num_lfn_entries = lfn->entry & 0x3f;
-			have_lfn = true;
-		}
-
-		UTF16_char tmp[13]; /* let's store it in one chunk, first */
-
-		memcpy(tmp, lfn->name_1, 5 * sizeof(UTF16_char));
-		memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
-		memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
-
-		/* Copy it over to the actual buffer */
-		uint32 offset = (num_lfn_entries - 1) * 13;
-		memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
+	/* Store the info! */
+	if (disk_direntry->attrib & ATTRIB_DIR) {
+		dent->d_type = DT_DIR;
 	}
 	else {
-		/* This is a regular directory entry. */
-
-		/* Only used if have_lfn == true */
-		char long_name_ascii[256] = {0};
-
-		if (have_lfn) {
-			/* Process LFN data! Since this is an ordinary entry, the buffer (lfn_buf)
-			 * should now contain the complete long file name. */
-			uint32 len = num_lfn_entries * 13; /* maximum length this might be */
-
-			/* Convert UTF-16 -> ASCII and store in long_name_ascii */
-			parse_lfn(lfn_buf, long_name_ascii, len);
-
-			num_lfn_entries = 0;
-		}
-
-		uint32 data_cluster = ((uint32)disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
-
-		char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
-		memcpy(short_name, disk_direntry->name, 11);
-		short_name[11] = 0;
-
-		/* Convert the name to human-readable form, i.e. "FOO     BAR" -> "FOO.BAR" */
-		fat_parse_short_name(short_name);
-
-		/* Store the info! */
-		if (disk_direntry->attrib & ATTRIB_DIR) {
-			dent->d_type = DT_DIR;
-		}
-		else {
-			dent->d_type = DT_REG;
-		}
-
-		/* .. to the root directory appears to be a special case. Ugh. */
-		if (data_cluster == 0 && strcmp(short_name, "..") == 0)
-			dent->d_ino = dir->partition->root_dir_first_cluster;
-		else
-			dent->d_ino = data_cluster;
-
-		if (have_lfn) {
-			strlcpy(dent->d_name, long_name_ascii, DIRENT_NAME_LEN);
-			have_lfn = false; // clear for the next call
-		}
-		else {
-			strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
-		}
-
-		dent->d_namlen = strlen(dent->d_name);
-		dent->d_reclen = 8 /* the fixed fields */ + dent->d_namlen + 1 /* NULL byte */;
-
-		if (dent->d_reclen & 3) {
-			// Pad such that the record length is divisible by 4
-			dent->d_reclen &= ~3;
-			dent->d_reclen += 4;
-		}
-
-		// Move the directory buffer pointer forward
-		//printk("writing dent at %u\n", dir->len);
-		dir->len += dent->d_reclen;
+		dent->d_type = DT_REG;
 	}
+
+	/* .. to the root directory appears to be a special case. Ugh. */
+	if (data_cluster == 0 && strcmp(short_name, "..") == 0)
+		dent->d_ino = dir->partition->root_dir_first_cluster;
+	else
+		dent->d_ino = data_cluster;
+
+	if (lfn_buf) {
+		strlcpy(dent->d_name, lfn_buf, DIRENT_NAME_LEN);
+	}
+	else {
+		strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
+	}
+
+	dent->d_namlen = strlen(dent->d_name);
+	dent->d_reclen = 8 /* the fixed fields */ + dent->d_namlen + 1 /* NULL byte */;
+
+	if (dent->d_reclen & 3) {
+		// Pad such that the record length is divisible by 4
+		dent->d_reclen &= ~3;
+		dent->d_reclen += 4;
+	}
+
+	// Move the directory buffer pointer forward
+	//printk("writing dent at %u\n", dir->len);
+	dir->len += dent->d_reclen;
 
 	return true; // continue parsing if there are more entries
 }
 
 // Reads a FAT directory cluster trail and calls the callback with info about each
 // directory entry on disk
-static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *)) {
+static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *)) {
 	assert(dir != NULL);
 	assert(dir->buf == NULL);
 	assert(dir->pos == 0);
@@ -603,9 +549,13 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *))
 
 	fat32_direntry_t *disk_direntry = (fat32_direntry_t *)disk_data;
 
+	static UTF16_char lfn_buf[256];
+	static bool have_lfn = false;
+	static uint8 lfn_entry_num = 0; /* we need to know how far to access into the array */
+
 	while (disk_direntry->name[0] != 0) {
 		/* Run until we hit a 0x00 starting byte, signifying the end of
-		 * the directory entry. */
+		 * the directory entries. */
 
 		if ((uint8)disk_direntry->name[0] == 0xe5) {
 			/* 0xe5 means unused directory entry. Try the next one. */
@@ -616,10 +566,51 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *))
 		if (disk_direntry->attrib & ATTRIB_VOLUME_ID && disk_direntry->attrib != ATTRIB_LFN)
 			goto next;
 
-		// Do the heavy lifting elsewhere, as multiple functions - currently readdir
-		// and stat - use this function.
-		if (!callback(disk_direntry, dir))
-			break;
+		if (disk_direntry->attrib == ATTRIB_LFN) {
+			/* This is a LFN entry. They are stored before the "short" (8.3) entry
+			 * on disk. */
+
+			fat32_lfn_t *lfn = (fat32_lfn_t *)disk_direntry;
+
+			if (lfn->entry & 0x40) {
+				/* This is the "last" LFN entry. They are stored in reverse, though,
+				 * so it's the first one we encounter. */
+
+				have_lfn = true;
+				memset(lfn_buf, 0, sizeof(lfn_buf));
+			}
+
+			/* This might need some explaining...
+			 * Each LFN entry stores up to 13 UTF16 chars (26 bytes).
+			 * (lfn->entry & 0x3f) is how many entries there are.
+			 * We need to AND away the 0x40 bit first, since it is not
+			 * part of the entry count.
+			 */
+			lfn_entry_num = lfn->entry & 0x3f;
+
+			UTF16_char tmp[13]; /* let's store it in one chunk, first */
+
+			memcpy(tmp, lfn->name_1, 5 * sizeof(UTF16_char));
+			memcpy(tmp + 5, lfn->name_2, 6 * sizeof(UTF16_char));
+			memcpy(tmp + 5 + 6, lfn->name_3, 2 * sizeof(UTF16_char));
+
+			/* Copy it over to the actual buffer */
+			uint32 offset = (lfn_entry_num - 1) * 13;
+			memcpy(lfn_buf + offset, tmp, 13 * sizeof(UTF16_char));
+
+			goto next;
+		}
+		else {
+			char long_name_ascii[256] = {0};
+			if (have_lfn)
+				parse_lfn(lfn_buf, long_name_ascii);
+			// Do the heavy lifting elsewhere, as multiple functions - currently readdir
+			// and stat - use this function.
+			if (!callback(disk_direntry, dir, (have_lfn ? long_name_ascii : NULL)))
+				break;
+
+			have_lfn = false;
+		}
 
 	next:
 		disk_direntry++;
