@@ -74,7 +74,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Set up the other struct variables */
 	part_info->dev = dev; /* the device that holds this partition */
 	part_info->fat_start_lba = dev->partition[part].start_lba + bpb->reserved_sectors;
-	part_info->end_lba   = dev->partition[part].start_lba + bpb->total_sectors;
+	part_info->end_lba = dev->partition[part].start_lba + bpb->total_sectors;
 	part_info->cluster_start_lba = part_info->fat_start_lba + (bpb->num_fats * bpb->sectors_per_fat);
 	part_info->sectors_per_cluster = bpb->sectors_per_cluster;
 	part_info->root_dir_first_cluster = bpb->root_cluster_num;
@@ -207,8 +207,6 @@ static void fat_parse_short_name(char *buf) {
 		// No extension, NULL terminate here instead
 		*p = 0;
 	}
-
-	return;
 }
 
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer) {
