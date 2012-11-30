@@ -1,1 +1,2 @@
 * TODO: implement queues for mutexes
+* TODO: directory caching - searching and stat()ing a "large" (20+ entries) directory is slow! 100+ is *very* slow!

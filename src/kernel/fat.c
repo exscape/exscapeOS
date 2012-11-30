@@ -168,8 +168,8 @@ static void fat_parse_short_name(char *buf, const char *name) {
 	/* Make sure this is a valid directory entry */
 	assert(*name > 0x20 || *name == 0x05);
 
-	memset(buf, 0, 13);
 	memcpy(buf, name, 11);
+	memset(buf + 11, 0, 2);
 
 	/* 0x05 really means 0xE5 for the first character; make sure we don't destroy that meaning */
 	if (buf[0] == 0x05)
@@ -374,6 +374,7 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *,
 struct stat_callback_data {
 	struct stat *st;
 	char *file;
+	bool success;
 };
 
 int fat_stat(const char *in_path, struct stat *buf) {
@@ -412,14 +413,13 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	struct stat_callback_data data;
 	data.st = buf;
 	data.file = file;
+	data.success = false;
 
-	struct stat empty;
 	memset(buf, 0, sizeof(struct stat));
-	memset(&empty, 0, sizeof(struct stat));
 
 	fat_parse_dir(dir, fat_callback_stat, &data);
-	if (memcmp(buf, &empty, sizeof(struct stat)) != 0) {
-		// fat_parse_dir changed the struct, which means it was successful
+	if (data.success) {
+		// The callback updated the struct successfully
 		return 0;
 	}
 	else {
@@ -471,12 +471,13 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 		st->st_blksize = dir->partition->cluster_size;
 		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_clusters;
 
+		data->success = true;
+
 		return false; // Break the directory parsing, since we've found what we wanted
 	}
 
 	return true; // keep looking
 }
-
 
 /* Used to get a list of files/subdirectories at /path/...
  * Together with readdir() and closedir(), of course. */
@@ -519,7 +520,7 @@ void fat_closedir(DIR *dir) {
 struct dirent *fat_readdir(DIR *dir) {
 	// Dir is NULL, or we've read it all
 	if (dir == NULL || (dir->len != 0 && dir->pos >= dir->len)) {
-		assert(dir->pos == dir->len); // It shouldn't be >, really
+		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
 		return NULL;
 	}
 
@@ -554,7 +555,7 @@ struct dirent *fat_readdir(DIR *dir) {
 
 // Used with fat_parse_dir to read a directory structure into a DIR struct,
 // which is then used by readdir() to return struct dirents to the caller.
-static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *data) {
+static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *data __attribute__((unused))) {
 	if (dir->_buflen == 0) {
 		// Initialize the buffer if this is the first call
 		// Due to overlapping storage, this can store more than 2 entries
@@ -562,8 +563,6 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dir->buf = kmalloc(dir->_buflen);
 		memset(dir->buf, 0, dir->_buflen);
 	}
-
-	data = data; // unused, shut the compiler up
 
 	struct dirent *dent = NULL;
 
@@ -605,9 +604,6 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 	char short_name[13] = {0}; /* 8 + 3 + dot + NULL = 13 */
 	fat_parse_short_name(short_name, disk_direntry->name);
-	//memcpy(short_name, disk_direntry->name, 11);
-	//short_name[11] = 0;
-	//fat_parse_short_name(short_name);
 
 	/* Store the info! */
 	if (disk_direntry->attrib & ATTRIB_DIR) {
@@ -638,6 +634,8 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dent->d_reclen &= ~3;
 		dent->d_reclen += 4;
 	}
+
+	assert(dent->d_reclen <= sizeof(struct dirent));
 
 	// Move the directory buffer pointer forward
 	//printk("writing dent at %u\n", dir->len);
