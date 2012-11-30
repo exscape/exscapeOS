@@ -7,6 +7,7 @@
 #include <string.h>
 #include <kernel/partition.h>
 #include <kernel/vfs.h>
+#include <path.h>
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */
@@ -381,28 +382,15 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	assert(in_path != NULL);
 	assert(buf != NULL);
 
-	// TODO: create helper functions for path calculations!
-
 	size_t path_len = strlen(in_path);
 	char *path = kmalloc(path_len + 1);
+	char *base = kmalloc(path_len + 1);
 	strcpy(path, in_path);
-	char *file = kmalloc(min(path_len + 1, 256));
+	strcpy(base, in_path);
 
-	char *p = strrchr(path, '/');
-	strlcpy(file, p + 1, min(path_len + 1, 256));
-
-	if (strcmp(path, "/") != 0) {
-		// If the path is not simply the root directory, find the parent
-		if (path[path_len - 1] == '/')
-			path[path_len - 1] = 0;
-		p = strrchr(path, '/');
-		*p = 0;
-	}
-
-	if(strlen(path) == 0) {
-		// If this happens, the parent is the root directory
-		strcpy(path, "/");
-	}
+	// Store the path and "file" (possibly directory) names separately
+	path_dirname(path);
+	path_basename(base);
 
 	DIR *dir = fat_opendir(path);
 	if (!dir) {
@@ -412,7 +400,7 @@ int fat_stat(const char *in_path, struct stat *buf) {
 
 	struct stat_callback_data data;
 	data.st = buf;
-	data.file = file;
+	data.file = base; // what file (or directory) to stat()
 	data.success = false;
 
 	memset(buf, 0, sizeof(struct stat));

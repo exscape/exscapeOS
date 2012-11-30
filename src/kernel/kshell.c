@@ -11,6 +11,7 @@
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
 #include <kernel/fat.h>
+#include <path.h>
 
 #include <kernel/vmm.h>
 #include <kernel/pmm.h>
@@ -88,10 +89,8 @@ static void ls(void *data, uint32 length) {
 	while ((dirent = fat_readdir(dir)) != NULL) {
 		char fullpath[1024] = {0};
 		strcpy(fullpath, _pwd);
-		if (fullpath[strlen(fullpath) - 1] != '/') {
-			strlcat(fullpath, "/", 1024);
-		}
-		strlcat(fullpath, dirent->d_name, 1024);
+		path_join(fullpath, dirent->d_name);
+
 		fat_stat(fullpath, &st);
 
 		char name[32] = {0};
