@@ -216,9 +216,7 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 					d->tables[pt_index] = dir->tables[pt_index];
 					d->tables_physical[pt_index] = dir->tables_physical[pt_index];
 
-					char buf[128] = {0};
-					sprintf(buf, "updated task's page dir (dir 0x%08x); page table = 0x%08x - TODO: test this!\n", d, dir->tables);
-					panic(buf);
+					panic("updated task's page dir (dir 0x%08x); page table = 0x%08x - TODO: test this!\n", d, dir->tables);
 				}
 			}
 	}
@@ -460,7 +458,7 @@ uint32 page_fault_handler(uint32 esp) {
 
 	printk("Heap end address is %p\n", kheap->end_address);
 
-	panic("Page fault");
+	panic("Page fault!");
 
 	return esp; /* not reached at the moment */
 }

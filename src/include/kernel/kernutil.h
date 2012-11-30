@@ -11,7 +11,7 @@ void outb(uint16 port, uint8 value);
 void outw(uint16 port, uint16 value);
 void outl(uint16 port, uint32 value);
 
-void panic(const char *str);
+void panic(const char *fmt, ...);
 void reset(void);
 void reboot(void);
 

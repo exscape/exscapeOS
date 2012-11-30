@@ -43,11 +43,31 @@ uint32 inl(uint16 port)
 }
 
 extern bool kernel_paniced;
-void panic(const char *str) {
+extern char _printk_buf[1024];
+
+void panic(const char *fmt, ...) {
+	asm volatile("cli");
 	console_switch(&kernel_console);
 	scrollback_reset();
-	asm volatile("cli");
-	printk("\nPANIC: %s\nCurrent task: %u (%s)", str, current_task->id, current_task->name);
+
+	va_list args;
+	int i;
+
+	printk("\nPANIC: ");
+
+	va_start(args, fmt);
+	i = vsprintf(_printk_buf, fmt, args);
+	va_end(args);
+
+	if (i > 0) {
+		size_t len = strlen(_printk_buf);
+		for (size_t j = 0; j < len; j++) {
+			putchar(_printk_buf[j]);
+		}
+	}
+
+	printk("\nCurrent task: %u (%s)", current_task->id, current_task->name);
+
 	kernel_paniced = true;
 	update_statusbar();
 	asm volatile("cli; 0: hlt ; jmp 0b");
@@ -56,9 +76,7 @@ void panic(const char *str) {
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
 	/* Call panic() instead of doing this ourselves, so that breakpoints
 	 * on panic() catches assertions as well */
-	char buf[1024];
-	sprintf(buf, "Assertion failed: %s (%s:%d)\n", desc, file, line);
-	panic(buf);
+	panic("Assertion failed: %s (%s:%d)\n", desc, file, line);
 }
 
 void reset(void) {

@@ -562,7 +562,7 @@ static void force_update_cursor(void) {
 }
 
 /* The buffer used by printk */
-static char buf[1024];
+char _printk_buf[1024];
 
 size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	assert(console_task->console != NULL);
@@ -578,13 +578,13 @@ size_t printc(int back_color, int text_color, const char *fmt, ...) {
 	int i;
 
 	va_start(args, fmt);
-	i = vsprintf(buf, fmt, args);
+	i = vsprintf(_printk_buf, fmt, args);
 	va_end(args);
 
 	if (i > 0) {
-		size_t len = strlen(buf);
+		size_t len = strlen(_printk_buf);
 		for (size_t j = 0; j < len; j++) {
-			putchar(buf[j]);
+			putchar(_printk_buf[j]);
 		}
 	}
 	update_cursor();
@@ -604,13 +604,13 @@ size_t printk(const char *fmt, ...) {
 	//mutex_lock(printk_mutex);
 
 	va_start(args, fmt);
-	i = vsprintf(buf, fmt, args);
+	i = vsprintf(_printk_buf, fmt, args);
 	va_end(args);
 
 	if (i > 0) {
-		size_t len = strlen(buf);
+		size_t len = strlen(_printk_buf);
 		for (size_t j = 0; j < len; j++) {
-			putchar(buf[j]);
+			putchar(_printk_buf[j]);
 		}
 	}
 	update_cursor();
