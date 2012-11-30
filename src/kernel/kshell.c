@@ -83,13 +83,9 @@ static void create_pagefault_delay(void *data, uint32 length) {
 
 static void ls(void *data, uint32 length) {
 	DIR *dir = fat_opendir(_pwd);
-	printk("ls for %s\n", _pwd);
 	struct dirent *dirent;
 	struct stat st;
 	while ((dirent = fat_readdir(dir)) != NULL) {
-		printk("Found a %s: %s\n",
-				(dirent->d_type == DT_DIR ? "directory" : "file"),
-				dirent->d_name);
 		char fullpath[1024] = {0};
 		strcpy(fullpath, _pwd);
 		if (fullpath[strlen(fullpath) - 1] != '/') {
@@ -97,7 +93,26 @@ static void ls(void *data, uint32 length) {
 		}
 		strlcat(fullpath, dirent->d_name, 1024);
 		fat_stat(fullpath, &st);
-		printk("   stat: ino %u size %u bytes mode %o\n", st.st_ino, st.st_size, st.st_mode);
+
+		char name[32] = {0};
+		if (strlen(dirent->d_name) > 31) {
+			strlcpy(name, dirent->d_name, 29);
+			strlcat(name, "...", 32);
+		}
+		else
+			strcpy(name, dirent->d_name);
+
+		char perm_str[11] = "-rwxrwxrwx";
+		if (st.st_mode & 040000)
+			perm_str[0] = 'd';
+
+		for (int i=0; i<9; i++) {
+			if (!(st.st_mode & (1 << i))) {
+				perm_str[9 - i] = '-';
+			}
+		}
+
+		printk("%31s %5s % 4uk %s\n", name, (st.st_mode & 040000) ? "<DIR>" : "", st.st_size / 1024, perm_str);
 	}
 
 	fat_closedir(dir);
