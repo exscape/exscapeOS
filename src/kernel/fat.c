@@ -226,7 +226,7 @@ static bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32
 		return false;
 	}
 
-	assert(next_cluster >= 2 && next_cluster < 0xfffffff7);
+	assert(next_cluster >= 2 && next_cluster < 0x0ffffff7);
 	*cur_cluster = next_cluster;
 
 	/* Read this cluster from disk */
