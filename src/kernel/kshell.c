@@ -97,7 +97,7 @@ static void ls(void *data, uint32 length) {
 		}
 		strlcat(fullpath, dirent->d_name, 1024);
 		fat_stat(fullpath, &st);
-		printk("   stat: ino %u size %u bytes\n", st.st_ino, st.st_size);
+		printk("   stat: ino %u size %u bytes mode %o\n", st.st_ino, st.st_size, st.st_mode);
 	}
 
 	fat_closedir(dir);
