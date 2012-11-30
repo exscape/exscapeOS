@@ -81,6 +81,11 @@ struct dirent {
 	char d_name[DIRENT_NAME_LEN];
 };
 
+// Used by glibc, perhaps others? They may be useful some day
+#define _DIRENT_HAVE_D_NAMLEN
+#define _DIRENT_HAVE_D_RECLEN
+#define _DIRENT_HAVE_D_TYPE
+
 // struct dirent.flags
 enum {
 	DT_UNKNOWN = 0,
