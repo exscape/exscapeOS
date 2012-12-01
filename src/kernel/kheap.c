@@ -727,7 +727,7 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
  */
 void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 	if (kheap != NULL) {
-		if (in_isr) {
+		if (in_isr && interrupts_enabled() == false) {
 			panic("heap kmalloc called from ISR!");
 		}
 
