@@ -12,6 +12,7 @@
 #include <kernel/elf.h>
 #include <kernel/fat.h>
 #include <path.h>
+#include <kernel/fileio.h>
 
 #include <kernel/vmm.h>
 #include <kernel/pmm.h>
@@ -80,6 +81,25 @@ static void create_pagefault(void *data, uint32 length) {
 static void create_pagefault_delay(void *data, uint32 length) {
 	sleep(2000);
 	create_pagefault(NULL, 0);
+}
+
+static void cat(void *data, uint32 length) {
+	char path[1024] = {0};
+	strcpy(path, _pwd);
+	path_join(path, (char *)data);
+	int fd = open(path, 0 /* mode still unused */);
+	assert(fd >= 0);
+	char buf[512] = {0};
+
+	int r = 0;
+	do {
+		memset(buf, 0, 512);
+		r = read(fd, buf, 511);
+		printk("%s", buf);
+
+	} while (r > 0);
+
+	return;
 }
 
 static void ls(void *data, uint32 length) {
@@ -511,6 +531,10 @@ void kshell(void *data, uint32 length) {
 		else if (strncmp(p, "cd ", 3) == 0) {
 			p += 3;
 			task = create_task(&cd, "cd", con, p, strlen(p));
+		}
+		else if (strncmp(p, "cat ", 4) == 0) {
+			p += 4;
+			task = create_task(&cat, "cat", con, p, strlen(p));
 		}
 		else if (strcmp(p, "testbench") == 0) {
 			testbench(NULL, 0);

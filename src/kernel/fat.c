@@ -121,22 +121,108 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 }
 
 int fat_open(uint32 dev, const char *path, int mode) {
-	panic("TODO: fat_open");
-	path=path;
-	dev=dev;
-	mode=mode;
-	return 0;
+	assert(dev <= MAX_DEVS - 1);
+	assert(devtable[dev] != NULL);
+	assert(path != NULL);
+	mode=mode; // still unused
+
+	assert(current_task->_next_fd + 1 <= MAX_OPEN_FILES);
+	struct open_file *file = (struct open_file *)&current_task->fdtable[current_task->_next_fd++];
+
+	uint32 cluster = fat_cluster_for_path(devtable[dev], path, FS_FILE);
+
+	file->dev = dev;
+	file->ino = cluster;
+	file->offset = 0;
+	file->size = 0; // TODO: should this be kept or not?
+	file->mp = NULL;
+	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+		mountpoint_t *mp = (mountpoint_t *)it->data;
+		if (mp->dev == dev) {
+			file->mp = mp;
+			break;
+		}
+	}
+	file->path = strdup(path);
+
+	assert(file->mp != NULL);
+
+	return current_task->_next_fd - 1;
 }
 
 int fat_read(int fd, void *buf, size_t length) {
-	panic("TODO: fat_read");
-	fd=fd;
-	buf=buf;
-	length=length;
-	return -1;
+	assert(fd <= MAX_OPEN_FILES);
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	assert(file->ino != 0);
+
+	fat32_partition_t *part = devtable[file->dev];
+	assert(part != NULL);
+
+	uint32 cur_cluster = file->ino;
+	uint8 *cluster_buf = kmalloc(part->cluster_size);
+
+	size_t file_size;
+	struct stat st;
+	fat_fstat(fd, &st);
+	assert(st.st_dev == file->dev);
+	assert(st.st_ino == file->ino);
+
+	file_size = st.st_size;
+	uint32 bytes_read = 0; // this call to read() only
+
+	// TODO: "resume" reads! set the offset in "file" -- *DO NOT* change file->ino!!
+	// Keep in mind that we need to skip until the correct cluster!
+
+	if (file->offset > file_size)
+		return 0;
+
+	// Find the correct cluster number, if necessary
+	uint32 local_offset = file->offset;
+	while (local_offset >= part->cluster_size) {
+		cur_cluster = fat_next_cluster(part, cur_cluster);
+		if (cur_cluster >= 0x0ffffff8) {
+			return 0;
+		}
+		local_offset -= part->cluster_size;
+	}
+	assert(local_offset < part->cluster_size);
+
+	do {
+		assert(fat_read_cluster(part, cur_cluster, cluster_buf));
+
+		// We read a full cluster, but we need to stop if either the file size is up, or
+		// if the user didn't want more bytes.
+		uint32 bytes_copied = min(min(file_size - file->offset, length), part->cluster_size);
+
+		// Copy the data to the buffer
+		memcpy((void *)( (uint8 *)buf), cluster_buf + local_offset, bytes_copied);
+
+		bytes_read += bytes_copied;
+		file->offset += bytes_read;
+
+		assert(file->offset <= file_size);
+
+		assert(length >= bytes_copied);
+		length -= bytes_copied;
+
+		if (length == 0 || file->offset >= file_size)
+			break;
+
+		cur_cluster = fat_next_cluster(part, cur_cluster);
+		if (cur_cluster >= 0x0ffffff8) {
+			// End of cluster chain
+			return bytes_read;
+		}
+	} while (length > 0);
+
+	kfree(cluster_buf);
+	return bytes_read;
 }
+
 int fat_close(int fd) {
 	panic("TODO: fat_close");
+	// TODO: free file->path
 	fd=fd;
 
 	return -1;
@@ -405,8 +491,6 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 
 	return dir;
 }
-
-#define min(a,b) ( (a < b ? a : b) )
 
 static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *dir, char *, void *);
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *, void *);

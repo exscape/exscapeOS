@@ -29,8 +29,6 @@ typedef struct file_ops {
 typedef struct mountpoint {
 	char path[1024];
 
-	/* Will be changed to a FS-neutral type when needed */
-	/*struct fat32_partition *partition;*/
 	uint32 dev;
 	struct file_ops fops;
 } mountpoint_t;

@@ -13,7 +13,7 @@ mountpoint_t *find_mountpoint_for_path(const char *path) {
 	if (mountpoints == NULL || mountpoints->count == 0 || path == NULL)
 		return NULL;
 
-	/* We only support the root mountpoint for now... */
+	/* TODO: We only support the root mountpoint for now... */
 	return (mountpoint_t *)mountpoints->head->data;
 }
 

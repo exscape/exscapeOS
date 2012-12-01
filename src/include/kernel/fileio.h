@@ -15,4 +15,8 @@ typedef struct open_file {
 	char *path;
 } open_file_t;
 
+int open(const char *path, int mode);
+int read(int fd, void *buf, int length);
+
+
 #endif
