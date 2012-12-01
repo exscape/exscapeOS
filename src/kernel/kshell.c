@@ -83,6 +83,7 @@ static void create_pagefault_delay(void *data, uint32 length) {
 	create_pagefault(NULL, 0);
 }
 
+/*
 static void cat(void *data, uint32 length) {
 	char path[1024] = {0};
 	strcpy(path, _pwd);
@@ -101,6 +102,7 @@ static void cat(void *data, uint32 length) {
 
 	return;
 }
+*/
 
 static void ls(void *data, uint32 length) {
 	DIR *dir = fat_opendir(_pwd);
@@ -532,10 +534,10 @@ void kshell(void *data, uint32 length) {
 			p += 3;
 			task = create_task(&cd, "cd", con, p, strlen(p));
 		}
-		else if (strncmp(p, "cat ", 4) == 0) {
-			p += 4;
-			task = create_task(&cat, "cat", con, p, strlen(p));
-		}
+		//else if (strncmp(p, "catk ", 5) == 0) {
+			//p += 4;
+			//task = create_task(&cat_kernel, "cat_kernel", con, p, strlen(p));
+		//}
 		else if (strcmp(p, "testbench") == 0) {
 			testbench(NULL, 0);
 		}
