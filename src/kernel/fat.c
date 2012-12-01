@@ -91,10 +91,13 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	if (mountpoints->count == 0) {
 		mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
 		strlcpy(mp->path, "/", sizeof(mp->path));
-		mp->partition = part_info;
+
+		mp->fops.open = fat_open;
+		mp->fops.read = fat_read;
+		mp->fops.close= fat_close;
+		mp->dev = next_dev; // increased below
 
 		list_append(mountpoints, mp);
-
 	}
 	else {
 		panic("FAT partition is not root - other mountpoints are not yet supported!");
@@ -110,6 +113,28 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	list_append(fat32_partitions, part_info);
 
 	return true;
+}
+
+int fat_open(uint32 dev, const char *path, int mode) {
+	panic("TODO: fat_open");
+	path=path;
+	dev=dev;
+	mode=mode;
+	return 0;
+}
+
+int fat_read(int fd, void *buf, size_t length) {
+	panic("TODO: fat_read");
+	fd=fd;
+	buf=buf;
+	length=length;
+	return -1;
+}
+int fat_close(int fd) {
+	panic("TODO: fat_close");
+	fd=fd;
+
+	return -1;
 }
 
 /* Finds the next cluster in the chain, if there is one. */

@@ -280,6 +280,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	vmm_set_guard(start_guard, kernel_directory);
 	vmm_set_guard(end_guard,   kernel_directory);
 
+	// Clear the task's file descriptor table
+	memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
+	task->_next_fd = 0;
+
 	task->privilege = privilege;
 
 	if (task->privilege == 0) {

@@ -109,4 +109,8 @@ struct dirent *fat_readdir(struct dir *dir);
 void fat_closedir(struct dir *dir);
 int fat_stat(const char *in_path, struct stat *buf);
 
+int fat_open(uint32 dev, const char *path, int mode);
+int fat_read(int fd, void *buf, size_t length);
+int fat_close(int fd);
+
 #endif

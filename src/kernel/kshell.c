@@ -111,7 +111,7 @@ static void ls(void *data, uint32 length) {
 			}
 		}
 
-		printk("%31s %5s % 4uk %s\n", name, (st.st_mode & 040000) ? "<DIR>" : "", st.st_size / 1024, perm_str);
+		printk("%31s %5s % 4uk %s\n", name, (st.st_mode & 040000) ? "<DIR>" : "", (uint32)(st.st_size / 1024), perm_str);
 	}
 
 	fat_closedir(dir);

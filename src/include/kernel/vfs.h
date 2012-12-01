@@ -20,12 +20,21 @@ typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 /* forward declaration */
 struct fat32_partition;
 
+typedef struct file_ops {
+	int (*open)(uint32 /* dev */, const char * /* path */, int /* mode */);
+	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
+	int (*close)(int /* fd */);
+} file_ops_t;
+
 typedef struct mountpoint {
-	char path[512];
+	char path[1024];
 
 	/* Will be changed to a FS-neutral type when needed */
-	struct fat32_partition *partition;
+	/*struct fat32_partition *partition;*/
+	uint32 dev;
+	struct file_ops fops;
 } mountpoint_t;
+
 
 typedef struct dir {
 	/* TODO: proper per-process file descriptors */
@@ -117,7 +126,7 @@ typedef uint16 mode_t;
 typedef uint16 nlink_t;
 typedef uint16 uid_t;
 typedef uint16 gid_t;
-typedef sint32 off_t;
+typedef sint64 off_t;
 typedef sint32 blkcnt_t;
 typedef sint32 blksize_t;
 typedef uint32 ino_t;
