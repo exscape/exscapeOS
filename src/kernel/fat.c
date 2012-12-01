@@ -196,10 +196,10 @@ int fat_read(int fd, void *buf, size_t length) {
 		uint32 bytes_copied = min(min(file_size - file->offset, length), part->cluster_size);
 
 		// Copy the data to the buffer
-		memcpy((void *)( (uint8 *)buf), cluster_buf + local_offset, bytes_copied);
+		memcpy((void *)( (uint8 *)buf + bytes_read), cluster_buf + local_offset, bytes_copied);
 
 		bytes_read += bytes_copied;
-		file->offset += bytes_read;
+		file->offset += bytes_copied;
 
 		assert(file->offset <= file_size);
 
