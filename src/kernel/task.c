@@ -208,11 +208,11 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 	return task;
 }
 
-task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 length) {
+task_t *create_task_elf(fs_node_t *file, console_t *con, void *argv, uint32 argc) {
 	assert(file != NULL);
 	INTERRUPT_LOCK;
 
-	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, length);
+	task_t *task = create_task_user((void *)0x10000000, file->name, con, argv, argc);
 	assert (task != NULL);
 
 	elf_load(file, fsize(file), task);
@@ -243,7 +243,7 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 	return task;
 }
 
-static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length) {
+static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *argv, uint32 argc) {
 	assert(privilege == 0 || privilege == 3);
 
 	task_t *task = kmalloc(sizeof(task_t));
@@ -316,7 +316,9 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		/* Force a call to user_exit() if the task attempts to read and RET "past" the stack */
 		assert(current_directory == kernel_directory);
 		switch_page_directory(task->page_directory);
-		*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
+		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
+		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
+		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 		switch_page_directory(kernel_directory);
 	}
 	else if (task->privilege == 0) {
@@ -350,15 +352,15 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	uint32 code_segment = 0x08;
 
 	/* data and data length parameters (in opposite order) */
-	*(--kernelStack) = length;
-	*(--kernelStack) = (uint32)data;
+	*(--kernelStack) = argc;
+	*(--kernelStack) = (uint32)argv;
 
 	/* Functions will call this automatically when they attempt to return */
 	*(--kernelStack) = (uint32)&exit_proc;
 
 	if (task->privilege == 3) {
 		*(--kernelStack) = 0x23; /* SS */
-		*(--kernelStack) = (USER_STACK_START - 4); /* ESP */
+		*(--kernelStack) = (USER_STACK_START - 12); /* ESP */
 		code_segment = 0x1b; /* 0x18 | 3 */
 	}
 
