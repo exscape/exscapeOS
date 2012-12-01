@@ -1,7 +1,7 @@
 #include <types.h>
 #include <string.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/vmm.h>
 #include <kernel/console.h>
 #include <kernel/task.h>

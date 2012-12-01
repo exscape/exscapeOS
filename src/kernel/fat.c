@@ -2,7 +2,7 @@
 #include <kernel/fat.h>
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/list.h>
 #include <string.h>
 #include <kernel/partition.h>

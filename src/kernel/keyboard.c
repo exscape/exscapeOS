@@ -2,7 +2,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/console.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 /* The different modifier keys we support */
 #define MOD_NONE  0

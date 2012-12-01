@@ -1,5 +1,5 @@
 #include <string.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 /* memset and memcpy are implemented in assembly, and reside in separate source files */
 

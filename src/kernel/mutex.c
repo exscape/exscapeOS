@@ -1,4 +1,4 @@
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/task.h>
 #include <kernel/mutex.h>
 #include <kernel/kernutil.h>

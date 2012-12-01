@@ -3,7 +3,7 @@
 #include <types.h>
 #include <kernel/kernutil.h>
 #include <string.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */

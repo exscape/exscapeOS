@@ -4,7 +4,7 @@
 #include <kernel/console.h>
 #include <kernel/ata.h>
 #include <string.h> /* memset */
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 /* Used in this file only. */
 struct mbr_ptable {

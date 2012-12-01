@@ -3,7 +3,7 @@
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* assert */
 #include <kernel/vmm.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 /* Create three kernel-global instances of GDT entries, and a pointer */
 #define NUM_GDT_ENTRIES 7

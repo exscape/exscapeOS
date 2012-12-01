@@ -1,5 +1,5 @@
 #include <string.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h>
 #include <kernel/pmm.h>

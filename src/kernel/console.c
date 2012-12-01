@@ -4,7 +4,7 @@
 #include <string.h>
 #include <kernel/console.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/list.h>
 #include <kernel/timer.h>
 #include <kernel/rtc.h>

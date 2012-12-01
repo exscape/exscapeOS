@@ -2,7 +2,7 @@
 #include <kernel/timer.h>
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/net/nethandler.h>
 
 /*

@@ -5,7 +5,7 @@
 #include <string.h> /* memset */
 
 /* Is this used? */
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 
 /* For debugging */
 #include <kernel/console.h>

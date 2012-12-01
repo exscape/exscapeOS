@@ -1,4 +1,4 @@
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/kernutil.h>
 #include <kernel/vmm.h>
 #include <kernel/console.h> /* for print_heap_index() */

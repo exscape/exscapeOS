@@ -1,6 +1,6 @@
 #include <string.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/console.h>
 #include <kernel/pci.h>
 #include <kernel/vmm.h>

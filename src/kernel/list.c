@@ -7,7 +7,7 @@
 
 #include <types.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/list.h>
 #include <kernel/interrupts.h>
 

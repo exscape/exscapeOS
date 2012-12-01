@@ -2,7 +2,7 @@
 #include <kernel/kshell.h>
 #include <kernel/console.h>
 #include <kernel/keyboard.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <string.h>
 #include <kernel/kernutil.h>
 #include <kernel/task.h>

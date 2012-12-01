@@ -3,7 +3,7 @@
 #include <types.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* panic */
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/console.h> /* printk */
 #include <kernel/pmm.h>
 

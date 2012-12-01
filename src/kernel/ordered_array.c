@@ -1,7 +1,7 @@
 #include <types.h>
 #include <kernel/ordered_array.h>
 #include <kernel/kernutil.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <string.h>
 #include <stdio.h> /* sprintf, for a debugging change only! */
 #include <kernel/console.h> /* printk, same as above */

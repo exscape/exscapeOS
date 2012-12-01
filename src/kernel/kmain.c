@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <kernel/keyboard.h>
 #include <kernel/timer.h>
-#include <kernel/kheap.h>
+#include <kernel/heap.h>
 #include <kernel/vmm.h>
 #include <kernel/rtc.h>
 #include <kernel/multiboot.h>
