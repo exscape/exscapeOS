@@ -62,6 +62,8 @@ DECL_SYSCALL1(puts, const char *);
 DECL_SYSCALL1(sleep, uint32);
 DECL_SYSCALL0(getchar);
 DECL_SYSCALL1(putchar, int);
+DECL_SYSCALL2(open, const char *, int);
+DECL_SYSCALL3(read, int, void *, int);
 
 #endif // _EXSCAPEOS_USERSPACE
 
@@ -70,3 +72,5 @@ DEFN_SYSCALL1(puts, 1, const char *);
 DEFN_SYSCALL1(sleep, 2, uint32);
 DEFN_SYSCALL0(getchar, 3);
 DEFN_SYSCALL1(putchar, 4, int);
+DEFN_SYSCALL2(open, 5, const char *, int);
+DEFN_SYSCALL3(read, 6, int, void *, int);

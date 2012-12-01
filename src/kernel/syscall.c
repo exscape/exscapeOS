@@ -1,8 +1,9 @@
 #include <kernel/syscall.h>
-#include <kernel/console.h> /* puts */
+#include <kernel/console.h> /* puts, getchar, putchar */
 #include <kernel/interrupts.h>
-#include <kernel/task.h>
+#include <kernel/task.h> /* sleep, exit_proc */
 #include <kernel/kernutil.h>
+#include <kernel/fileio.h> /* open, read */
 
 static uint32 syscall_handler(uint32);
 
@@ -14,6 +15,8 @@ static void *syscalls[] = {
 	&sleep,
 	&getchar,
 	&putchar,
+	&open,
+	&read
 };
 
 uint32 num_syscalls = 0;
@@ -21,7 +24,6 @@ uint32 num_syscalls = 0;
 void init_syscalls(void) {
 	register_interrupt_handler(0x80, &syscall_handler);
 	num_syscalls = sizeof(syscalls) / sizeof(void *);
-	assert(num_syscalls == 5);
 }
 
 uint32 syscall_handler(uint32 esp) {
