@@ -32,9 +32,14 @@ list_t *fat32_partitions = NULL;
 fat32_partition_t *devtable[MAX_DEVS] = {0};
 uint32 next_dev = 0;
 
+#define min(a,b) ( (a < b ? a : b) )
+
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type);
+static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
+static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -448,6 +453,14 @@ int fat_stat(const char *in_path, struct stat *buf) {
 		// TODO: errno
 		return -1;
 	}
+}
+
+int fat_fstat(int fd, struct stat *buf) {
+	// Ugh, this feels like a huge hack.
+	assert(fd <= MAX_OPEN_FILES);
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	return fat_stat(file->path, buf);
 }
 
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data) {

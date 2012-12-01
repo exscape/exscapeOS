@@ -11,6 +11,8 @@ typedef struct open_file {
 	ino_t ino;
 	off_t offset;
 	off_t size;
+	mountpoint_t *mp;
+	char *path;
 } open_file_t;
 
 #endif
