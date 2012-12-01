@@ -8,6 +8,8 @@
 #include <kernel/kernutil.h> /* panic */
 
 int open(const char *path, int mode) {
+	assert(mode == O_RDONLY);
+
 	mountpoint_t *mp;
 	mp = find_mountpoint_for_path(path);
 

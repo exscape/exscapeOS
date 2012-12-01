@@ -6,6 +6,8 @@
 
 #define MAX_OPEN_FILES 128
 
+#define O_RDONLY 0
+
 typedef struct open_file {
 	dev_t dev;
 	ino_t ino;

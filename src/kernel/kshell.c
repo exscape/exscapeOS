@@ -87,7 +87,7 @@ static void cat(void *data, uint32 length) {
 	char path[1024] = {0};
 	strcpy(path, _pwd);
 	path_join(path, (char *)data);
-	int fd = open(path, 0 /* mode still unused */);
+	int fd = open(path, O_RDONLY);
 	assert(fd >= 0);
 	char buf[512] = {0};
 
