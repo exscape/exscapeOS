@@ -309,7 +309,7 @@ static void permaidle(void *data, uint32 length) {
 
 uint32 pmm_bytes_used(void);
 
-static void free(void *data, uint32 length) {
+static void free_mem(void *data, uint32 length) {
 	printk("Free RAM: %u kbytes\n", pmm_bytes_free() / 1024);
 	printk("Used RAM: %u kbytes\n", pmm_bytes_used() / 1024);
 	printk("kheap used: %u bytes\n", kheap_used_bytes());
@@ -393,7 +393,7 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&heaptest, "heaptest", con, NULL, 0);
 		}
 		if (strcmp(p, "free") == 0) {
-			task = create_task(&free, "free", con, NULL, 0);
+			task = create_task(&free_mem, "free", con, NULL, 0);
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
 			task = create_task(&delaypanic, "delaypanic", con, NULL, 0);

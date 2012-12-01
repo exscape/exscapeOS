@@ -16,7 +16,9 @@ static void *syscalls[] = {
 	&getchar,
 	&putchar,
 	&open,
-	&read
+	&read,
+	&malloc,
+	&free
 };
 
 uint32 num_syscalls = 0;

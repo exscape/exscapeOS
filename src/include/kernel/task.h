@@ -6,6 +6,7 @@
 #include <kernel/console.h>
 #include <kernel/fileio.h> /* struct open_file */
 #include <kernel/vfs.h>
+#include <kernel/kheap.h>
 
 #define TASK_NAME_LEN 64
 
@@ -25,6 +26,7 @@ typedef struct task
 	list_t *user_addr_table; /* a list of addresses to unmap when the task exits; user mode only */
 	struct open_file fdtable[MAX_OPEN_FILES];
 	uint32 _next_fd;
+	heap_t *heap;
 } task_t;
 
 extern volatile task_t *current_task;

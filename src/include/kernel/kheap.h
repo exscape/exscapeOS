@@ -1,6 +1,10 @@
+#ifndef _KHEAP_H
+#define _KHEAP_H
+
 #include <types.h>
 #include <kernel/mutex.h>
 #include <kernel/ordered_array.h>
+#include <kernel/vmm.h>
 
 /************************
  **** HEAP FUNCTIONS ****
@@ -58,10 +62,17 @@ typedef struct {
 
 /* Values for heap debugging */
 #define KHEAP_INITIAL_SIZE 0x90000 /* 64 kiB + 512k for the indexes */
-#define HEAP_MIN_GROWTH 0x8000 /* 32 kiB */
-#define HEAP_MAX_WASTE 0x120000 /* must be >1 MiB */
+#define KHEAP_MIN_GROWTH 0x8000 /* 32 kiB */
+#define KHEAP_MAX_WASTE 0x120000 /* must be >1 MiB */
 
-heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_size, uint8 supervisor, uint8 readonly);
+#define USER_HEAP_INITIAL_SIZE 0x90000
+#define USER_HEAP_MIN_GROWTH 0x8000
+#define USER_HEAP_MAX_WASTE 0x120000
+
+#define USER_HEAP_START 0x20000000
+#define USER_HEAP_MAX_ADDR 0xbff00000
+
+heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addr, uint8 supervisor, uint8 readonly, page_directory_t *dir);
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap);
 void heap_free(void *p, heap_t *heap);
 
@@ -71,6 +82,10 @@ void print_heap_index(void);
 void kfree(void *p);
 
 uint32 kheap_used_bytes(void);
+
+// user space/syscalls (until a proper user space heap w/ brk() and sbrk() exists)
+void *malloc(size_t);
+void free(void *);
 
 /*********************************
  **** PRE-HEAP/HEAP FUNCTIONS ****
@@ -96,3 +111,5 @@ void *kmalloc_ap(uint32 size, uint32 *phys);
 
 /* Expand the size of an existing allocation. */
 void *krealloc(void *p, size_t new_size);
+
+#endif

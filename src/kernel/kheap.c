@@ -96,7 +96,7 @@ void print_heap_index(void) {
 }
 
 /* Does a bunch of sanity checks; expensive, but also priceless during development/debugging. */
-void do_asserts_for_index(ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
+void do_asserts_for_index(heap_t *heap, ordered_array_t *index, area_header_t *header_to_create, area_footer_t *footer_to_create, uint32 size) {
 
 	/* First, make sure the paremeters make sense! */
 	assert(index != NULL);
@@ -151,8 +151,8 @@ static area_header_t *create_area(uint32 address, uint32 size, uint8 type, heap_
 #if HEAP_DEBUG
 	/* Very expensive, but very useful sanity checks! */
 	/* Due to the fact that we have TWO indexes, these checks are in a separate function. */
-	do_asserts_for_index(&kheap->free_index, header_to_create, footer_to_create, size);
-	do_asserts_for_index(&kheap->used_index, header_to_create, footer_to_create, size);
+	do_asserts_for_index(heap, &heap->free_index, header_to_create, footer_to_create, size);
+	do_asserts_for_index(heap, &heap->used_index, header_to_create, footer_to_create, size);
 #endif
 
 	/* Write the header and footer to memory */
@@ -220,9 +220,10 @@ area_header_t *find_smallest_hole(uint32 size, bool page_align, heap_t *heap) {
 /* Grows the heap, and allocates frames to store it on. */
 void heap_expand(uint32 size_to_add, heap_t *heap) {
 	assert(interrupts_enabled() == false);
-	/* Don't expand any less than HEAP_MIN_GROWTH bytes */
-	if (size_to_add < HEAP_MIN_GROWTH)
-		size_to_add = HEAP_MIN_GROWTH;
+	/* Don't expand any less than the minimum */
+	const uint32 min_growth = (heap == kheap ? KHEAP_MIN_GROWTH : USER_HEAP_MIN_GROWTH);
+	if (size_to_add < min_growth)
+		size_to_add = min_growth;
 
 	/* "Page align" the size */
 	if ((size_to_add % PAGE_SIZE) != 0) {
@@ -261,8 +262,10 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	assert(new_end_address > heap->end_address);
 
 	/* Now, finally... Physically allocate the new frames */
-	// TODO: userspace heap support
-	vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, PAGE_ANY_PHYS, (heap->readonly ? false : true) /* writable */);
+	if (heap == kheap)
+		vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, PAGE_ANY_PHYS, (heap->readonly ? false : true) /* writable */);
+	else
+		vmm_alloc_user(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, current_task->page_directory, (heap->readonly ? false : true));
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
@@ -280,8 +283,10 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	uint32 new_size = old_size - bytes_to_shrink;
 
 	/* Don't shrink below the initial size. */
-	if (new_size < KHEAP_INITIAL_SIZE && heap == kheap)
-		new_size = KHEAP_INITIAL_SIZE;
+	const uint32 initial = (heap == kheap ? KHEAP_INITIAL_SIZE : USER_HEAP_INITIAL_SIZE);
+
+	if (new_size < initial && heap == kheap)
+		new_size = initial;
 
 	/* Calculate the new end address, and make sure it's page aligned */
 	uint32 new_end_address = heap->start_address + new_size;
@@ -299,7 +304,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 
 	/* Free the frames that make up the new-freed space */
 	for (uint32 addr = (uint32)heap->end_address; addr > new_end_address; addr -= PAGE_SIZE) {
-		vmm_free(addr, kernel_directory);
+		vmm_free(addr, (heap == kheap ? kernel_directory : current_directory));
 	}
 
 	heap->end_address = new_end_address;
@@ -320,11 +325,10 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 
 	if (area == NULL) {
 		/* There were no free areas big enough! Expand the heap, and create one. */
-		/* heap_expand expands with at least HEAP_MIN_GROWTH bytes, so we don't need to bother checking here */
+		/* heap_expand expands with at least *_MIN_GROWTH bytes, so we don't need to bother checking here */
 		uint32 old_heap_size = heap->end_address - heap->start_address;
 		heap_expand(size, heap);
 		uint32 new_heap_size = heap->end_address - heap->start_address;
-		assert(new_heap_size >= old_heap_size + HEAP_MIN_GROWTH);
 
 		/*
 		 * OK, so the heap is now expanded. However, that's not enough; we need a free area that's big enough!
@@ -370,7 +374,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 			create_area((uint32)new_header, new_heap_size - old_heap_size, AREA_FREE, heap);
 
 			/* Since we created an area, we need to add it to the index. */
-			insert_ordered_array((void *)new_header, &kheap->free_index);
+			insert_ordered_array((void *)new_header, &heap->free_index);
 		}
 
 		/* Then try again: */
@@ -383,7 +387,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	 * An assert() checks that to prevent errors, and will fail if we try to create that hole before we do this.
 	 * This must also be done before the if (page_align) clause below, since that part will actually modify the /area/ variable.
 	 */
-	remove_ordered_array_item((void *)area, &kheap->free_index);
+	remove_ordered_array_item((void *)area, &heap->free_index);
 
 	if (page_align && !IS_PAGE_ALIGNED((uint32)area + sizeof(area_header_t))) {
 		/* The caller has requested the memory be page-aligned; sure, can do! */
@@ -453,7 +457,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		create_area((uint32)free_space_header, (area->size - size), AREA_FREE, heap);
 
 		/* Write it to the index */
-		insert_ordered_array((void *)free_space_header, &kheap->free_index);
+		insert_ordered_array((void *)free_space_header, &heap->free_index);
 	}
 	else {
 		/* There's not enough space to bother making a new area.
@@ -465,7 +469,7 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	create_area((uint32)area, size, AREA_USED, heap);
 
 	/* Add this area to the used_index */
-	insert_ordered_array((void *)area, &kheap->used_index);
+	insert_ordered_array((void *)area, &heap->used_index);
 
 	uint32 ret = (uint32)area + sizeof(area_header_t);
 
@@ -527,7 +531,7 @@ void heap_free(void *p, heap_t *heap) {
 	}
 
 	/* Remove this area from the used index. We'll wait a little before adding it as a free area, though. */
-	remove_ordered_array_item((void *)header, &kheap->used_index);
+	remove_ordered_array_item((void *)header, &heap->used_index);
 
 	/* Mark this area as free in memory */
 	header->type = AREA_FREE;
@@ -587,7 +591,7 @@ void heap_free(void *p, heap_t *heap) {
 			/* Yep! Merge with this one. */
 
 			/* Delete the rightmost hole from the index before we merge */
-			remove_ordered_array_item((void *)right_area_header, &kheap->free_index);
+			remove_ordered_array_item((void *)right_area_header, &heap->free_index);
 
 			/* Add the newfound space to the leftmost header */
 			header->size += right_area_header->size;
@@ -617,11 +621,12 @@ void heap_free(void *p, heap_t *heap) {
 	}
 
 	if (add_to_index)
-		insert_ordered_array((void *)header, &kheap->free_index);
+		insert_ordered_array((void *)header, &heap->free_index);
 
 	/* Contract the heap, if there is enough space at the end that we can consider it a waste of physical frames */
-	if (heap->rightmost_area->type == AREA_FREE && heap->rightmost_area->size >= HEAP_MAX_WASTE) {
-		assert(HEAP_MAX_WASTE >= 0x100000); /* If it's less than 1 MiB, this won't work very well. */
+	const uint32 max_waste = (heap == kheap ? KHEAP_MAX_WASTE : USER_HEAP_MAX_WASTE);
+	if (heap->rightmost_area->type == AREA_FREE && heap->rightmost_area->size >= max_waste) {
+		assert(max_waste >= 0x100000); /* If it's less than 1 MiB, this won't work very well. */
 
 		area_header_t *rightmost_area = heap->rightmost_area;
 		area_footer_t *rightmost_footer = FOOTER_FROM_HEADER(rightmost_area);
@@ -661,7 +666,7 @@ void heap_free(void *p, heap_t *heap) {
 	INTERRUPT_UNLOCK;
 }
 
-heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly) {
+heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly, page_directory_t *dir) {
 	heap_t *heap = (heap_t *)kmalloc_a(sizeof(heap_t));
 	assert (heap != NULL);
 
@@ -669,6 +674,13 @@ heap_t *create_heap(uint32 start_address, uint32 initial_size, uint32 max_addres
 
 	/* Start and end addresses need to be page aligned; the end address is calculated and checked below */
 	assert(IS_PAGE_ALIGNED(start_address));
+
+	/* Allocate pages for the heap's initial size */
+	if (start_address == KHEAP_START) {
+		vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
+	}
+	else
+		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, dir, true);
 
 	/* Create the indexes; they are zeroed in place_ordered_array */
 	heap->used_index = place_ordered_array((void *)start_address, HEAP_INDEX_SIZE, &area_header_t_less_than);
@@ -730,7 +742,6 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		if (in_isr && interrupts_enabled() == false) {
 			panic("heap kmalloc called from ISR!");
 		}
-
 
 		INTERRUPT_LOCK;
 
@@ -832,6 +843,16 @@ void *krealloc(void *p, size_t new_size) {
 void kfree(void *p) {
 	heap_free(p, kheap);
 }
+
+void *malloc(size_t size) {
+	return heap_alloc(size, false /* no page align */, current_task->heap);
+}
+
+void free(void *p) {
+	if (p != NULL)
+		heap_free(p, current_task->heap);
+}
+
 
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */
 void *kmalloc(uint32 size) {

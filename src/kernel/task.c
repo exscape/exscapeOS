@@ -319,6 +319,9 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
 		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
+
+		task->heap = heap_create(USER_HEAP_START, USER_HEAP_INITIAL_SIZE, USER_HEAP_MAX_ADDR, 0, 0, task->page_directory); // not supervisor, not read-only
+
 		switch_page_directory(kernel_directory);
 	}
 	else if (task->privilege == 0) {

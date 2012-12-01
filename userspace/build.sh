@@ -14,6 +14,6 @@ OUT_O="${IN/\.c/.o}"
 OUT="${OUT_O/\.o/}"
 
 nasm -f elf crt0.s -F dwarf -g &&
-i586-elf-gcc -D_EXSCAPEOS_USERSPACE -Wall -nostdlib -nostdinc -c -o "$OUT_O" "$IN" -ggdb3 -I./include -std=gnu99 &&
+i586-elf-gcc -D_EXSCAPEOS_USERSPACE -Wall -nostdlib -nostdinc -nodefaultlibs -c -o "$OUT_O" "$IN" -ggdb3 -I./include -std=gnu99 &&
 i586-elf-ld -T user-link.ld $OUT_O -o $OUT &&
 echo "Done! Output file is $OUT" || echo "Failed to compile!"

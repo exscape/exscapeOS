@@ -329,11 +329,6 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	 * they are ignored.
 	 */
 
-	/* Allocate pages for the kernel heap. While we created page tables for the entire possible space,
-	 * we obviously can't ALLOCATE 256MB for the kernel heap until it's actually required. Instead, allocate
-	 * enough for the initial size. */
-	vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
-
 	/* Register the page fault handler */
 	register_interrupt_handler(EXCEPTION_PAGE_FAULT, page_fault_handler);
 
@@ -342,7 +337,7 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	enable_paging();
 
 	/* Initialize the kernel heap */
-	kheap = create_heap(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0); /* supervisor, not read-only */
+	kheap = heap_create(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0, kernel_directory); /* supervisor, not read-only */
 
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
