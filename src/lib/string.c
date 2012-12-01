@@ -1,4 +1,5 @@
 #include <string.h>
+#include <kernel/kheap.h>
 
 /* memset and memcpy are implemented in assembly, and reside in separate source files */
 
@@ -50,6 +51,18 @@ char *strchr(const char *s, int c_) {
 		return (char *)s;
 	else
 		return NULL;
+}
+
+char *strdup(const char *s) {
+	if (s == NULL)
+		return NULL;
+
+	// alloc even if strlen == 0
+	size_t len = strlen(s);
+	char *ret = kmalloc(len + 1);
+	strlcpy(ret, s, len + 1);
+
+	return ret;
 }
 
 char *strrchr(const char *s, int c_) {

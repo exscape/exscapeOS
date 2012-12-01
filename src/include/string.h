@@ -22,6 +22,8 @@ size_t strlcat(char *dst, const char *src, size_t size);
 
 int stricmp(const char *s1, const char *s2);
 
+char *strdup(const char *s);
+
 /* These three are public domain implementations, i.e. not written by me */
 size_t strcspn(const char *s1, const char *s2);
 size_t strspn(const char *s1, const char *s2);
