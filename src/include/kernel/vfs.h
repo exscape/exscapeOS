@@ -75,6 +75,8 @@ extern fs_node_t *fs_root;
 /* POSIX struct dirent */
 struct dirent {
 	uint32 d_ino;
+	uint16 d_dev; // custom field, to allow a dirent to uniquely specify a file
+	uint16 __pad;
 	uint16 d_reclen;
 	uint8 d_type;
 	uint8 d_namlen;

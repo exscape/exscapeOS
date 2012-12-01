@@ -27,6 +27,11 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
+// TODO: this shouldn't be FS specific!
+#define MAX_DEVS 8
+fat32_partition_t *devtable[MAX_DEVS] = {0};
+uint32 next_dev = 0;
+
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
@@ -89,10 +94,14 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mp->partition = part_info;
 
 		list_append(mountpoints, mp);
+
 	}
 	else {
 		panic("FAT partition is not root - other mountpoints are not yet supported!");
 	}
+
+	// Store this in the device table (used for dev ID number -> partition mappings)
+	devtable[next_dev++] = part_info;
 
 	/* We now have no real use of the old stuff any longer */
 	kfree(buf);
@@ -446,7 +455,13 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 			}
 		}
 
-		st->st_dev = 0; // TODO: assign number to devices, like FDs
+		st->st_dev = 0xffff; // invalid ID
+		for (int i=0; i < MAX_DEVS; i++) {
+			if (devtable[i] == dir->partition) {
+				st->st_dev = i;
+				break;
+			}
+		}
 		st->st_ino = (disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
 		st->st_mode = 0777; // TODO
 		if (disk_direntry->attrib & ATTRIB_DIR)
@@ -554,6 +569,15 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 	struct dirent *dent = NULL;
 
+	// TODO: don't do this inside the callback (which is looped)!
+	uint16 dev = 0xffff; // invalid value
+	for (int i=0; i < MAX_DEVS; i++) {
+		if (devtable[i] == dir->partition) {
+			dev = i;
+			break;
+		}
+	}
+
 	/* Special case: pretend there's a . and .. entry for the root directory.
 	 * They both link back to the root, so /./../../. == / */
 	if (dir->len == 0 && dir->dir_cluster == dir->partition->root_dir_first_cluster) {
@@ -562,18 +586,20 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, ".", DIRENT_NAME_LEN);
 		dent->d_ino = dir->partition->root_dir_first_cluster;
+		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 1;
-		dent->d_reclen = 12; // 8 bytes for all but the name, plus '.' + NULL + padding
+		dent->d_reclen = 16; // 12 bytes for all but the name, plus '.' + NULL + padding
 		dir->len += dent->d_reclen;
 
 		//printk("writing dent at %u\n", dir->len);
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, "..", DIRENT_NAME_LEN);
 		dent->d_ino = dir->partition->root_dir_first_cluster;
+		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 2;
-		dent->d_reclen = 12; // 8 bytes for all but the name, plus '..' + NULL + padding
+		dent->d_reclen = 16; // 12 bytes for all but the name, plus '..' + NULL + padding
 		dir->len += dent->d_reclen;
 	}
 
@@ -607,6 +633,8 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 	else
 		dent->d_ino = data_cluster;
 
+	dent->d_dev = dev;
+
 	if (lfn_buf) {
 		strlcpy(dent->d_name, lfn_buf, DIRENT_NAME_LEN);
 	}
@@ -615,7 +643,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 	}
 
 	dent->d_namlen = strlen(dent->d_name);
-	dent->d_reclen = 8 /* the fixed fields */ + dent->d_namlen + 1 /* NULL byte */;
+	dent->d_reclen = 12 /* the fixed fields */ + dent->d_namlen + 1 /* NULL byte */;
 
 	if (dent->d_reclen & 3) {
 		// Pad such that the record length is divisible by 4
