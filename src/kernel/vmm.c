@@ -92,6 +92,7 @@ void vmm_unmap(uint32 virtual, page_directory_t *dir) {
 	assert(dir != NULL);
 	page_t *page = _vmm_get_page(virtual, dir);
 	assert(page != NULL);
+	assert(page->present == 1 || page->guard == 1);
 	*((uint32 *)page) = 0;
 
 	_vmm_invalidate((void *)virtual);
