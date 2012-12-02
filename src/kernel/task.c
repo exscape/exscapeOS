@@ -211,69 +211,46 @@ static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task
 	// current_task is still set to the parent task
 
 	char **argv = heap_alloc(max_args * sizeof(char *), false, task->heap);
+	memset(argv, 0, max_args * sizeof(char *));
 
 	const char *c = cmdline;
-	const char *p;
-	while (*c == ' ') c++; // skip leading spaces
-	p = strchr(c, ' ');
-	if (p == NULL)
-		p = cmdline + len;
-	
-	// Copy the command name separately
-	argv[0] = heap_alloc((p-c) + 1, false, task->heap);
-	strlcpy(argv[0], c, (p-c) + 1);
-	c = p + 1;
-	*argc = 1;
-	while (*p == ' ') p++;
-	if (*p == 0)
-		return argv;
-	
-	// c now points to the first argument
-	p = c;
-	assert(*p != ' ');
 
+	// To hold the current argument while parsing
+	// (we don't know what size to malloc() until we're done with an argument)
 	char arg[256] = {0};
 	size_t ai = 0;
+
+	len = strlen(c);
+	bool quote = false;
+	while (*c == ' ') c++; // skip leading spaces
+
 	while (c < cmdline + len) {
-		while (*c > ' ' && *c != '"') { arg[ai++] = *c++; }
+		while ((*c > ' ' && *c != '"' && *c != 0) || (*c == ' ' && quote)) {
+			// Regular text, or stuff within a quote: just copy this
+			arg[ai++] = *c++;
+		}
 
 		if (*c == '"') {
-			// we hit a quote; copy until the next quote or NULL (shouldn't happen, but could)
-			if (*(c-1) != ' ') {arg[ai++] = *c++; continue;}
-			ai = 0;
+			// We hit a quotemark. Change the quote status, skip the character (don't copy it), and continue
+			quote = !quote;
 			c++;
-			while (*c != '"' && *c != 0) { arg[ai++] = *c++; }
-			arg[ai] = 0;
-			argv[*argc] = heap_alloc(ai + 1, false, task->heap);
-			strlcpy(argv[*argc], arg, ai + 1);
-			(*argc)++;
-			ai = 0;
-			if (*c == 0)
-				break;
-			else {
-				c++;
-				while (*c == ' ') c++;
-				continue;
-			}
+			if (*c != 0)
+				continue; // else save before we exit the loop, just below
 		}
 
-		if (*c == ' ' || *c == 0) {
-			// we broke due to a space/end of line; the argument is finished
-			arg[ai] = 0;
-			argv[*argc] = heap_alloc(ai + 1, false, task->heap);
-			strlcpy(argv[*argc], arg, ai + 1);
+		if ((*c == ' ' && !quote) || *c == 0) {
+			// Allocate memory, save this argument, increase argc
+			arg[ai++] = 0;
+			argv[*argc] = heap_alloc(ai, false, task->heap);
+			assert(max_args > *argc);
+			strlcpy(argv[*argc], arg, ai);
 			(*argc)++;
 			ai = 0;
-			while (*c == ' ') { c++; } // skip multiple spaces
 		}
-	}
-	if (ai != 0) {
-		argv[*argc] = heap_alloc(ai + 1, false, task->heap);
-		strlcpy(argv[*argc], arg, ai+  1);
-		(*argc)++;
-	}
 
-	// TODO: clean this up at exit
+		// Skip whitespace until the next argument
+		while (*c == ' ') c++;
+	}
 
 	return argv;
 }
