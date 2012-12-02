@@ -33,6 +33,12 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
+	@if [[ ! -d "misc/initrd_contents" ]]; then \
+		mkdir -p misc/initrd_contents; \
+	fi
+	@if [[ ! -f "misc/create_initrd" ]]; then \
+		$(CC) -o misc/create_initrd misc/src/create_initrd.c -std=gnu99; \
+	fi
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
 	@for prog in $(USERSPACEPROG); do \
