@@ -265,10 +265,6 @@ static void kernel_stress(void *data, uint32 length) {
 	}
 }
 
-static void paramtest(void *data, uint32 length) {
-	printk("data=0x%08x length=0x%08x\n", data, length);
-}
-
 static void divzero(void *data, uint32 length) {
 	printk("in divzero; dividing now\n");
 	asm volatile("mov $10, %%eax; mov $0, %%ebx; div %%ebx;" : : : "%eax", "%ebx", "%edx");
@@ -278,14 +274,6 @@ static void divzero(void *data, uint32 length) {
 static void delaypanic(void *data, uint32 length) {
 	sleep(5000);
 	panic("delaypanic()");
-}
-
-static void delaymput(void *data, uint32 length) {
-	sleep(5000);
-	Point p = get_cursor();
-	set_cursor((80-4)/2, 12);
-	printk("test");
-	set_cursor(p.x, p.y);
 }
 
 static void testbench(void *data, uint32 length) {
@@ -391,6 +379,55 @@ void kshell(void *data, uint32 length) {
 
 		if (*p == 0)
 			continue;
+
+		if (strcmp(p, "help") == 0 || strncmp(p, "help ", 5) == 0) {
+			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
+
+			printk("!!               - re-execute last command\n");
+			printk("clear            - clear the screen\n");
+			printk("exit             - exit the shell\n");
+			printk("free             - display how much memory is used/free\n");
+			printk("guess            - in-kernel guess-the-number game\n");
+			printk("heaptest         - heap stress test\n");
+			printk("help             - this help screen\n");
+			printk("kill <pid>       - kill a process\n");
+			printk("kshell           - start a nested kernel shell\n");
+			printk("ls               - list files\n");
+			printk("ls_initrd        - list files on the initrd image\n");
+			printk("lspci            - print the PCI device database\n");
+			printk("print_heap       - print the kernel heap index (used/free areas)\n");
+			printk("ps               - show processes\n");
+			printk("pwd              - print the current working directory\n");
+			printk("reboot           - restart the system cleanly (not yet! calls reset)\n");
+			printk("reset            - cause a triple fault immediately\n");
+			printk("testbench        - run a simple test benchmark in-kernel\n");
+			printk("testbench_task   - run a simple test benchmark as a task in-kernel\n");
+			printk("uptime           - show the current system uptime\n");
+
+			if (strcmp(p, "help all") != 0)
+				printk("Type \"help all\" to also display more obscure testing commands\n");
+
+			if (strcmp(p, "help all") == 0) {
+				printk("\nTesting commands:\n");
+				printk("delaypanic       - cause a kernel panic after a delay\n");
+				printk("divzero          - divide by zero in-kernel\n");
+				printk("divzero_task     - divide by zero in a task\n");
+				printk("fill_scrollback  - fill the scrollback buffer\n");
+				printk("fpu_task         - create a task that uses the FPU\n");
+				printk("infloop_task     - start a task that loops forever\n");
+				printk("kernel_stress    - process starting stress test (kernel mode)\n");
+				printk("mutex_test       - test kernel mutexes\n");
+				printk("pagefault        - create a page fault\n");
+				printk("pagefault_delay  - create a page fault after a delay\n");
+				printk("permaidle        - start a task that sleeps forever\n");
+				printk("print_1_sec      - print stuff once a second for 10 seconds\n");
+				printk("sleeptest        - start a task that sleeps for a while\n");
+				printk("spamtest         - print a lot of text forever\n");
+				printk("test_dfault      - cause a double fault\n");
+				printk("test_stackof     - cause a kernel stack overflow\n");
+				printk("user_stress_elf  - stress test the ELF loader\n");
+			}
+		}
 		else if (strcmp(p, "heaptest") == 0) {
 			task = create_task(&heaptest, "heaptest", con, NULL, 0);
 		}
@@ -414,9 +451,6 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "reboot") == 0) {
 			reboot();
-		}
-		else if (strcmp(p, "paramtest") == 0) {
-			task = create_task(&paramtest, "paramtest", con, (void *)0xDEADBEEF, 0x456);
 		}
 		else if (strcmp(p, "exit") == 0) {
 			break;
@@ -501,7 +535,7 @@ void kshell(void *data, uint32 length) {
 			}
 			printk("%d tasks running\n", n);
 		}
-		else if(strcmp(p, "divzero") == 0) {
+		else if (strcmp(p, "divzero") == 0) {
 			divzero(NULL, 0);
 		}
 		else if (strcmp(p, "ls") == 0) {
@@ -513,11 +547,8 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
-		else if(strcmp(p, "Divzero_task") == 0) {
+		else if (strcmp(p, "divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con, NULL, 0);
-		}
-		else if (strcmp(p, "delaymput") == 0) {
-			task = create_task(&delaymput, "delaymput", con, NULL, 0);
 		}
 		else if (strncmp(p, "kill ", 5) == 0) {
 			p += 5;
@@ -556,24 +587,6 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
-		}
-		else if (strcmp(p, "help") == 0) {
-			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
-			printk("heaptest: launch the heap stress test\n");
-			printk("print_heap: print the heap usage map\n");
-			printk("ls: show the files on the initrd image\n");
-			printk("clear: clear the screen\n");
-			printk("reboot: reboots the system\n");
-			printk("pagefault: generate a page fault and crash\n");
-			printk("divzero: divide by zero after setting most registers to test values\n");
-			printk("uptime: display the current uptime\n");
-			printk("ps: basic info about the running tasks\n");
-			printk("kill <pid>: kill a task\n");
-			printk("testbench, testbench_task: run a simple benchmark, in-kernel or as a task\n");
-			printk("sleeptest, permaidle: launch tasks that sleep 20 seconds once/sleep 100 seconds in a loop\n");
-			printk("print_1_sec: launch a task that loops 10 times, printing a message and then sleeping 1 second\n");
-			printk("delaypanic: wait 5 seconds, then panic\n");
-			printk("help: show this help message\n");
 		}
 		else {
 			char cmd[256];
