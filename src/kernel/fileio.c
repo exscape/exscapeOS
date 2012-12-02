@@ -12,6 +12,7 @@ int open(const char *path, int mode) {
 
 	mountpoint_t *mp;
 	mp = find_mountpoint_for_path(path);
+	assert(mp != NULL);
 
 	char relpath[1024] = {0};
 
@@ -25,7 +26,9 @@ int open(const char *path, int mode) {
 		panic("TODO: open(): test this code path");
 	}
 
-	return mp->fops.open(mp->dev, relpath, mode); // TODO: proper checking!
+	assert(mp->fops.open != NULL);
+
+	return mp->fops.open(mp->dev, relpath, mode);
 }
 
 int read(int fd, void *buf, int length) {
@@ -34,7 +37,10 @@ int read(int fd, void *buf, int length) {
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	mountpoint_t *mp = file->mp;
-	return mp->fops.read(fd, buf, length); // TODO: proper checking!
+	assert(mp != NULL);
+	assert(mp->fops.read != NULL);
+
+	return mp->fops.read(fd, buf, length);
 }
 
 int close(int fd) {
@@ -43,5 +49,8 @@ int close(int fd) {
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	mountpoint_t *mp = file->mp;
-	return mp->fops.close(fd); // TODO: proper checking!
+	assert(mp != NULL);
+	assert(mp->fops.close != NULL);
+
+	return mp->fops.close(fd);
 }
