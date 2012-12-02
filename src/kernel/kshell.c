@@ -389,10 +389,12 @@ void kshell(void *data, uint32 length) {
 			strlcpy(p, last_cmd, 1024);
 		}
 
-		if (strcmp(p, "heaptest") == 0) {
+		if (*p == 0)
+			continue;
+		else if (strcmp(p, "heaptest") == 0) {
 			task = create_task(&heaptest, "heaptest", con, NULL, 0);
 		}
-		if (strcmp(p, "free") == 0) {
+		else if (strcmp(p, "free") == 0) {
 			task = create_task(&free_mem, "free", con, NULL, 0);
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
@@ -554,9 +556,6 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "kshell") == 0) {
 			/* Heh. For testing only, really... Subshells aren't high in priority for the kernel shell. */
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
-		}
-		else if (strcmp(p, "") == 0) {
-			/* do nothing */
 		}
 		else if (strcmp(p, "help") == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
