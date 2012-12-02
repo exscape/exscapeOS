@@ -196,10 +196,92 @@ void init_tasking(uint32 kerntask_esp0) {
 	enable_interrupts();
 }
 
-static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 length);
+static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task) {
+	// Count the worst-case number of arguments. There may be fewer due to quoting
+	uint32 max_args = 1; // the command name is always there
+	size_t len = strlen(cmdline);
+	for (size_t i=0; i < len; i++) {
+		if (cmdline[i] == ' ') {
+			max_args++;
+			while (cmdline[i] == ' ' && i < len) i++; // don't count "a      b   c" as more than three arguments
+		}
+	}
 
-task_t *create_task( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length) {
-	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */, data, length);
+	// We use heap_alloc here to specify the heap, since malloc() uses current_task->heap;
+	// current_task is still set to the parent task
+
+	char **argv = heap_alloc(max_args * sizeof(char *), false, task->heap);
+
+	const char *c = cmdline;
+	const char *p;
+	while (*c == ' ') c++; // skip leading spaces
+	p = strchr(c, ' ');
+	if (p == NULL)
+		p = cmdline + len;
+	
+	// Copy the command name separately
+	argv[0] = heap_alloc((p-c) + 1, false, task->heap);
+	strlcpy(argv[0], c, (p-c) + 1);
+	c = p + 1;
+	*argc = 1;
+	while (*p == ' ') p++;
+	if (*p == 0)
+		return argv;
+	
+	// c now points to the first argument
+	p = c;
+	assert(*p != ' ');
+
+	char arg[256] = {0};
+	size_t ai = 0;
+	while (c < cmdline + len) {
+		while (*c > ' ' && *c != '"') { arg[ai++] = *c++; }
+
+		if (*c == '"') {
+			// we hit a quote; copy until the next quote or NULL (shouldn't happen, but could)
+			if (*(c-1) != ' ') {arg[ai++] = *c++; continue;}
+			ai = 0;
+			c++;
+			while (*c != '"' && *c != 0) { arg[ai++] = *c++; }
+			arg[ai] = 0;
+			argv[*argc] = heap_alloc(ai + 1, false, task->heap);
+			strlcpy(argv[*argc], arg, ai + 1);
+			(*argc)++;
+			ai = 0;
+			if (*c == 0)
+				break;
+			else {
+				c++;
+				while (*c == ' ') c++;
+				continue;
+			}
+		}
+
+		if (*c == ' ' || *c == 0) {
+			// we broke due to a space/end of line; the argument is finished
+			arg[ai] = 0;
+			argv[*argc] = heap_alloc(ai + 1, false, task->heap);
+			strlcpy(argv[*argc], arg, ai + 1);
+			(*argc)++;
+			ai = 0;
+			while (*c == ' ') { c++; } // skip multiple spaces
+		}
+	}
+	if (ai != 0) {
+		argv[*argc] = heap_alloc(ai + 1, false, task->heap);
+		strlcpy(argv[*argc], arg, ai+  1);
+		(*argc)++;
+	}
+
+	// TODO: clean this up at exit
+
+	return argv;
+}
+
+static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 data_len);
+
+task_t *create_task( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 data_len) {
+	task_t *task = create_task_int(entry_point, name, con, 0 /* privilege level */, data, data_len);
 	assert(task != NULL);
 
 	assert(task->console == con);
@@ -212,11 +294,11 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 	return task;
 }
 
-task_t *create_task_elf(fs_node_t *file, console_t *con, void *argv, uint32 argc) {
+task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 data_len) {
 	assert(file != NULL);
 	INTERRUPT_LOCK;
 
-	task_t *task = create_task_user((void *)0x10000000, file->name, con, argv, argc);
+	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, data_len);
 	assert (task != NULL);
 
 	elf_load(file, fsize(file), task);
@@ -247,7 +329,7 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 	return task;
 }
 
-static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *argv, uint32 argc) {
+static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 data_len) {
 	assert(privilege == 0 || privilege == 3);
 
 	task_t *task = kmalloc(sizeof(task_t));
@@ -321,10 +403,19 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		assert(current_directory == kernel_directory);
 		switch_page_directory(task->page_directory);
 		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
-		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
-		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
 		task->heap = heap_create(USER_HEAP_START, USER_HEAP_INITIAL_SIZE, USER_HEAP_MAX_ADDR, 0, 0, task->page_directory); // not supervisor, not read-only
+
+		// Parse the data into argv/argc
+		uint32 argc = 0;
+		char **argv = NULL;
+		argv = parse_command_line(data, &argc, task);
+		assert(argv != NULL);
+		assert(argv[0] != NULL);
+		assert(strlen(argv[0]) > 0);
+
+		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
+		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
 		switch_page_directory(kernel_directory);
 	}
@@ -359,8 +450,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	uint32 code_segment = 0x08;
 
 	/* data and data length parameters (in opposite order) */
-	*(--kernelStack) = argc;
-	*(--kernelStack) = (uint32)argv;
+	*(--kernelStack) = data_len;
+	*(--kernelStack) = (uint32)data;
 
 	/* Functions will call this automatically when they attempt to return */
 	*(--kernelStack) = (uint32)&exit_proc;

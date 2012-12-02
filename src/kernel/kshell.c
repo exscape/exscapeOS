@@ -577,10 +577,16 @@ void kshell(void *data, uint32 length) {
 			printk("help: show this help message\n");
 		}
 		else {
-			fs_node_t *node = finddir_fs(initrd_root, p);
+			char cmd[256];
+			strlcpy(cmd, p, 256);
+			char *c = strchr(cmd, ' ');
+			if (c)
+				*c = 0;
+			fs_node_t *node = finddir_fs(initrd_root, cmd);
 			if (node != NULL) {
 				// This is a program that exists on the initrd
-				task = create_task_elf(node, con, NULL, 0);
+
+				task = create_task_elf(node, con, p, strlen(p));
 			}
 			else
 				printk("Unknown command: \"%s\"\n", p);
