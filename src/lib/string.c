@@ -132,8 +132,9 @@ size_t strlcpy(char *dst, const char *src, size_t size) {
 		return len;
 
 	/* Still here, so it didn't all fit. Copy what fits (leaving 1 byte for NULL termination) */
+	char *d = dst;
 	for (size_t i = 0; i < size - 1; i++) {
-		*dst++ = *src++;
+		*d++ = *src++;
 	}
 
 	/* This is strLcpy - make sure to NULL terminate! */
