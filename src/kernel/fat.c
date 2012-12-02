@@ -171,18 +171,18 @@ int fat_read(int fd, void *buf, size_t length) {
 	file_size = st.st_size;
 	uint32 bytes_read = 0; // this call to read() only
 
-	// TODO: "resume" reads! set the offset in "file" -- *DO NOT* change file->ino!!
-	// Keep in mind that we need to skip until the correct cluster!
+	// TODO: "resume" reads more efficiently - store the current cluster, too (*DO NOT* change ->ino!)
 
-	if (file->offset > file_size)
-		return 0;
+	if (file->offset > file_size) {
+		goto done;
+	}
 
 	// Find the correct cluster number, if necessary
 	uint32 local_offset = file->offset;
 	while (local_offset >= part->cluster_size) {
 		cur_cluster = fat_next_cluster(part, cur_cluster);
 		if (cur_cluster >= 0x0ffffff8) {
-			return 0;
+			goto done;
 		}
 		local_offset -= part->cluster_size;
 	}
@@ -212,10 +212,11 @@ int fat_read(int fd, void *buf, size_t length) {
 		cur_cluster = fat_next_cluster(part, cur_cluster);
 		if (cur_cluster >= 0x0ffffff8) {
 			// End of cluster chain
-			return bytes_read;
+			goto done;
 		}
 	} while (length > 0);
 
+done:
 	kfree(cluster_buf);
 	return bytes_read;
 }
@@ -457,19 +458,17 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
 		/* Take care of this token */
 		DIR *dir = fat_opendir_cluster(part, cur_cluster);
-		dirent = fat_readdir(dir);
-		while (dirent != NULL) {
+		while ((dirent = fat_readdir(dir)) != NULL) {
 			if (stricmp(dirent->d_name, token) == 0) {
 				/* We found the entry we were looking for! */
 				cur_cluster = dirent->d_ino;
 				goto nextloop;
 			}
-
-			dirent = fat_readdir(dir);
 		}
+		fat_closedir(dir);
 		return 0; /* File/directory not found. FIXME: errno or somesuch? */
 nextloop:
-		token = token; /* having this label here is an error without a statement */
+		fat_closedir(dir);
 	}
 
 	if ((dirent->d_type == DT_DIR) != (type == FS_DIRECTORY)) {
@@ -525,7 +524,7 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	DIR *dir = fat_opendir(path);
 	if (!dir) {
 		// TODO: errno
-		return -1;
+		goto error;
 	}
 
 	struct stat_callback_data data;
@@ -538,12 +537,21 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	fat_parse_dir(dir, fat_callback_stat, &data);
 	if (data.success) {
 		// The callback updated the struct successfully
+		fat_closedir(dir);
+		kfree(path);
+		kfree(base);
 		return 0;
 	}
 	else {
 		// TODO: errno
-		return -1;
+		goto error;
 	}
+error:
+	kfree(path);
+	kfree(base);
+	if (dir)
+		fat_closedir(dir);
+	return -1;
 }
 
 int fat_fstat(int fd, struct stat *buf) {

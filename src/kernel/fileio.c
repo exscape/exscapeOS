@@ -25,7 +25,7 @@ int open(const char *path, int mode) {
 		panic("TODO: open(): test this code path");
 	}
 
-	return mp->fops.open(mp->dev, relpath, mode);
+	return mp->fops.open(mp->dev, relpath, mode); // TODO: proper checking!
 }
 
 int read(int fd, void *buf, int length) {
