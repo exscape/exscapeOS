@@ -35,7 +35,7 @@ uint32 write_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer) {
 }
 
 /* Calls the correct open function */
-void open_fs(fs_node_t *node, uint8 read __attribute__((unused)), uint8 write __attribute__((unused))) {
+void open_fs(fs_node_t *node, uint8 _read __attribute__((unused)), uint8 _write __attribute__((unused))) {
 	assert(node->open != NULL);
 	return node->open(node);
 }
