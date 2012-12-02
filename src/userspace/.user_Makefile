@@ -1,0 +1,30 @@
+WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
+                -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
+				-Wuninitialized -Wstrict-prototypes \
+				-Wno-unused-parameter -Wno-cast-align -Werror
+
+CC = i586-elf-gcc
+CFLAGS := -O0 -nostdlib -nostdinc -I../../include/userspace -std=gnu99 -march=i586 $(WARNINGS) -ggdb3
+CFLAGS += -D_EXSCAPEOS_USERSPACE -fno-builtin
+LD = i586-elf-ld
+
+SRCFILES := $(shell find . -type f -name '*.c')
+OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
+DEPFILES := $(patsubst %.c,%.d,$(SRCFILES))
+
+OUTNAME := $(shell basename `pwd`)
+
+all: $(OBJFILES) ../crt0.o
+	@$(LD) -T ../../../linker-userspace.ld -o $(OUTNAME) $(OBJFILES)
+	@mv -f $(OUTNAME) ../../../misc/initrd_contents
+
+../crt0.o:
+	@nasm -f elf -F dwarf -g ../crt0.s -o ../crt0.o
+
+clean:
+	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) $(OUTNAME))
+
+-include $(DEPFILES)
+
+%.o: %.c Makefile
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ -fno-builtin

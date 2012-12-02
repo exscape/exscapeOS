@@ -1,5 +1,5 @@
 ENTRY (_start)
-STARTUP(crt0.o)
+STARTUP(../crt0.o)
 
 SECTIONS{
     . = 0x10000000; /* start at 256 MB, far above code at 0x100000 */
