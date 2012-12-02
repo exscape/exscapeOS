@@ -23,5 +23,7 @@ int main(int argc, char **argv) {
 		puts(buf);
 	} while (r > 0);
 
+	close(fd);
+
 	return 0;
 }

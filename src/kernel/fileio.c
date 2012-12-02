@@ -34,5 +34,14 @@ int read(int fd, void *buf, int length) {
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	mountpoint_t *mp = file->mp;
-	return mp->fops.read(fd, buf, length);
+	return mp->fops.read(fd, buf, length); // TODO: proper checking!
+}
+
+int close(int fd) {
+	assert(fd <= MAX_OPEN_FILES);
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	mountpoint_t *mp = file->mp;
+	return mp->fops.close(fd); // TODO: proper checking!
 }

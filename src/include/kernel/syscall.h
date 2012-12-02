@@ -67,6 +67,7 @@ DECL_SYSCALL0(getchar, int);
 DECL_SYSCALL1(putchar, int, int);
 DECL_SYSCALL2(open, int, const char *, int);
 DECL_SYSCALL3(read, int, int, void *, int);
+DECL_SYSCALL1(close, int, int);
 DECL_SYSCALL1(malloc, void *, size_t);
 DECL_SYSCALL1(free, int, void *);
 

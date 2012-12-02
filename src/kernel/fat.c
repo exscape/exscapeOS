@@ -221,11 +221,18 @@ int fat_read(int fd, void *buf, size_t length) {
 }
 
 int fat_close(int fd) {
-	panic("TODO: fat_close");
-	// TODO: free file->path
-	fd=fd;
+	assert(fd <= MAX_OPEN_FILES);
 
-	return -1;
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	assert(file->ino != 0);
+
+	kfree(file->path);
+	file->path = NULL;
+
+	// Zero the entry to note that it's now free
+	memset(file, 0, sizeof(struct open_file));
+
+	return 0;
 }
 
 /* Finds the next cluster in the chain, if there is one. */

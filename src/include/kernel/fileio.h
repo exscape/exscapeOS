@@ -19,6 +19,6 @@ typedef struct open_file {
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);
-
+int close(int fd);
 
 #endif

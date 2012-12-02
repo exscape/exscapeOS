@@ -64,6 +64,7 @@ DECL_SYSCALL0(getchar, int);
 DECL_SYSCALL1(putchar, int, int);
 DECL_SYSCALL2(open, int, const char *, int);
 DECL_SYSCALL3(read, int, int, void *, int);
+DECL_SYSCALL1(close, int, int);
 DECL_SYSCALL1(malloc, void *, size_t);
 DECL_SYSCALL1(free, int, void *);
 
@@ -76,5 +77,6 @@ DEFN_SYSCALL0(getchar, int, 3);
 DEFN_SYSCALL1(putchar, int, 4, int);
 DEFN_SYSCALL2(open, int, 5, const char *, int);
 DEFN_SYSCALL3(read, int, 6, int, void *, int);
-DEFN_SYSCALL1(malloc, void *, 7, size_t);
-DEFN_SYSCALL1(free, int, 8, void *);
+DEFN_SYSCALL1(close, int, 7, int);
+DEFN_SYSCALL1(malloc, void *, 8, size_t);
+DEFN_SYSCALL1(free, int, 9, void *);

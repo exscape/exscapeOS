@@ -17,6 +17,7 @@ static void *syscalls[] = {
 	&putchar,
 	&open,
 	&read,
+	&close,
 	&malloc,
 	&free
 };
