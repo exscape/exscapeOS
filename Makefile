@@ -22,6 +22,8 @@ ASMFILES := $(shell find $(PROJDIRS) -type f -name '*.s')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
 OBJFILES += $(patsubst %.s,%.o,$(ASMFILES))
 
+USERSPACEPROG := $(shell find src/userspace/ -name 'Makefile' -exec dirname {} \;)
+
 DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 
 # All files to end up in a distribution tarball
@@ -33,6 +35,9 @@ QEMU := /opt/local/bin/qemu
 all: $(OBJFILES)
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
+	@for prog in $(USERSPACEPROG); do \
+		make -C $$prog ; \
+	done
 	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
@@ -41,6 +46,10 @@ all: $(OBJFILES)
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
+	@for prog in $(USERSPACEPROG); do \
+		make -C $$prog clean ; \
+		rm -f misc/initrd_contents/`basename $$prog` ; \
+	done
 
 -include $(DEPFILES)
 
