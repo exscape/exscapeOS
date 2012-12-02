@@ -116,6 +116,12 @@ void destroy_task(task_t *task) {
 			kfree(entry);
 		}
 
+		// Free stuff in the file descriptor table (the table itself is in struct task)
+		for (int i=0; i < MAX_OPEN_FILES; i++) {
+			if (task->fdtable[i].path)
+				kfree(task->fdtable[i].path);
+		}
+
 		assert(task->heap != NULL);
 		heap_destroy(task->heap, task->page_directory);
 
