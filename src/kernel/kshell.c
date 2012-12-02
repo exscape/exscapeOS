@@ -858,12 +858,6 @@ void ls_initrd(void *data, uint32 length) {
 	while ( (node = readdir_fs(fs_root, ctr)) != 0) {
 		fs_node_t *fsnode = finddir_fs(fs_root, node->d_name);
 		printk("Found %s: %s\n", ((fsnode->flags & 0x7) == FS_DIRECTORY) ? "directory" : "file", node->d_name);
-		if (fsnode->flags == FS_FILE) {
-			unsigned char buf[256];
-			uint32 sz = read_fs(fsnode, 0, 256, buf);
-			buf[sz] = 0;
-			printk("    contents: \"%s\"\n", buf);
-		}
 
 		ctr++;
 	}
