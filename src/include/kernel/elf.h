@@ -169,6 +169,11 @@ typedef struct {
 #define PT_LOPROC	0x70000000 /* this range, inclusive, is reserved for processor-specific semantics. */
 #define PT_HIPROC	0x7fffffff /* ... see above */
 
+// GNU extensions
+#define PT_GNU_EH_FRAME 0x6474e550
+#define PT_GNU_STACK	0x6474e551
+#define PT_GNU_RELRO	0x6474e552
+
 // Elf32_Phdr.p_flags
 #define PF_R 0x4
 #define PF_W 0x2

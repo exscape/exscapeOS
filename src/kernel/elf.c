@@ -81,6 +81,9 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 			// Return to the kernel's directory again
 			switch_page_directory(kernel_directory);
 		}
+		else if (phdr->p_type == PT_GNU_STACK || phdr->p_type == PT_GNU_RELRO || phdr->p_type == PT_GNU_EH_FRAME) {
+			// Quietly ignore
+		}
 		else
 			printk("Warning: skipping unsupported ELF program header (#%u, p_type = 0x%x)\n", i, phdr->p_type);
 	}
