@@ -1,12 +1,9 @@
-#all:
-#	i586-elf-gcc -o kernel.o -c kernel.c -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -nostdinc -I./include -ggdb3 -std=gnu99 && i586-elf-ld -T linker.ld -o kernel.bin loader.o kernel.o
-
 CC = clang
 #CC = i586-elf-gcc
 LD = i586-elf-ld
 
 AUXFILES := # FIXME: isofiles osv
-PROJDIRS := src
+PROJDIRS := src/kernel src/include src/lib
 #NOTE: projdirs doesn't include misc/, so that it dosen't try to link those utils with the kernel!
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
 HDRFILES := $(shell find $(PROJDIRS) -type f -name '*.h')
@@ -31,7 +28,7 @@ CFLAGS := -O0 -ggdb3 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-tr
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
-	@$(LD) -T linker.ld -o kernel.bin ${OBJFILES}
+	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
 	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
