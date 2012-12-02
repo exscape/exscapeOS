@@ -37,6 +37,7 @@ typedef struct {
 typedef struct {
 	uint32 start_address;
 	uint32 end_address;
+	uint32 _min_address; // start address is for the storage; _min_address for the entire heap w/ indexes etc.
 	uint32 max_address;
 	uint8 supervisor;
 	uint8 readonly;
@@ -73,6 +74,7 @@ typedef struct {
 #define USER_HEAP_MAX_ADDR 0xbff00000
 
 heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addr, uint8 supervisor, uint8 readonly, page_directory_t *dir);
+void heap_destroy(heap_t *heap, page_directory_t *dir);
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap);
 void heap_free(void *p, heap_t *heap);
 

@@ -310,6 +310,16 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	heap->end_address = new_end_address;
 }
 
+void heap_destroy(heap_t *heap, page_directory_t *dir) {
+	assert(heap != NULL);
+
+	for (uint32 addr = (uint32)heap->_min_address; addr <= heap->end_address; addr += PAGE_SIZE) {
+		vmm_free(addr, dir);
+	}
+
+	kfree(heap); // The kernel heap won't be destroyed, so this should be fine
+}
+
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	/* Take the header and footer overhead into account! */
 	size += sizeof(area_header_t) + sizeof(area_footer_t);
@@ -679,8 +689,14 @@ heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addres
 	if (start_address == KHEAP_START) {
 		vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
 	}
-	else
+	else {
 		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, dir, true);
+	}
+
+	// Remember the first address used by the heap. Actual storage will start later,
+	// because the indexes are stored first. However, we need to free the entire thing
+	// in heap_destroy!
+	heap->_min_address = start_address;
 
 	/* Create the indexes; they are zeroed in place_ordered_array */
 	heap->used_index = place_ordered_array((void *)start_address, HEAP_INDEX_SIZE, &area_header_t_less_than);
@@ -844,15 +860,16 @@ void kfree(void *p) {
 	heap_free(p, kheap);
 }
 
+// Userspace malloc syscall - temporary until proper userspace heap (in libc)
 void *malloc(size_t size) {
 	return heap_alloc(size, false /* no page align */, current_task->heap);
 }
 
+// Userspace free syscall - temporary until proper userspace heap (in libc)
 void free(void *p) {
 	if (p != NULL)
 		heap_free(p, current_task->heap);
 }
-
 
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */
 void *kmalloc(uint32 size) {

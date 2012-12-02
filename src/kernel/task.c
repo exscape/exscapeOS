@@ -116,6 +116,9 @@ void destroy_task(task_t *task) {
 			kfree(entry);
 		}
 
+		assert(task->heap != NULL);
+		heap_destroy(task->heap, task->page_directory);
+
 		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
 		destroy_user_page_dir(task->page_directory);
 
@@ -131,11 +134,6 @@ void destroy_task(task_t *task) {
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 
 	kfree(task);
-
-	//task_switching = true;
-
-	/* If the task being killed is currently active, force a switch from it.
-	 * The pointer is still valid, even though the memory it's pointing to is not, so we can still use it for a comparison. */
 }
 
 
@@ -313,7 +311,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		entry->num_pages = ((USER_STACK_START + PAGE_SIZE) - ((uint32)entry->start)) / PAGE_SIZE;
 		list_append(task->user_addr_table, entry);
 
-		/* Force a call to user_exit() if the task attempts to read and RET "past" the stack */
+		// Pass command line arguments to the task
 		assert(current_directory == kernel_directory);
 		switch_page_directory(task->page_directory);
 		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
