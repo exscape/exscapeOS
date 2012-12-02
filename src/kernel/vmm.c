@@ -221,9 +221,6 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 				}
 			}
 	}
-	else
-		assert(dir != kernel_directory);
-
 }
 
 void init_double_fault_handler(page_directory_t *pagedir_addr);
