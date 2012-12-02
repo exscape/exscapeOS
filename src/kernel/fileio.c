@@ -9,6 +9,10 @@
 
 int open(const char *path, int mode) {
 	assert(mode == O_RDONLY);
+	assert(path != NULL);
+
+	if (path[0] != '/')
+		return -1; // only absolute paths are supported
 
 	mountpoint_t *mp;
 	mp = find_mountpoint_for_path(path);
