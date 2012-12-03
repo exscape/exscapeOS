@@ -131,23 +131,30 @@ int fat_open(uint32 dev, const char *path, int mode) {
 
 	uint32 cluster = fat_cluster_for_path(devtable[dev], path, FS_FILE);
 
-	file->dev = dev;
-	file->ino = cluster;
-	file->offset = 0;
-	file->size = 0; // TODO: should this be kept or not?
-	file->mp = NULL;
-	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
-		mountpoint_t *mp = (mountpoint_t *)it->data;
-		if (mp->dev == dev) {
-			file->mp = mp;
-			break;
+	if (cluster >= 2) {
+		file->dev = dev;
+		file->ino = cluster;
+		file->offset = 0;
+		file->size = 0; // TODO: should this be kept or not?
+		file->mp = NULL;
+		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+			mountpoint_t *mp = (mountpoint_t *)it->data;
+			if (mp->dev == dev) {
+				file->mp = mp;
+				break;
+			}
 		}
+		file->path = strdup(path);
+
+		assert(file->mp != NULL);
+
+		return current_task->_next_fd - 1;
 	}
-	file->path = strdup(path);
-
-	assert(file->mp != NULL);
-
-	return current_task->_next_fd - 1;
+	else {
+		// We couldn't locate/open the file
+		// TODO: errno
+		return -1;
+	}
 }
 
 int fat_read(int fd, void *buf, size_t length) {
