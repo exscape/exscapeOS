@@ -138,6 +138,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	if (cluster >= 2) {
 		file->dev = dev;
 		file->ino = cluster;
+		file->_cur_ino = cluster;
 		file->offset = 0;
 		file->size = 0; // TODO: should this be kept or not?
 		file->mp = NULL;
@@ -170,7 +171,6 @@ int fat_read(int fd, void *buf, size_t length) {
 	fat32_partition_t *part = devtable[file->dev];
 	assert(part != NULL);
 
-	uint32 cur_cluster = file->ino;
 	uint8 *cluster_buf = kmalloc(part->cluster_size);
 
 	size_t file_size;
@@ -182,49 +182,50 @@ int fat_read(int fd, void *buf, size_t length) {
 	file_size = st.st_size;
 	uint32 bytes_read = 0; // this call to read() only
 
-	// TODO: "resume" reads more efficiently - store the current cluster, too (*DO NOT* change ->ino!)
-
-	if (file->offset > file_size) {
+	if (file->offset >= file_size) {
 		goto done;
 	}
 
-	// Find the correct cluster number, if necessary
-	uint32 local_offset = file->offset;
-	while (local_offset >= part->cluster_size) {
-		cur_cluster = fat_next_cluster(part, cur_cluster);
-		if (cur_cluster >= 0x0ffffff8) {
-			goto done;
-		}
-		local_offset -= part->cluster_size;
-	}
-	assert(local_offset < part->cluster_size);
+	assert(file->offset >= 0);
+	uint32 local_offset = (uint32)file->offset % part->cluster_size;
 
 	do {
-		assert(fat_read_cluster(part, cur_cluster, cluster_buf));
+		assert(fat_read_cluster(part, file->_cur_ino, cluster_buf));
 
 		// We read a full cluster, but we need to stop if either the file size is up, or
 		// if the user didn't want more bytes.
 		uint32 bytes_copied = min(min(file_size - file->offset, length), part->cluster_size);
+
+		if (bytes_copied >= part->cluster_size - local_offset) {
+			// We'd read outside the cluster! Limit this read size.
+			bytes_copied = part->cluster_size - local_offset;
+		}
 
 		// Copy the data to the buffer
 		memcpy((void *)( (uint8 *)buf + bytes_read), cluster_buf + local_offset, bytes_copied);
 
 		bytes_read += bytes_copied;
 		file->offset += bytes_copied;
+		local_offset += bytes_copied;
 
 		assert(file->offset <= file_size);
 
 		assert(length >= bytes_copied);
 		length -= bytes_copied;
 
+		if (local_offset >= part->cluster_size) {
+			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
+			if (file->_cur_ino >= 0x0ffffff8) {
+				// End of cluster chain
+				assert(file->offset == file_size);
+				goto done;
+			}
+			local_offset %= part->cluster_size;
+		}
+
 		if (length == 0 || file->offset >= file_size)
 			break;
 
-		cur_cluster = fat_next_cluster(part, cur_cluster);
-		if (cur_cluster >= 0x0ffffff8) {
-			// End of cluster chain
-			goto done;
-		}
 	} while (length > 0);
 
 done:

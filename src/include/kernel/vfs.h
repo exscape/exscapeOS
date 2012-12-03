@@ -22,8 +22,7 @@ struct fat32_partition;
 struct mountpoint;
 
 typedef struct dir {
-	/* TODO: proper per-process file descriptors */
-	struct fat32_partition *partition;
+	struct fat32_partition *partition; // TODO
 	uint32 dir_cluster;
 
 	uint8 *buf;

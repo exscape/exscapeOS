@@ -11,6 +11,7 @@
 typedef struct open_file {
 	dev_t dev;
 	ino_t ino;
+	ino_t _cur_ino; // current cluster number, i.e. when offset != 0
 	off_t offset;
 	off_t size;
 	mountpoint_t *mp;
