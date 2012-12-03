@@ -46,6 +46,9 @@ extern nethandler_t *nethandler_icmp;
 
 extern volatile list_t ready_queue;
 
+char *kernel_cmdline = NULL;
+char *rootdev = NULL;
+
 extern heap_t *kheap;
 
 void cleanup_tasks(void *data, uint32 length) {
@@ -136,6 +139,21 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("Initializing ISRs and enabling interrupts... ");
 	enable_interrupts();
 	printc(BLACK, GREEN, "done\n");
+
+	// Parse the kernel command line
+	if (mbd->flags & (1 << 2)) {
+		// Duplicate it, so that we know that the address will be mapped when paging is enabled
+		assert(mbd->cmdline != 0);
+		kernel_cmdline = strdup((char *)mbd->cmdline);
+		if (strstr(kernel_cmdline, "root=")) {
+			rootdev = strdup(strstr(kernel_cmdline, "root=") + 5);
+			char *p = rootdev;
+			while (*p != 0 && *p != ' ') p++;
+			*p = 0;
+		}
+	}
+
+	printk("Parsed kernel command line; rootdev = %s\n", rootdev == NULL ? "NULL" : rootdev);
 
 	/* Set up the keyboard callback */
 	printk("Setting up the keyboard handler... ");
