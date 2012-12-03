@@ -36,7 +36,7 @@ uint32 next_dev = 0;
 
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
-static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster);
+static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp);
 static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type);
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
@@ -97,9 +97,13 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
 		strlcpy(mp->path, "/", sizeof(mp->path));
 
-		mp->fops.open = fat_open;
-		mp->fops.read = fat_read;
-		mp->fops.close= fat_close;
+		mp->fops.open     = fat_open;
+		mp->fops.read     = fat_read;
+		mp->fops.close    = fat_close;
+		mp->fops.opendir  = fat_opendir;
+		mp->fops.readdir  = fat_readdir;
+		mp->fops.closedir = fat_closedir;
+
 		mp->dev = next_dev; // increased below
 
 		list_append(mountpoints, mp);
@@ -464,7 +468,7 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 	struct dirent *dirent = NULL;
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
 		/* Take care of this token */
-		DIR *dir = fat_opendir_cluster(part, cur_cluster);
+		DIR *dir = fat_opendir_cluster(part, cur_cluster, find_mountpoint_for_path(in_path));
 		while ((dirent = fat_readdir(dir)) != NULL) {
 			if (stricmp(dirent->d_name, token) == 0) {
 				/* We found the entry we were looking for! */
@@ -488,7 +492,7 @@ nextloop:
 
 /* fat_opendir helper function.
  * Returns a DIR* pointing the directory located at /cluster/. */
-static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
+static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp) {
 	assert(part != NULL);
 	assert(cluster >= 2);
 	DIR *dir = kmalloc(sizeof(DIR));
@@ -496,6 +500,7 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster) {
 
 	dir->partition = part;
 	dir->dir_cluster = cluster;
+	dir->mp = mp;
 
 	// These are set up in fat_readdir, when needed
 	dir->buf = NULL;
@@ -643,13 +648,14 @@ DIR *fat_opendir(const char *path) {
 		return NULL;
 	}
 
-	return fat_opendir_cluster(part, cluster);
+	mountpoint_t *mp = find_mountpoint_for_path(path);
+	return fat_opendir_cluster(part, cluster, mp);
 }
 
 /* Frees the memory associated with a directory entry. */
-void fat_closedir(DIR *dir) {
+int fat_closedir(DIR *dir) {
 	if (dir == NULL)
-		return;
+		return -1;
 
 	if (dir->buf != NULL) {
 		kfree(dir->buf);
@@ -658,7 +664,7 @@ void fat_closedir(DIR *dir) {
 	memset(dir, 0, sizeof(DIR));
 	kfree(dir);
 
-	return;
+	return 0;
 }
 
 /* Parses a directory structure, as returned by fat_opendir().

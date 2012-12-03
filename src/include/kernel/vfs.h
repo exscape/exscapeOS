@@ -17,22 +17,9 @@ typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 
-/* forward declaration */
+/* forward declarations */
 struct fat32_partition;
-
-typedef struct file_ops {
-	int (*open)(uint32 /* dev */, const char * /* path */, int /* mode */);
-	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
-	int (*close)(int /* fd */);
-} file_ops_t;
-
-typedef struct mountpoint {
-	char path[1024];
-
-	uint32 dev;
-	struct file_ops fops;
-} mountpoint_t;
-
+struct mountpoint;
 
 typedef struct dir {
 	/* TODO: proper per-process file descriptors */
@@ -43,7 +30,25 @@ typedef struct dir {
 	uint32 _buflen; /* buffer's malloc'ed size */
 	uint32 pos;
 	uint32 len; /* number of valid data bytes in the buffer */
+	struct mountpoint *mp;
 } DIR;
+
+typedef struct file_ops {
+	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
+	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
+	int (*close)(int /* fd */);
+	DIR *(*opendir)(const char * /* absolute path */);
+	struct dirent *(*readdir)(DIR *);
+	int (*closedir)(DIR *);
+} file_ops_t;
+
+typedef struct mountpoint {
+	char path[1024];
+
+	uint32 dev;
+	struct file_ops fops;
+} mountpoint_t;
+
 
 /* A list of the mountpoints currently used */
 extern list_t *mountpoints;
