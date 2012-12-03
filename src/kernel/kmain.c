@@ -212,8 +212,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		}
 	}
 
-	assert(fat32_partitions !=  NULL);
-	assert(fat32_partitions->count == 1);
+	//assert(fat32_partitions !=  NULL);
+	//assert(fat32_partitions->count == 1);
 #endif
 
 #if 0
