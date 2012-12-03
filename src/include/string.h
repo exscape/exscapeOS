@@ -19,6 +19,7 @@ char *strrchr(const char *s, int c);
 
 size_t strlcpy(char *dst, const char *src, size_t size);
 size_t strlcat(char *dst, const char *src, size_t size);
+char *strstr(const char *haystack, const char *needle);
 
 int stricmp(const char *s1, const char *s2);
 

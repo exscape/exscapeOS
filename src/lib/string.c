@@ -119,6 +119,43 @@ size_t strlen(const char *str) {
 	return len;
 }
 
+char *strstr(const char *haystack, const char *needle) {
+	const char *p1 = haystack, *p2 = needle;
+	const char *match = NULL;
+
+	// Empty needle should return the first argument
+	if (*p2 == 0)
+		return (char *)haystack;
+
+	while (1) {
+		while (*p1 != 0 && *p2 != 0 && *p1 != *p2) {
+			// Skip along while nothing matches
+			p1++;
+		}
+		if (*p1 == 0 || *p2 == 0) {
+			// We reached the end with no match
+			break;
+		}
+		else if (*p1 == *p2) {
+			// We found a potential match (first character matches), test the rest
+			match = p1;
+			while (*p2 != 0 && *p1 == *p2) { p1++, p2++; }
+			if (*p2 == 0) {
+				// They match all until the end of needle: match!
+				return (char *)match;
+			}
+			else {
+				// Mismatch; try again at the start of needle, at the next p1
+				match = NULL;
+				p2 = needle;
+				continue;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 /* Copies the string from src to dst, never writing more than /size/ bytes. Always NULL terminates (if there is at least 1 byte to write to). */
 size_t strlcpy(char *dst, const char *src, size_t size) {
 	const size_t len = strlen(src);
