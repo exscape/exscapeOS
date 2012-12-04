@@ -13,6 +13,7 @@
 #include <kernel/fat.h>
 #include <path.h>
 #include <kernel/fileio.h>
+#include <stdio.h>
 
 #include <kernel/vmm.h>
 #include <kernel/pmm.h>
@@ -106,13 +107,13 @@ static void cat(void *data, uint32 length) {
 static void ls(void *data, uint32 length) {
 	DIR *dir = opendir(_pwd);
 	struct dirent *dirent;
-	//struct stat st;
+	struct stat st;
 	while ((dirent = readdir(dir)) != NULL) {
 		char fullpath[1024] = {0};
 		strcpy(fullpath, _pwd);
 		path_join(fullpath, dirent->d_name);
 
-		//fat_stat(fullpath, &st); // TODO: use the VFS
+		stat(fullpath, &st);
 
 		char name[32] = {0};
 		if (strlen(dirent->d_name) > 31) {
@@ -122,8 +123,7 @@ static void ls(void *data, uint32 length) {
 		else
 			strcpy(name, dirent->d_name);
 
-		printk("%31s\n", name);
-#if 0
+#if 1
 		char perm_str[11] = "-rwxrwxrwx";
 		if (st.st_mode & 040000)
 			perm_str[0] = 'd';
@@ -134,7 +134,20 @@ static void ls(void *data, uint32 length) {
 			}
 		}
 
-		printk("%31s %5s % 4uk %s\n", name, (st.st_mode & 040000) ? "<DIR>" : "", (uint32)(st.st_size / 1024), perm_str);
+		uint32 sz = st.st_size / 1024;
+		char s[16] = {0};
+		if (sz == 0) {
+			sprintf(s, "  <1k");
+		}
+		else
+			sprintf(s, "% 4uk", sz);
+
+		if (st.st_mode & 040000)
+			printk("%31s %5s        %s\n", name, "<DIR>", perm_str);
+		else
+			printk("%31s        %s %s\n", name, s, perm_str);
+
+
 #endif
 	}
 
@@ -635,7 +648,7 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
-			static const char _PATH[] = "/:/bin:/initrd:/initrd/bin"; // TODO: store this on disk
+			static const char _PATH[] = "/:/bin:/initrd"; // TODO: store this on disk
 			char PATH[sizeof(_PATH)] = {0};
 
 			strcpy(PATH, _PATH); // strtok_r will modify this!
@@ -664,6 +677,7 @@ void kshell(void *data, uint32 length) {
 					}
 				}
 			}
+			printk("No such command: %s\n", p);
 exit_loop:
 		;
 #if 0
