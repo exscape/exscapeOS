@@ -97,6 +97,24 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 	return ((uc1 < uc2) ? -1 : (uc1 > uc2));
 }
 
+int strnicmp(const char *s1, const char *s2, size_t n) {
+	unsigned char uc1, uc2;
+	if (n == 0 || s1 == NULL || s2 == NULL)
+		return 0;
+	/* Loop, comparing bytes.  */
+	while (n-- > 0 && tolower(*s1) == tolower(*s2)) {
+		if (n == 0 || *s1 == '\0')
+			return 0;
+		s1++, s2++;
+	}
+
+	uc1 = (*(unsigned char *) s1);
+	uc2 = (*(unsigned char *) s2);
+
+	return ((uc1 < uc2) ? -1 : (uc1 > uc2));
+}
+
+
 int memcmp(const void *lhs, const void *rhs, size_t count) {
 	const uint8 *us1 = (uint8 *)lhs;
 	const uint8 *us2 = (uint8 *)rhs;

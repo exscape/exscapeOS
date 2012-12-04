@@ -22,6 +22,7 @@ size_t strlcat(char *dst, const char *src, size_t size);
 char *strstr(const char *haystack, const char *needle);
 
 int stricmp(const char *s1, const char *s2);
+int strnicmp(const char *s1, const char *s2, size_t n);
 
 char *strdup(const char *s);
 
