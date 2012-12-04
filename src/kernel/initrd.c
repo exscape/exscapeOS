@@ -67,12 +67,14 @@ bool fs_mount(void) {
 			if (strcmp(mount, "fat") == 0) {
 				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {
 					strcpy(mp->path, path);
+					printk("%s, ", mp->path);
 					break;
 				}
 			}
 			else if(strcmp(mount, "initrd") == 0) {
 				if (devtable[mp->dev] == (void *)0xffffffff) {
 					strcpy(mp->path, path);
+					printk("%s, ", mp->path);
 					break;
 				}
 			}
@@ -81,6 +83,7 @@ bool fs_mount(void) {
 			break;
 	}
 
+	printk("\b\b: ");
 	kfree(buf);
 	return true;
 }
