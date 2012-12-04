@@ -25,6 +25,8 @@ bool elf_load(const char *path, task_t *task) {
 	assert(fd >= 0);
 	assert(read(fd, data, file_size) /* == file_size */); // TODO: check proper read!
 
+	close(fd);
+
 	elf_header_t *header = (elf_header_t *)data;
 
 	const unsigned char ELF_IDENT[] = {0x7f, 'E', 'L', 'F'};

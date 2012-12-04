@@ -673,9 +673,11 @@ void kshell(void *data, uint32 length) {
 						path_join(path, dent->d_name);
 						task = create_task_elf(path, con, p, strlen(p));
 
+						closedir(dir);
 						goto exit_loop;
 					}
 				}
+				closedir(dir);
 			}
 			printk("No such command: %s\n", p);
 exit_loop:
