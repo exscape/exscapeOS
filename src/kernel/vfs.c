@@ -3,6 +3,7 @@
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
 #include <kernel/list.h>
+#include <string.h>
 
 /* The root of the filesystem hierarchy */
 fs_node_t *fs_root = NULL;
@@ -13,9 +14,34 @@ mountpoint_t *find_mountpoint_for_path(const char *path) {
 	if (mountpoints == NULL || mountpoints->count == 0 || path == NULL)
 		return NULL;
 
-	/* TODO: We only support the root mountpoint for now... */
-	return (mountpoint_t *)mountpoints->head->data;
+	/*
+	 * Simple but ugly: find the mountpoint which matches as much as possible
+	 * of the path. For example, the mountpoint "/data/x/y" matches more than
+	 * just "/data" of the path "/data/x/y/file.txt", so the longer one is used.
+	 */
+
+	mountpoint_t *best_match = NULL;
+	size_t best_match_len = 0;
+
+	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+		mountpoint_t *mp = (mountpoint_t *)it->data;
+		size_t len = strlen(mp->path);
+		if (strlen(path) < len)
+			continue;
+
+		if (strnicmp(mp->path, path, len) == 0) {
+			// First part matches!
+			if (len > best_match_len) {
+				best_match = mp;
+				best_match_len = len;
+			}
+		}
+	}
+
+	return best_match;
 }
+
+#if 0
 
 uint32 fsize(fs_node_t *node) {
 	assert(node->fsize != NULL);
@@ -59,3 +85,4 @@ fs_node_t *finddir_fs(fs_node_t *node, const char *name) {
 	assert(node->finddir != NULL);
 	return node->finddir(node, name);
 }
+#endif
