@@ -106,13 +106,13 @@ static void cat(void *data, uint32 length) {
 static void ls(void *data, uint32 length) {
 	DIR *dir = opendir(_pwd);
 	struct dirent *dirent;
-	struct stat st;
+	//struct stat st;
 	while ((dirent = readdir(dir)) != NULL) {
 		char fullpath[1024] = {0};
 		strcpy(fullpath, _pwd);
 		path_join(fullpath, dirent->d_name);
 
-		fat_stat(fullpath, &st); // TODO: use the VFS
+		//fat_stat(fullpath, &st); // TODO: use the VFS
 
 		char name[32] = {0};
 		if (strlen(dirent->d_name) > 31) {
@@ -122,6 +122,8 @@ static void ls(void *data, uint32 length) {
 		else
 			strcpy(name, dirent->d_name);
 
+		printk("%31s\n", name);
+#if 0
 		char perm_str[11] = "-rwxrwxrwx";
 		if (st.st_mode & 040000)
 			perm_str[0] = 'd';
@@ -133,6 +135,7 @@ static void ls(void *data, uint32 length) {
 		}
 
 		printk("%31s %5s % 4uk %s\n", name, (st.st_mode & 040000) ? "<DIR>" : "", (uint32)(st.st_size / 1024), perm_str);
+#endif
 	}
 
 	closedir(dir);
@@ -171,7 +174,7 @@ static void cd(void *data, uint32 length) {
 
 	struct dirent *dirent;
 	while ((dirent = readdir(dir)) != NULL) {
-		if (strcmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
+		if (stricmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
 			if (_pwd[strlen(_pwd) -1] != '/')
 				strlcat(_pwd, "/", MAX_PATH);
 			strlcat(_pwd, dirent->d_name, MAX_PATH);
