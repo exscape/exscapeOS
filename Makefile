@@ -3,7 +3,7 @@ TARGET = build
 WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
                 -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
 				-Wuninitialized -Wstrict-prototypes \
-				-Wno-unused-parameter -Wno-cast-align -Werror
+				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function # TODO: re-add unused-function
 
 ifeq ($(TARGET),SIMICS)
 	CC = i586-elf-gcc

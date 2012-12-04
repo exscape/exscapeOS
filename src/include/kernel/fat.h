@@ -54,7 +54,9 @@ struct fat32_bpb {
 } __attribute__((packed));
 typedef struct fat32_bpb fat32_bpb_t;
 
+#define FAT32_MAGIC 0x1234fedc
 typedef struct fat32_partition {
+	uint32 magic; // used to verify this entry in the device table
 	ata_device_t *dev; /* the device that holds this partition */
 	uint32 fat_start_lba; /* the LBA where the FAT begins */
 	uint32 end_lba; /* last valid LBA for this partition */
@@ -104,7 +106,7 @@ typedef struct fat32_direntry {
 	uint32 file_size;
 } __attribute__((packed)) fat32_direntry_t;
 
-struct dir /* aka DIR */ *fat_opendir(const char *path);
+struct dir /* aka DIR */ *fat_opendir(mountpoint_t *mp, const char *path);
 struct dirent *fat_readdir(struct dir *dir);
 int fat_closedir(struct dir *dir);
 int fat_stat(const char *in_path, struct stat *buf);

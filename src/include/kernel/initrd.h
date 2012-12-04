@@ -18,7 +18,7 @@ typedef struct {
 	uint32 length; /* size of the file, in bytes */
 } initrd_file_header_t;
 
-/* Creates the initrd; the argument is the memory location of the multiboot module; the return value is the VFS structure */
-fs_node_t *init_initrd(uint32 addr);
+/* Creates the initrd; the argument is the memory location of the multiboot module */
+void init_initrd(uint32 location);
 
 #endif

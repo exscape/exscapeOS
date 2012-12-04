@@ -27,11 +27,6 @@ typedef struct fat32_lfn {
 
 list_t *fat32_partitions = NULL;
 
-// TODO: this shouldn't be FS specific!
-#define MAX_DEVS 8
-fat32_partition_t *devtable[MAX_DEVS] = {0};
-uint32 next_dev = 0;
-
 #define min(a,b) ( (a < b ? a : b) )
 
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
@@ -78,6 +73,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	fat32_partition_t *part_info = kmalloc(sizeof(fat32_partition_t));
 	memset(part_info, 0, sizeof(fat32_partition_t));
 
+	part_info->magic = FAT32_MAGIC;
+
 	/* Copy over the BPB and EBPB data to the new entry */
 	part_info->bpb = kmalloc(sizeof(fat32_bpb_t));
 	memcpy(part_info->bpb, bpb, sizeof(fat32_bpb_t));
@@ -93,10 +90,11 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	part_info->cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
 
 	/* This will need fixing later. The partition that is detected first turns in to the FS root. */
-	if (mountpoints->count == 0) {
+	//if (mountpoints->count == 0) {
 		mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
-		strlcpy(mp->path, "/", sizeof(mp->path));
+		//strlcpy(mp->path, "/", sizeof(mp->path));
 
+		mp->path[0] = 0; // not set up here
 		mp->fops.open     = fat_open;
 		mp->fops.read     = fat_read;
 		mp->fops.close    = fat_close;
@@ -107,13 +105,15 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mp->dev = next_dev; // increased below
 
 		list_append(mountpoints, mp);
+/*
 	}
 	else {
 		panic("FAT partition is not root - other mountpoints are not yet supported!");
 	}
+*/
 
 	// Store this in the device table (used for dev ID number -> partition mappings)
-	devtable[next_dev++] = part_info;
+	devtable[next_dev++] = (void *)part_info;
 
 	/* We now have no real use of the old stuff any longer */
 	kfree(buf);
@@ -133,7 +133,11 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	assert(current_task->_next_fd + 1 <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[current_task->_next_fd++];
 
-	uint32 cluster = fat_cluster_for_path(devtable[dev], path, FS_FILE);
+	fat32_partition_t *part = (fat32_partition_t *)devtable[dev];
+	assert(part != NULL);
+	assert(part->magic == FAT32_MAGIC);
+
+	uint32 cluster = fat_cluster_for_path(part, path, FS_FILE);
 
 	if (cluster >= 2) {
 		file->dev = dev;
@@ -170,6 +174,7 @@ int fat_read(int fd, void *buf, size_t length) {
 
 	fat32_partition_t *part = devtable[file->dev];
 	assert(part != NULL);
+	assert(part->magic == FAT32_MAGIC);
 
 	uint8 *cluster_buf = kmalloc(part->cluster_size);
 
@@ -496,11 +501,11 @@ nextloop:
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp) {
 	assert(part != NULL);
 	assert(cluster >= 2);
+	assert(mp != NULL);
 	DIR *dir = kmalloc(sizeof(DIR));
 	memset(dir, 0, sizeof(DIR));
 
-	dir->partition = part;
-	dir->dir_cluster = cluster;
+	dir->ino = cluster;
 	dir->mp = mp;
 
 	// These are set up in fat_readdir, when needed
@@ -534,7 +539,7 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	path_dirname(path);
 	path_basename(base);
 
-	DIR *dir = fat_opendir(path);
+	DIR *dir = fat_opendir(find_mountpoint_for_path(in_path), path); // TODO: pass mp to fat_stat instead
 	if (!dir) {
 		// TODO: errno
 		goto error;
@@ -589,6 +594,7 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 		fat_parse_short_name(name, disk_direntry->name);
 
 	struct stat *st = data->st;
+	fat32_partition_t *part = devtable[dir->dev];
 	//printk("fat_callback_stat: name %s, file %s\n", name, data->file);
 
 	if (stricmp(name, data->file) == 0) {
@@ -599,15 +605,15 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 			// Calculate how many clusters this file uses. If the file size is evenly
 			// divisible into the cluster size, that's the count. If not, an additional cluster
 			// is used for the last part of the file.
-			num_clusters = disk_direntry->file_size / dir->partition->cluster_size;
-			if (disk_direntry->file_size % dir->partition->cluster_size != 0) {
+			num_clusters = disk_direntry->file_size / part->cluster_size;
+			if (disk_direntry->file_size % part->cluster_size != 0) {
 				num_clusters += 1;
 			}
 		}
 
 		st->st_dev = 0xffff; // invalid ID
 		for (int i=0; i < MAX_DEVS; i++) {
-			if (devtable[i] == dir->partition) {
+			if ((fat32_partition_t *)devtable[i] == part) {
 				st->st_dev = i;
 				break;
 			}
@@ -621,7 +627,7 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 		st->st_atime = 0; // TODO
 		st->st_ctime = 0; // TODO
 		st->st_mtime = 0; // TODO
-		st->st_blksize = dir->partition->cluster_size;
+		st->st_blksize = part->cluster_size;
 		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_clusters;
 
 		data->success = true;
@@ -634,7 +640,11 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 
 /* Used to get a list of files/subdirectories at /path/...
  * Together with readdir() and closedir(), of course. */
-DIR *fat_opendir(const char *path) {
+DIR *fat_opendir(mountpoint_t *mp, const char *path) {
+	assert(mp != NULL);
+	assert(path != NULL);
+	assert(strlen(path) >= 2);
+
 	/* Path is supposed to be relative to the partition...
 	 * ... eventually. Not right now... */
 
@@ -649,7 +659,6 @@ DIR *fat_opendir(const char *path) {
 		return NULL;
 	}
 
-	mountpoint_t *mp = find_mountpoint_for_path(path);
 	return fat_opendir_cluster(part, cluster, mp);
 }
 
@@ -719,11 +728,14 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 	}
 
 	struct dirent *dent = NULL;
+	assert(dir->dev <= MAX_DEVS);
+	fat32_partition_t *part = devtable[dir->dev];
+	assert(part != (void *)0xffffffff && part != NULL);
 
 	// TODO: don't do this inside the callback (which is looped)!
 	uint16 dev = 0xffff; // invalid value
 	for (int i=0; i < MAX_DEVS; i++) {
-		if (devtable[i] == dir->partition) {
+		if ((fat32_partition_t *)devtable[i] == part) {
 			dev = i;
 			break;
 		}
@@ -731,12 +743,12 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 	/* Special case: pretend there's a . and .. entry for the root directory.
 	 * They both link back to the root, so /./../../. == / */
-	if (dir->len == 0 && dir->dir_cluster == dir->partition->root_dir_first_cluster) {
+	if (dir->len == 0 && dir->ino == part->root_dir_first_cluster) {
 		//printk("writing dent at %u\n", dir->len);
 
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, ".", DIRENT_NAME_LEN);
-		dent->d_ino = dir->partition->root_dir_first_cluster;
+		dent->d_ino = part->root_dir_first_cluster;
 		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 1;
@@ -746,7 +758,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		//printk("writing dent at %u\n", dir->len);
 		dent = (struct dirent *)(dir->buf + dir->len);
 		strlcpy(dent->d_name, "..", DIRENT_NAME_LEN);
-		dent->d_ino = dir->partition->root_dir_first_cluster;
+		dent->d_ino = part->root_dir_first_cluster;
 		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
 		dent->d_namlen = 2;
@@ -780,7 +792,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 	/* .. to the root directory appears to be a special case. Ugh. */
 	if (data_cluster == 0 && strcmp(short_name, "..") == 0)
-		dent->d_ino = dir->partition->root_dir_first_cluster;
+		dent->d_ino = part->root_dir_first_cluster;
 	else
 		dent->d_ino = data_cluster;
 
@@ -818,14 +830,18 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, 
 	assert(dir->buf == NULL);
 	assert(dir->pos == 0);
 	assert(dir->len == 0);
-	assert(dir->dir_cluster >= 2);
+	assert(dir->ino >= 2);
 
-	uint32 cur_cluster = dir->dir_cluster;
-	//printk("cur_cluster = %u from dir->dir_cluster\n", cur_cluster);
-	uint8 *disk_data = kmalloc(dir->partition->cluster_size);
+	uint32 cur_cluster = dir->ino;
+	//printk("cur_cluster = %u from dir->ino\n", cur_cluster);
+	assert(dir->dev <= MAX_DEVS);
+	fat32_partition_t *part = devtable[dir->dev];
+	assert(part != (void *)0xffffffff && part != NULL);
+
+	uint8 *disk_data = kmalloc(part->cluster_size);
 
 	/* Read the first cluster from disk */
-	assert(fat_read_cluster(dir->partition, cur_cluster, disk_data));
+	assert(fat_read_cluster(part, cur_cluster, disk_data));
 
 	fat32_direntry_t *disk_direntry = (fat32_direntry_t *)disk_data;
 
@@ -896,9 +912,9 @@ static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, 
 		disk_direntry++;
 
 		/* Read a new cluster if we've read past this one */
-		if ((uint32)disk_direntry >= (uint32)disk_data + dir->partition->cluster_size) {
+		if ((uint32)disk_direntry >= (uint32)disk_data + part->cluster_size) {
 			/* Read the next cluster in this directory, if there is one */
-			if (!fat_read_next_cluster(dir->partition, disk_data, &cur_cluster)) {
+			if (!fat_read_next_cluster(part, disk_data, &cur_cluster)) {
 				/* No more clusters in this chain */
 				break;
 			}

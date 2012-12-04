@@ -28,7 +28,6 @@
 #define MAX_PATH 1024 // TODO: move this
 
 void heaptest(void *data, uint32 length);
-void ls_initrd(void *data, uint32 length);
 
 extern volatile list_t ready_queue;
 
@@ -167,22 +166,22 @@ static void cd(void *data, uint32 length) {
 		else
 			panic("invalid _pwd!");
 	}
-	DIR *dir = fat_opendir(_pwd);
-	// TODO: fat_finddir + VFS integration!
+	DIR *dir = opendir(_pwd);
+	// TODO: finddir!
 
 	struct dirent *dirent;
-	while ((dirent = fat_readdir(dir)) != NULL) {
+	while ((dirent = readdir(dir)) != NULL) {
 		if (strcmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
 			if (_pwd[strlen(_pwd) -1] != '/')
 				strlcat(_pwd, "/", MAX_PATH);
 			strlcat(_pwd, dirent->d_name, MAX_PATH);
 
-			fat_closedir(dir);
+			closedir(dir);
 			return;
 		}
 	}
 	printk("cd: no such directory: %s\n", (char *)data);
-	fat_closedir(dir);
+	closedir(dir);
 }
 
 static void print_1_sec(void *data, uint32 length) {
@@ -247,6 +246,8 @@ static void kernel_test(void *data, uint32 length) {
 }
 
 static void user_stress_elf(void *data, uint32 length) {
+	panic("TODO: fix user_stress_elf with the new VFS");
+#if 0
     uint32 start = gettickcount();
     for (int i=0; i < 2500; i++) {
 		fs_node_t *node = finddir_fs(initrd_root, "helloworld");
@@ -256,6 +257,7 @@ static void user_stress_elf(void *data, uint32 length) {
         YIELD;
     }
     printk("ran for %u ticks\n", gettickcount() - start);
+#endif
 }
 
 static void kernel_stress(void *data, uint32 length) {
@@ -301,6 +303,48 @@ static void free_mem(void *data, uint32 length) {
 	printk("Free RAM: %u kbytes\n", pmm_bytes_free() / 1024);
 	printk("Used RAM: %u kbytes\n", pmm_bytes_used() / 1024);
 	printk("kheap used: %u bytes\n", kheap_used_bytes());
+}
+
+int initrd_read(int fd, void *buf, size_t length);
+int initrd_open(uint32 dev, const char *path, int mode);
+int initrd_close(int fd);
+DIR *initrd_opendir(mountpoint_t *mp, const char *path);
+struct dirent *initrd_readdir(DIR *dir);
+int initrd_closedir(DIR *dir);
+
+static void initrd_test(void) {
+	/* TODO */
+	uint32 deventry = 0xffffffff;
+	for (int i=0; i < MAX_DEVS; i++) {
+		if (devtable[i] == (void *)0xffffffff) {
+			deventry = i;
+		}
+	}
+	assert(deventry != 0xffffffff);
+	DIR *dir = NULL;
+	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+		mountpoint_t *mp = (mountpoint_t *)it->data;
+		if (mp->dev == deventry) {
+			dir = initrd_opendir(mp, "/");
+			break;
+		}
+	}
+	assert(dir != NULL);
+
+	struct dirent *dent = NULL;
+	while ((dent = initrd_readdir(dir)) != NULL) {
+		printk("initrd: found %s, inode %u\n", dent->d_name, dent->d_ino);
+	}
+	initrd_closedir(dir);
+
+	int fd = initrd_open(0, "initrd_test.txt", 0);
+	assert(fd >= 0);
+	char buf[512] = {0};
+	int r = initrd_read(fd, buf, 511);
+	assert(r > 10);
+	printk("Read: %s\n", buf);
+
+	initrd_close(fd);
 }
 
 static void sleep_test(void *data, uint32 length) {
@@ -393,7 +437,6 @@ void kshell(void *data, uint32 length) {
 			printk("kill <pid>       - kill a process\n");
 			printk("kshell           - start a nested kernel shell\n");
 			printk("ls               - list files\n");
-			printk("ls_initrd        - list files on the initrd image\n");
 			printk("lspci            - print the PCI device database\n");
 			printk("print_heap       - print the kernel heap index (used/free areas)\n");
 			printk("ps               - show processes\n");
@@ -439,9 +482,6 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "fill_scrollback") == 0) {
 			task = create_task(&fill_scrollback, "fill_scrollback", con, NULL, 0);
-		}
-		else if (strcmp(p, "ls_initrd") == 0) {
-			ls_initrd(NULL, 0);
 		}
 		else if (strcmp(p, "print_heap") == 0) {
 			validate_heap_index(true);
@@ -541,6 +581,9 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "ls") == 0) {
 			task = create_task(&ls, "ls", con, NULL, 0);
 		}
+		else if (strcmp(p, "initrd_test") == 0) {
+			initrd_test();
+		}
 		else if (strcmp(p, "pwd") == 0) {
 			task = create_task(&pwd, "pwd", con, NULL, 0);
 		}
@@ -589,6 +632,9 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
+			printk("Unknown command (TODO: initrd/PATH search!)\n");
+		}
+#if 0
 			char cmd[256];
 			strlcpy(cmd, p, 256);
 			char *c = strchr(cmd, ' ');
@@ -603,6 +649,7 @@ void kshell(void *data, uint32 length) {
 			else
 				printk("Unknown command: \"%s\"\n", p);
 		}
+#endif
 
 		strlcpy(last_cmd, p, 1024);
 	}
@@ -870,6 +917,7 @@ printk("\n");
 #endif
 }
 
+/*
 void ls_initrd(void *data, uint32 length) {
 	int ctr = 0;
 	struct dirent *node = NULL;
@@ -880,3 +928,4 @@ void ls_initrd(void *data, uint32 length) {
 		ctr++;
 	}
 }
+*/

@@ -7,6 +7,11 @@
 
 #include <kernel/kernutil.h> /* panic */
 
+// Stores FS-specific data, indexed by device number
+// Cast to the correct pointer as needed
+void *devtable[MAX_DEVS] = {0};
+uint32 next_dev = 0;
+
 DIR *opendir(const char *path) {
 	assert(path != NULL);
 
@@ -29,7 +34,7 @@ DIR *opendir(const char *path) {
 
 	assert(mp->fops.opendir != NULL);
 
-	return mp->fops.opendir(relpath);
+	return mp->fops.opendir(mp, relpath);
 }
 
 struct dirent *readdir(DIR *dir) {

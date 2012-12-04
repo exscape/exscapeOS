@@ -8,6 +8,10 @@
 
 #define O_RDONLY 0
 
+#define MAX_DEVS 8
+extern void *devtable[MAX_DEVS];
+extern uint32 next_dev;
+
 typedef struct open_file {
 	dev_t dev;
 	ino_t ino;

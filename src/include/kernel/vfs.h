@@ -22,8 +22,8 @@ struct fat32_partition;
 struct mountpoint;
 
 typedef struct dir {
-	struct fat32_partition *partition; // TODO
-	uint32 dir_cluster;
+	uint32 dev; // the partition associated with this DIR
+	uint32 ino;
 
 	uint8 *buf;
 	uint32 _buflen; /* buffer's malloc'ed size */
@@ -36,7 +36,7 @@ typedef struct file_ops {
 	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
 	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
 	int (*close)(int /* fd */);
-	DIR *(*opendir)(const char * /* absolute path */);
+	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
 	struct dirent *(*readdir)(DIR *);
 	int (*closedir)(DIR *);
 } file_ops_t;
@@ -77,9 +77,6 @@ typedef struct fs_node {
 	/* Used by mountpoints and symlinks */
 	struct fs_node *ptr;
 } fs_node_t;
-
-/* The root of the filesystem hierarchy */
-extern fs_node_t *fs_root;
 
 #define DIRENT_NAME_LEN 256
 

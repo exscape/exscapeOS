@@ -167,7 +167,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
 	/* Initialize the initrd */
 	/* (do this before paging, so that it doesn't end up in the kernel heap) */
-	fs_root = init_initrd(initrd_location);
+	init_initrd(initrd_location);
 
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
