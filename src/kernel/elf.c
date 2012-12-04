@@ -9,7 +9,7 @@
 
 #define ELF_DEBUG 0
 
-void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
+void elf_load(const char *path, task_t *task) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
@@ -17,8 +17,13 @@ void elf_load(fs_node_t *fs_node, uint32 file_size, task_t *task) {
 
 	page_directory_t *task_dir = task->page_directory;
 
+	uint32 file_size = 0x100000; // 1 MB -- TODO: use stat() or something!!
+
 	unsigned char *data = kmalloc(file_size);
-	assert(read_fs(fs_node, 0, file_size, data) == file_size);
+
+	int fd = open(path, O_RDONLY);
+	assert(fd >= 0);
+	assert(read(fd, data, file_size) /* == file_size */); // TODO: check proper read!
 
 	elf_header_t *header = (elf_header_t *)data;
 
