@@ -11,6 +11,7 @@
 #include <kernel/syscall.h>
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
+#include <path.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -271,14 +272,18 @@ task_t *create_task( void (*entry_point)(void *, uint32), const char *name, cons
 	return task;
 }
 
-task_t *create_task_elf(fs_node_t *file, console_t *con, void *data, uint32 data_len) {
-	assert(file != NULL);
+task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 data_len) {
+	assert(path != NULL);
 	INTERRUPT_LOCK;
 
-	task_t *task = create_task_user((void *)0x10000000, file->name, con, data, data_len);
+	char buf[1024] = {0};
+	strlcpy(buf, path, 1024);
+	path_basename(buf);
+
+	task_t *task = create_task_user((void *)0x10000000, buf /* task name */, con, data, data_len);
 	assert (task != NULL);
 
-	elf_load(file, fsize(file), task);
+	elf_load(path, task);
 
 	INTERRUPT_UNLOCK;
 	return task;

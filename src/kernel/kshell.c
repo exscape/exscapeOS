@@ -632,9 +632,39 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
-			printk("Unknown command (TODO: initrd/PATH search!)\n");
-		}
+			static const char _PATH[] = "/:/bin:/initrd:/initrd/bin"; // TODO: store this on disk
+			char PATH[sizeof(_PATH)] = {0};
+
+			strcpy(PATH, _PATH); // strtok_r will modify this!
+
+			char cmd[256];
+			strlcpy(cmd, p, 256);
+			char *c = strchr(cmd, ' ');
+			if (c)
+				*c = 0;
+
+			char *token, *tmp;
+			for (token = strtok_r(PATH, ":", &tmp); token != NULL; token = strtok_r(NULL, ":", &tmp)) {
+				DIR *dir = opendir(token);
+				if (!dir)
+					continue;
+				struct dirent *dent;
+				while ((dent = readdir(dir)) != NULL) {
+					if (stricmp(dent->d_name, cmd) == 0) {
+						// Found it!
+						char path[1024] = {0};
+						strlcpy(path, token, 1024);
+						path_join(path, dent->d_name);
+						task = create_task_elf(path, con, p, strlen(p));
+
+						goto exit_loop;
+					}
+				}
+			}
+exit_loop:
+		;
 #if 0
+
 			char cmd[256];
 			strlcpy(cmd, p, 256);
 			char *c = strchr(cmd, ' ');
@@ -648,8 +678,8 @@ void kshell(void *data, uint32 length) {
 			}
 			else
 				printk("Unknown command: \"%s\"\n", p);
-		}
 #endif
+		}
 
 		strlcpy(last_cmd, p, 1024);
 	}
