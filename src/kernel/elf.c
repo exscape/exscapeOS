@@ -17,8 +17,13 @@ bool elf_load(const char *path, task_t *task) {
 
 	page_directory_t *task_dir = task->page_directory;
 
-	uint32 file_size = 0x100000; // 1 MB -- TODO: use stat() or something!!
+	struct stat st;
 
+	if (stat(path, &st) != 0) {
+		printk("Unable to stat %s; halting execution\n", path);
+		return false;
+	}
+	uint32 file_size = st.st_size;
 	unsigned char *data = kmalloc(file_size);
 
 	int fd = open(path, O_RDONLY);
