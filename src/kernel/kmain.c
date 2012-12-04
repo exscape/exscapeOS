@@ -46,8 +46,8 @@ extern nethandler_t *nethandler_icmp;
 
 extern volatile list_t ready_queue;
 
-char *kernel_cmdline = NULL;
-char *rootdev = NULL;
+//char *kernel_cmdline = NULL;
+//char *rootdev = NULL;
 
 extern heap_t *kheap;
 
@@ -141,6 +141,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printc(BLACK, GREEN, "done\n");
 
 	// Parse the kernel command line
+	// This turned out to be unused, in favor of a config file in the initrd
+#if 0
 	if (mbd->flags & (1 << 2)) {
 		// Duplicate it, so that we know that the address will be mapped when paging is enabled
 		assert(mbd->cmdline != 0);
@@ -154,6 +156,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 
 	printk("Parsed kernel command line; rootdev = %s\n", rootdev == NULL ? "NULL" : rootdev);
+#endif
 
 	/* Set up the keyboard callback */
 	printk("Setting up the keyboard handler... ");
