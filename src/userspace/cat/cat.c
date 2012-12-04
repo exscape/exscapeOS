@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
 		if (fd < 0) {
 			puts("error opening ");
 			puts(argv[i]);
-			puts(", exiting");
+			puts(", exiting\n");
 			return 0;
 		}
 
