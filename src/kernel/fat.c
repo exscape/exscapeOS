@@ -35,6 +35,7 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpo
 static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type);
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
+int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -101,6 +102,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mp->fops.opendir  = fat_opendir;
 		mp->fops.readdir  = fat_readdir;
 		mp->fops.closedir = fat_closedir;
+		mp->fops.stat     = fat_stat;
 
 		mp->dev = next_dev; // increased below
 
@@ -526,9 +528,10 @@ struct stat_callback_data {
 	bool success;
 };
 
-int fat_stat(const char *in_path, struct stat *buf) {
+int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 	assert(in_path != NULL);
 	assert(buf != NULL);
+	assert(mp != NULL);
 
 	size_t path_len = strlen(in_path);
 	char *path = kmalloc(path_len + 1);
@@ -540,7 +543,7 @@ int fat_stat(const char *in_path, struct stat *buf) {
 	path_dirname(path);
 	path_basename(base);
 
-	DIR *dir = fat_opendir(find_mountpoint_for_path(in_path), path); // TODO: pass mp to fat_stat instead
+	DIR *dir = fat_opendir(mp, path); // TODO: pass mp to fat_stat instead
 	if (!dir) {
 		// TODO: errno
 		goto error;
@@ -578,7 +581,7 @@ int fat_fstat(int fd, struct stat *buf) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
-	return fat_stat(file->path, buf);
+	return fat_stat(file->mp, file->path, buf);
 }
 
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data) {

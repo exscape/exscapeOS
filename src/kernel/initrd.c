@@ -256,6 +256,49 @@ int initrd_closedir(DIR *dir) {
 	return 0;
 }
 
+int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
+	assert(mp != NULL);
+	assert(in_path != NULL);
+	assert(st != NULL);
+
+	const char *p = NULL;
+	if (in_path[0] == '/') {
+		p = &in_path[1];
+		if (!strchr(p, '/') == NULL) {
+			panic("initrd_stat: initrd does't support subdirectories!");
+			return -1;
+		}
+	}
+
+	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
+		if (strcmp(file_headers[i].name, p) == 0) {
+			memset(st, 0, sizeof(struct stat));
+
+			st->st_dev = 0xffff; // invalid ID
+			for (int dev=0; dev < MAX_DEVS; dev++) {
+				if (devtable[dev] == (void *)0xffffffff) {
+					st->st_dev = dev;
+					break;
+				}
+			}
+			uint32 blocks = (file_headers[i].length % 4096 == 0) ? file_headers[i].length / 4096 : (file_headers[i].length / 4096) + 1;
+			st->st_ino = i;
+			st->st_mode = 0777; // TODO
+			st->st_nlink = 1;
+			st->st_size = file_headers[i].length;
+			st->st_atime = 0;
+			st->st_ctime = 0;
+			st->st_mtime = 0;
+			st->st_blksize = 4096; // Doesn't matter
+			st->st_blocks = blocks;
+
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 /* Fetches the initrd from the location specified (provided by GRUB),
  * and sets up the necessary structures. */
 void init_initrd(uint32 location) {
@@ -274,6 +317,7 @@ void init_initrd(uint32 location) {
 	mp->fops.opendir  = initrd_opendir;
 	mp->fops.readdir  = initrd_readdir;
 	mp->fops.closedir = initrd_closedir;
+	mp->fops.stat     = initrd_stat;
 
 	mp->dev = next_dev; // increased below
 

@@ -62,7 +62,7 @@ int open(const char *path, int mode) {
 
 	char relpath[1024] = {0};
 
-	assert(strncmp(path, mp->path, strlen(mp->path)) == 0); // First part of the part should be the mountpoint path
+	assert(strnicmp(path, mp->path, strlen(mp->path)) == 0); // First part of the part should be the mountpoint path
 
 	if (strcmp(mp->path, "/") == 0)
 		strlcpy(relpath, path, 1024);
@@ -100,4 +100,32 @@ int close(int fd) {
 	assert(mp->fops.close != NULL);
 
 	return mp->fops.close(fd);
+}
+
+int stat(const char *path, struct stat *buf) {
+	assert(path != NULL);
+	assert(buf != NULL);
+
+	if (path[0] != '/')
+		return -1; // only absolute paths are supported
+
+	mountpoint_t *mp = find_mountpoint_for_path(path);
+	assert(mp != NULL);
+
+	char relpath[1024] = {0};
+
+	assert(strnicmp(path, mp->path, strlen(mp->path)) == 0); // First part of the part should be the mountpoint path
+
+	if (strcmp(mp->path, "/") == 0)
+		strlcpy(relpath, path, 1024);
+	else {
+		// Strip the mountpoint from the beginning
+		strlcpy(relpath, path + strlen(mp->path), 1024);
+		if (relpath[0] == 0)
+			strcpy(relpath, "/");
+	}
+
+	assert(mp->fops.stat != NULL);
+
+	return mp->fops.stat(mp, relpath, buf);
 }

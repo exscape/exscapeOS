@@ -31,6 +31,13 @@ mountpoint_t *find_mountpoint_for_path(const char *path) {
 
 		if (strnicmp(mp->path, path, len) == 0) {
 			// First part matches!
+			//if (stricmp(mp->path, path) == 0 && len != 1 /* not the / mountpoint */) {
+				// If they are EXACTLY equal, then we actually DON'T want this mountpoint!
+				// For example: stat("/initrd", &st);
+				// We should NOT stat the root directory of the initrd filesystem,
+				// but rather the "initrd" directory in the / filesystem!
+				//continue;
+				//}
 			if (len > best_match_len) {
 				best_match = mp;
 				best_match_len = len;

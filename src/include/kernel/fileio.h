@@ -28,5 +28,7 @@ int close(int fd);
 DIR *opendir(const char *path);
 struct dirent *readdir(DIR *dir);
 int closedir(DIR *dir);
+int stat(const char *in_path, struct stat *buf);
+#define lstat stat
 
 #endif

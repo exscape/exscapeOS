@@ -17,6 +17,35 @@ typedef void (*close_type_t)(struct fs_node *);
 typedef struct dirent * (*readdir_type_t)(struct fs_node *, uint32);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node *, const char *name);
 
+// TODO: this REALLY doesn't belong here
+typedef uint16 dev_t;
+typedef uint16 mode_t;
+typedef uint16 nlink_t;
+typedef uint16 uid_t;
+typedef uint16 gid_t;
+typedef sint64 off_t;
+typedef sint32 blkcnt_t;
+typedef sint32 blksize_t;
+typedef uint32 ino_t;
+typedef sint32 time_t;
+
+// TODO: this doesn't really belong here
+struct stat {
+	dev_t	st_dev;
+	ino_t	st_ino;
+	mode_t	st_mode;
+	nlink_t	st_nlink;
+	uid_t	st_uid;
+	gid_t	st_gid;
+	dev_t	st_rdev;
+	off_t	st_size;
+	time_t	st_atime;
+	time_t	st_mtime;
+	time_t	st_ctime;
+	blksize_t st_blksize;
+	blkcnt_t st_blocks;
+};
+
 /* forward declarations */
 struct fat32_partition;
 struct mountpoint;
@@ -39,6 +68,7 @@ typedef struct file_ops {
 	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
 	struct dirent *(*readdir)(DIR *);
 	int (*closedir)(DIR *);
+	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
 } file_ops_t;
 
 typedef struct mountpoint {
@@ -47,6 +77,7 @@ typedef struct mountpoint {
 	uint32 dev;
 	struct file_ops fops;
 } mountpoint_t;
+
 
 
 /* A list of the mountpoints currently used */
@@ -118,35 +149,6 @@ enum {
 #define FS_PIPE 0x05
 #define FS_SYMLINK 0x06
 #define FS_MOUNTPOINT 0x08
-
-// TODO: this REALLY doesn't belong here
-typedef uint16 dev_t;
-typedef uint16 mode_t;
-typedef uint16 nlink_t;
-typedef uint16 uid_t;
-typedef uint16 gid_t;
-typedef sint64 off_t;
-typedef sint32 blkcnt_t;
-typedef sint32 blksize_t;
-typedef uint32 ino_t;
-typedef sint32 time_t;
-
-// TODO: this doesn't really belong here
-struct stat {
-	dev_t	st_dev;
-	ino_t	st_ino;
-	mode_t	st_mode;
-	nlink_t	st_nlink;
-	uid_t	st_uid;
-	gid_t	st_gid;
-	dev_t	st_rdev;
-	off_t	st_size;
-	time_t	st_atime;
-	time_t	st_mtime;
-	time_t	st_ctime;
-	blksize_t st_blksize;
-	blkcnt_t st_blocks;
-};
 
 /* The set of standard VFS functions */
 uint32 read_fs(fs_node_t *node, uint32 offset, uint32 size, uint8 *buffer);
