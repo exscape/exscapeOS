@@ -175,7 +175,8 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 
 /* Initialize the driver, and IDENTIFY DEVICEs */
 void ata_init(void) {
-	disable_interrupts();
+
+	INTERRUPT_LOCK;
 
 	/* make sure there's no nonsense in the structures we use */
 	memset(&channels, 0, sizeof(channels));
@@ -443,7 +444,7 @@ void ata_init(void) {
 	ata_reg_write(ATA_PRIMARY, ATA_REG_DEV_CONTROL, 0);
 	ata_reg_write(ATA_SECONDARY, ATA_REG_DEV_CONTROL, 0);
 
-	enable_interrupts();
+	INTERRUPT_UNLOCK;
 }
 
 /* Reads a single sector at LBA /lba/. /buffer/ must be at least 512 bytes, or buffer overrun WILL occur. */
@@ -454,9 +455,8 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	assert(buffer != NULL);
 
 	/* TODO: LBA48 */
-	/* TODO: add a mutex here; ata_read is hardly thread safe! */
 
-	disable_interrupts();
+	INTERRUPT_LOCK;
 
 	/* Select the drive, and write the 4 high LBA bits */
 	ata_reg_write(dev->channel, ATA_REG_DRIVE_SELECT, 0xe0 | (dev->drive << 4) | ((lba >> 24) & 0x0f));
@@ -475,7 +475,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
 
 	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
-	 * will wake it back up, hopefully just below the enable_interrupts() line. */
+	 * will wake it back up, hopefully just below the INTERRUPT_UNLOCK line. */
 	scheduler_set_iowait();
 
 	/* Send the READ SECTOR(S) command */
@@ -484,7 +484,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
 
 	/* The process state is set, the ATA command is sent... take us out of here! */
-	enable_interrupts();
+	INTERRUPT_UNLOCK;
 	YIELD; /* force a task switch */
 
 	/*************************************************************************
@@ -534,9 +534,8 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	assert(buffer != NULL);
 
 	/* TODO: LBA48 */
-	/* TODO: mutexes! */
 
-	disable_interrupts();
+	INTERRUPT_LOCK;
 
 	/* Select the drive, and write the 4 high LBA bits */
 	ata_reg_write(dev->channel, ATA_REG_DRIVE_SELECT, 0xe0 | (dev->drive << 4) | ((lba >> 24) & 0x0f));
@@ -579,11 +578,11 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* We're done writing. That puts us in the HPIOO2: INTRQ_Wait state */
 
 	/* Take this process off the run queue; the ATA interrupt handler (IRQ14/15)
-	 * will wake it back up, hopefully just below the enable_interrupts() line. */
+	 * will wake it back up, hopefully just below the INTERRUPT_UNLOCK line. */
 	scheduler_set_iowait();
 
 	/* The process state is set. Let's go! */
-	enable_interrupts();
+	INTERRUPT_UNLOCK;
 	YIELD; /* force a task switch */
 
 	/*************************************************************************
