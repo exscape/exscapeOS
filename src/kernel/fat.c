@@ -507,6 +507,7 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpo
 
 	dir->ino = cluster;
 	dir->mp = mp;
+	dir->dev = mp->dev;
 
 	// These are set up in fat_readdir, when needed
 	dir->buf = NULL;
@@ -643,14 +644,14 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 DIR *fat_opendir(mountpoint_t *mp, const char *path) {
 	assert(mp != NULL);
 	assert(path != NULL);
-	assert(strlen(path) >= 2);
+	assert(mp->dev <= MAX_DEVS);
+	assert(devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff);
+	assert(strlen(path) > 0);
 
 	/* Path is supposed to be relative to the partition...
-	 * ... eventually. Not right now... */
+	 * ... eventually. Not right now... TODO */
 
-	/* TODO: find the correct partition to use! */
-	assert(fat32_partitions != NULL && fat32_partitions->count > 0);
-	fat32_partition_t *part = (fat32_partition_t *)fat32_partitions->head->data;
+	fat32_partition_t *part = devtable[mp->dev];
 
 	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
 

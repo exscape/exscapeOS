@@ -119,8 +119,8 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 		p++;
 		p = strchr(p, '/');
 		assert(p == NULL); // path much not contain directories
+		p = path + 1;
 	}
-	p = path;
 
 	assert(current_task->_next_fd + 1 <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[current_task->_next_fd++];
