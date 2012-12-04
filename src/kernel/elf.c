@@ -9,7 +9,7 @@
 
 #define ELF_DEBUG 0
 
-void elf_load(const char *path, task_t *task) {
+bool elf_load(const char *path, task_t *task) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
@@ -29,7 +29,12 @@ void elf_load(const char *path, task_t *task) {
 
 	const unsigned char ELF_IDENT[] = {0x7f, 'E', 'L', 'F'};
 
-	assert(memcmp(header->e_ident.ei_mag, &ELF_IDENT, 4) == 0);
+	if (memcmp(header->e_ident.ei_mag, &ELF_IDENT, 4) != 0) {
+		printk("Warning: file %s is not an ELF file; aborting execution\n", path);
+		kfree(data);
+		return false;
+	}
+
 	assert(header->e_ident.ei_class == ELFCLASS32);
 	assert(header->e_ident.ei_data == ELFDATA2LSB);
 	assert(header->e_ident.ei_version == 1);
@@ -145,4 +150,5 @@ void elf_load(const char *path, task_t *task) {
 #endif // ELF_DEBUG
 
 	kfree(data);
+	return true;
 }

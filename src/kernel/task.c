@@ -283,7 +283,13 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 	task_t *task = create_task_user((void *)0x10000000, buf /* task name */, con, data, data_len);
 	assert (task != NULL);
 
-	elf_load(path, task);
+	if (!elf_load(path, task)) {
+		// Abort!
+		task->state = TASK_EXITING;
+		destroy_task(task);
+		INTERRUPT_UNLOCK;
+		return NULL;
+	}
 
 	INTERRUPT_UNLOCK;
 	return task;

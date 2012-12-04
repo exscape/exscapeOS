@@ -5,7 +5,7 @@
 #include <kernel/vfs.h>
 #include <kernel/task.h>
 
-void elf_load(const char *path, task_t *task);
+bool elf_load(const char *path, task_t *task);
 
 typedef uint32 Elf32_Addr;
 typedef uint16 Elf32_Half;
