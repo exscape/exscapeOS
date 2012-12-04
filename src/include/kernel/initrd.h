@@ -20,5 +20,6 @@ typedef struct {
 
 /* Creates the initrd; the argument is the memory location of the multiboot module */
 void init_initrd(uint32 location);
+bool fs_mount(void);
 
 #endif

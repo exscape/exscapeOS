@@ -18,6 +18,74 @@ static initrd_file_header_t *file_headers; /* array of headers, one for each fil
 //return header.length;
 //}
 
+/*
+ * This function USES the initrd, but doesn't *really* belong here.
+ * It does however use internal functions, so it'll be allowed to stay
+ * for the time being.
+ */
+bool fs_mount(void) {
+	assert(mountpoints != NULL);
+	if (mountpoints->count == 0) {
+		panic("Found no file systems! This should never happen as the initrd should always be there.");
+	}
+	int ino = -1;
+	for (uint32 i=0; i < initrd_header->nfiles; i++) {
+		if (strcmp(file_headers[i].name, "mounts") == 0) {
+			ino = i;
+			break;
+		}
+	}
+
+	if (ino == -1) {
+		panic("initrd has no \"mounts\" file! I cannot set up a FS root without it.");
+	}
+
+	initrd_file_header_t header = file_headers[ino];
+	char *buf = kmalloc(header.length);
+	memcpy(buf, (void *)header.offset, header.length);
+
+	char *p = buf;
+	while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
+	assert(*p != 0);
+	char mount[16] = {0};
+	char path[256] = {0};
+	int ap = 0;
+
+	while (true) {
+		ap = 0;
+		while (*p > ' ') { mount[ap++] = *p++; }
+		mount[ap] = 0;
+		ap = 0;
+		while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
+		assert(*p != 0);
+		while (*p != '\n' && *p != '\r' && *p != 0) { path[ap++] = *p++; }
+		path[ap] = 0;
+		while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
+
+		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+			mountpoint_t *mp = (mountpoint_t *)it->data;
+			if (strcmp(mount, "fat") == 0) {
+				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {
+					strcpy(mp->path, path);
+					break;
+				}
+			}
+			else if(strcmp(mount, "initrd") == 0) {
+				if (devtable[mp->dev] == (void *)0xffffffff) {
+					strcpy(mp->path, path);
+					break;
+				}
+			}
+		}
+		if (*p == 0)
+			break;
+	}
+
+	kfree(buf);
+	return true;
+}
+
+
 int initrd_read(int fd, void *buf, size_t length) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];

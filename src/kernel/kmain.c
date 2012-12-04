@@ -265,6 +265,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	*/
 #endif
 
+	printk("Mounting filesystems... ");
+	if (fs_mount())
+		printc(BLACK, GREEN, "done\n");
+	else
+		printc(BLACK, RED, "failed!\n");
+
 #if 1
 	printk("Initializing RTL8139 network adapter... ");
 	if (init_rtl8139())
