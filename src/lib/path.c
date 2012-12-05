@@ -2,8 +2,6 @@
 #include <path.h>
 #include <string.h>
 
-#define PATH_MAX 1023 /* buffers are 1024, so 1023 chars max */
-
 bool path_join(char *path, const char *right) {
 	if (path == NULL || right == NULL)
 		return false;

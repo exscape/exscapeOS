@@ -4,23 +4,35 @@
 #include <string.h>
 #include <path.h>
 #include <kernel/task.h>
-
-#include <kernel/kernutil.h> /* panic */
+#include <kernel/kernutil.h>
 
 // Stores FS-specific data, indexed by device number
 // Cast to the correct pointer as needed
 void *devtable[MAX_DEVS] = {0};
 uint32 next_dev = 0;
 
-static bool find_relpath(const char *path, char *relpath, mountpoint_t **mp_out) {
+static bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	// Transforms the path to a function (currently open, opendir and stat)
 	// into a path relative to the mountpoint. E.g. /initrd/mounts would turn in to
 	// just "/mounts" if the initrd is mounted under /initrd, and the initrd would then
 	// open /mounts seen from the "initrd root".
 
-	assert(path != NULL);
-	if (path[0] != '/')
-		return false; // only absolute paths are supported
+	char path[PATH_MAX+1] = {0};
+
+	assert(in_path != NULL);
+	if (in_path[0] != '/') {
+		// This is a relative path (which is unrelated to the name of this function, ugh),
+		// e.g. "file.ext", "./file.ext" or "dir/file.ext"
+		// Use $PWD to construct an absolute path, which we need below.
+		if (current_task->pwd)
+			strlcpy(path, current_task->pwd, PATH_MAX+1);
+		else
+			strcpy(path, "/");
+
+		path_join(path, in_path);
+	}
+	else
+		strlcpy(path, in_path, PATH_MAX+1);
 
 	mountpoint_t *mp = find_mountpoint_for_path(path);
 	assert(mp != NULL);
@@ -28,10 +40,10 @@ static bool find_relpath(const char *path, char *relpath, mountpoint_t **mp_out)
 	assert(strnicmp(path, mp->path, strlen(mp->path)) == 0); // First part of the part should be the mountpoint path
 
 	if (strcmp(mp->path, "/") == 0)
-		strlcpy(relpath, path, 1024);
+		strlcpy(relpath, path, PATH_MAX+1);
 	else {
 		// Strip the mountpoint from the beginning
-		strlcpy(relpath, path + strlen(mp->path), 1024);
+		strlcpy(relpath, path + strlen(mp->path), PATH_MAX+1);
 		if (relpath[0] == 0)
 			strcpy(relpath, "/");
 	}
@@ -41,7 +53,7 @@ static bool find_relpath(const char *path, char *relpath, mountpoint_t **mp_out)
 }
 
 DIR *opendir(const char *path) {
-	char relpath[1024] = {0};
+	char relpath[PATH_MAX+1] = {0};
 	mountpoint_t *mp = NULL;
 	if (!find_relpath(path, relpath, &mp))
 		return NULL;
@@ -51,7 +63,7 @@ DIR *opendir(const char *path) {
 }
 
 int open(const char *path, int mode) {
-	char relpath[1024] = {0};
+	char relpath[PATH_MAX+1] = {0};
 	mountpoint_t *mp = NULL;
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
@@ -64,7 +76,7 @@ int open(const char *path, int mode) {
 int stat(const char *path, struct stat *buf) {
 	assert(buf != NULL);
 
-	char relpath[1024] = {0};
+	char relpath[PATH_MAX+1] = {0};
 	mountpoint_t *mp = NULL;
 	if (!find_relpath(path, relpath, &mp))
 		return -1;

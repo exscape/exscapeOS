@@ -108,6 +108,8 @@ int initrd_read(int fd, void *buf, size_t length) {
 
 	memcpy(buf, (uint8 *)(header.offset + file->offset), length);
 
+	file->offset += length;
+
 	return length;
 }
 
