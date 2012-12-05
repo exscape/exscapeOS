@@ -27,6 +27,8 @@ typedef struct task
 	struct open_file fdtable[MAX_OPEN_FILES];
 	uint32 _next_fd;
 	heap_t *heap;
+
+	char *pwd;
 } task_t;
 
 extern volatile task_t *current_task;

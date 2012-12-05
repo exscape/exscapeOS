@@ -129,3 +129,13 @@ int stat(const char *path, struct stat *buf) {
 
 	return mp->fops.stat(mp, relpath, buf);
 }
+
+int chdir(const char *path) {
+	// TODO: real chdir()!
+	if (current_task->pwd)
+		kfree(current_task->pwd);
+
+	current_task->pwd = strdup(path);
+
+	return 0;
+}

@@ -32,8 +32,6 @@ void heaptest(void *data, uint32 length);
 
 extern volatile list_t ready_queue;
 
-char *_pwd;
-
 static void infinite_loop(void *data, uint32 length) {
 	for(;;);
 }
@@ -86,7 +84,7 @@ static void create_pagefault_delay(void *data, uint32 length) {
 /*
 static void cat(void *data, uint32 length) {
 	char path[1024] = {0};
-	strcpy(path, _pwd);
+	strcpy(path, current_task->pwd);
 	path_join(path, (char *)data);
 	int fd = open(path, O_RDONLY);
 	assert(fd >= 0);
@@ -105,12 +103,12 @@ static void cat(void *data, uint32 length) {
 */
 
 static void ls(void *data, uint32 length) {
-	DIR *dir = opendir(_pwd);
+	DIR *dir = opendir(current_task->pwd);
 	struct dirent *dirent;
 	struct stat st;
 	while ((dirent = readdir(dir)) != NULL) {
 		char fullpath[1024] = {0};
-		strcpy(fullpath, _pwd);
+		strcpy(fullpath, current_task->pwd);
 		path_join(fullpath, dirent->d_name);
 
 		stat(fullpath, &st);
@@ -155,7 +153,7 @@ static void ls(void *data, uint32 length) {
 }
 
 static void pwd(void *data, uint32 length) {
-	printk("%s\n", _pwd);
+	printk("%s\n", current_task->pwd);
 }
 
 static void cd(void *data, uint32 length) {
@@ -163,34 +161,39 @@ static void cd(void *data, uint32 length) {
 		return;
 
 	if (strcmp(data, "/") == 0) {
-		strcpy(_pwd, "/");
+		chdir("/");
 		return;
 	}
 
 	if (strcmp(data, "..") == 0) {
-		if (strcmp(_pwd, "/") == 0)
+		if (strcmp(current_task->pwd, "/") == 0)
 			return;
 
-		char *p = strrchr(_pwd, '/');
+		char *p = strrchr(current_task->pwd, '/');
 		if (p) {
-			if (p != _pwd) // not the / all paths begin with
+			if (p != current_task->pwd) // not the / all paths begin with
 				*p = 0;
 			else
 				*(p+1) = 0;
 			return;
 		}
 		else
-			panic("invalid _pwd!");
+			panic("invalid current_task->pwd!");
 	}
-	DIR *dir = opendir(_pwd);
+	DIR *dir = opendir(current_task->pwd);
 	// TODO: finddir!
 
 	struct dirent *dirent;
 	while ((dirent = readdir(dir)) != NULL) {
 		if (stricmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
-			if (_pwd[strlen(_pwd) -1] != '/')
-				strlcat(_pwd, "/", MAX_PATH);
-			strlcat(_pwd, dirent->d_name, MAX_PATH);
+			size_t s = strlen(current_task->pwd) + 2 + strlen(dirent->d_name);
+			char *tmp = kmalloc(s);
+			strcpy(tmp, current_task->pwd);
+			if (current_task->pwd[strlen(current_task->pwd) - 1] != '/')
+				strlcat(tmp, "/", s);
+			strlcat(tmp, dirent->d_name, s);
+			chdir(tmp);
+			kfree(tmp);
 
 			closedir(dir);
 			return;
@@ -374,9 +377,6 @@ void kshell(void *data, uint32 length) {
 	memset(buf, 0, 1024);
 	char *last_cmd = kmalloc(1024);
 	memset(last_cmd, 0, 1024);
-
-	_pwd = kmalloc(MAX_PATH);
-	strcpy(_pwd, "/");
 
 	task_t *task = NULL;
 
@@ -595,13 +595,13 @@ void kshell(void *data, uint32 length) {
 			divzero(NULL, 0);
 		}
 		else if (strcmp(p, "ls") == 0) {
-			task = create_task(&ls, "ls", con, NULL, 0);
+			ls(NULL, 0);
 		}
 		else if (strcmp(p, "initrd_test") == 0) {
 			initrd_test();
 		}
 		else if (strcmp(p, "pwd") == 0) {
-			task = create_task(&pwd, "pwd", con, NULL, 0);
+			pwd(NULL, 0);
 		}
 		else if (strcmp(p, "guess") == 0) {
 			task = create_task(&guess_num, "guess_num", con, NULL, 0);
@@ -624,7 +624,7 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strncmp(p, "cd ", 3) == 0) {
 			p += 3;
-			task = create_task(&cd, "cd", con, p, strlen(p));
+			cd(p, strlen(p));
 		}
 		//else if (strncmp(p, "catk ", 5) == 0) {
 			//p += 4;

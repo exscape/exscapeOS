@@ -360,6 +360,11 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	task->privilege = privilege;
 
+	if (current_task && current_task->pwd)
+		task->pwd = strdup(current_task->pwd);
+	else
+		task->pwd = strdup("/");
+
 	if (task->privilege == 0) {
 		strcpy(task->name, "[");
 		strlcat(task->name, name, TASK_NAME_LEN - 1);
