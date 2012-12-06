@@ -2,11 +2,14 @@
 #include <path.h>
 #include <string.h>
 
-bool path_join(char *path, const char *right) {
+static bool __path_join(char *path, const char *right) {
 	if (path == NULL || right == NULL)
 		return false;
 	if (strlen(right) > 255)
 		return false;
+
+	if (strchr(right, '/') != NULL)
+		return false; // TODO: shouldn't happen
 
 	if (strcmp(right, ".") == 0)
 		return true; // We didn't do anything, but didn't fail either
@@ -28,6 +31,19 @@ bool path_join(char *path, const char *right) {
 	strlcat(path, right, PATH_MAX);
 
 	return !trunc;
+}
+
+bool path_join(char *path, const char *right) {
+	char *tmp;
+	char *token = NULL;
+	char buf[PATH_MAX+1] = {0};
+	strlcpy(buf, right, PATH_MAX+1);
+	for (token = strtok_r(buf, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
+		if (!__path_join(path, token))
+			return false;
+	}
+
+	return true;
 }
 
 void path_dirname(char *path) {
