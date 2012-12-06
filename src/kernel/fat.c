@@ -163,8 +163,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	}
 	else {
 		// We couldn't locate/open the file
-		// TODO: errno
-		return -1;
+		return -ENOENT;
 	}
 }
 
@@ -485,7 +484,7 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 			}
 		}
 		fat_closedir(dir);
-		return 0; /* File/directory not found. FIXME: errno or somesuch? */
+		return 0;
 nextloop:
 		fat_closedir(dir);
 	}
@@ -659,7 +658,7 @@ DIR *fat_opendir(mountpoint_t *mp, const char *path) {
 	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
 
 	if (cluster == 0) {
-		// TODO: error reporting
+		// TODO: error reporting (-ENOENT)
 		return NULL;
 	}
 
