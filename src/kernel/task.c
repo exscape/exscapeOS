@@ -167,14 +167,14 @@ void kill(task_t *task) {
 	task->state = TASK_EXITING;
 }
 
-void exit_proc(void) {
+void _exit(void) {
 	kill((task_t *)current_task);
 	YIELD;
-	panic("this should never be reached (in exit_proc after switching tasks)");
+	panic("this should never be reached (in _exit after switching tasks)");
 }
 
 void user_exit(void) {
-	syscall_exit_proc();
+	syscall__exit();
 }
 
 void idle_task_func(void *data, uint32 length) {
@@ -447,7 +447,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	*(--kernelStack) = (uint32)data;
 
 	/* Functions will call this automatically when they attempt to return */
-	*(--kernelStack) = (uint32)&exit_proc;
+	*(--kernelStack) = (uint32)&_exit;
 
 	if (task->privilege == 3) {
 		*(--kernelStack) = 0x23; /* SS */

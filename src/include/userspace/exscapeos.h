@@ -59,7 +59,7 @@ ret fn(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) \
   return a; \
 }
 
-DECL_SYSCALL0(exit_proc, int);
+DECL_SYSCALL0(_exit, int);
 DECL_SYSCALL1(puts, int, const char *);
 DECL_SYSCALL1(sleep, int, uint32);
 DECL_SYSCALL0(getchar, int);
@@ -74,7 +74,7 @@ DECL_SYSCALL1(chdir, int, const char *);
 
 #endif // _EXSCAPEOS_USERSPACE
 
-DEFN_SYSCALL0(exit_proc, int, 0);
+DEFN_SYSCALL0(_exit, int, 0);
 DEFN_SYSCALL1(puts, int, 1, const char *);
 DEFN_SYSCALL1(sleep, int, 2,uint32);
 DEFN_SYSCALL0(getchar, int, 3);

@@ -1,16 +1,16 @@
 #include <kernel/syscall.h>
 #include <kernel/console.h> /* puts, getchar, putchar */
 #include <kernel/interrupts.h>
-#include <kernel/task.h> /* sleep, exit_proc */
+#include <kernel/task.h> /* sleep, _exit */
 #include <kernel/kernutil.h>
 #include <kernel/fileio.h> /* open, read */
 
 static uint32 syscall_handler(uint32);
 
-void exit_proc(void); // task.c
+void _exit(void); // task.c
 
 static void *syscalls[] = {
-	&exit_proc,
+	&_exit,
 	&puts,
 	&sleep,
 	&getchar,
