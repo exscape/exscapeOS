@@ -19,7 +19,9 @@ static void *syscalls[] = {
 	&read,
 	&close,
 	&malloc,
-	&free
+	&free,
+	&stat,
+	&chdir
 };
 
 uint32 num_syscalls = 0;

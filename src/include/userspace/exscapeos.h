@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+struct stat;
+
 #define DECL_SYSCALL0(fn, ret) ret fn(void);
 #define DECL_SYSCALL1(fn, ret, p1) ret fn(p1);
 #define DECL_SYSCALL2(fn, ret, p1,p2) ret fn(p1,p2);
@@ -67,6 +69,8 @@ DECL_SYSCALL3(read, int, int, void *, int);
 DECL_SYSCALL1(close, int, int);
 DECL_SYSCALL1(malloc, void *, size_t);
 DECL_SYSCALL1(free, int, void *);
+DECL_SYSCALL2(stat, int, const char *, struct stat *);
+DECL_SYSCALL1(chdir, int, const char *);
 
 #endif // _EXSCAPEOS_USERSPACE
 
@@ -80,3 +84,5 @@ DEFN_SYSCALL3(read, int, 6, int, void *, int);
 DEFN_SYSCALL1(close, int, 7, int);
 DEFN_SYSCALL1(malloc, void *, 8, size_t);
 DEFN_SYSCALL1(free, int, 9, void *);
+DEFN_SYSCALL2(stat, int, 10, const char *, struct stat *);
+DEFN_SYSCALL1(chdir, int, 11, const char *);

@@ -70,5 +70,8 @@ DECL_SYSCALL3(read, int, int, void *, int);
 DECL_SYSCALL1(close, int, int);
 DECL_SYSCALL1(malloc, void *, size_t);
 DECL_SYSCALL1(free, int, void *);
+struct stat;
+DECL_SYSCALL2(stat, int, const char *, struct stat *);
+DECL_SYSCALL1(chdir, int, const char *);
 
 #endif

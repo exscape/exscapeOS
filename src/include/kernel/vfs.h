@@ -78,8 +78,6 @@ typedef struct mountpoint {
 	struct file_ops fops;
 } mountpoint_t;
 
-
-
 /* A list of the mountpoints currently used */
 extern list_t *mountpoints;
 
