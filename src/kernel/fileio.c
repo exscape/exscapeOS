@@ -120,12 +120,60 @@ struct dirent *readdir(DIR *dir) {
 	return dir->mp->fops.readdir(dir);
 }
 
-int chdir(const char *path) {
-	// TODO: real chdir()!
-	if (current_task->pwd)
-		kfree(current_task->pwd);
+int chdir(const char *in_path) {
+	assert(in_path != NULL);
+	assert(current_task->pwd != NULL);
 
-	current_task->pwd = strdup(path);
+	char path[PATH_MAX+1] = {0};
+	if (in_path[0] == '/') {
+		// Absolute path
+		strlcpy(path, in_path, PATH_MAX+1);
+	}
+	else {
+		// Relatve path
+		strlcpy(path, current_task->pwd, PATH_MAX+1);
+		path_join(path, in_path);
+	}
 
+	char *old_pwd = current_task->pwd;
+	size_t path_len = strlen(path);
+	current_task->pwd = kmalloc(path_len + 1);
+	strlcpy(current_task->pwd, path, path_len + 1);
+
+	// Now that we can modify "path" freely, let's validate it (yes, after setting it!)
+	char *tmp;
+	char *token = NULL;
+	char verified[PATH_MAX+1] = {0}; // starts as /, and builds up to the full path (if it's OK)
+	strcpy(verified, "/");
+	struct dirent *dent = NULL;
+	size_t len = 0;
+	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
+		len = strlen(token);
+		DIR *dir = opendir(verified);
+		if (!dir)
+			goto error;
+		while ((dent = readdir(dir)) != NULL) {
+			if (len == dent->d_namlen && stricmp(dent->d_name, token) == 0) {
+				// This is the token
+				if (dent->d_type != DT_DIR) {
+					closedir(dir);
+					goto error;
+				}
+				path_join(verified, token);
+				break;
+			}
+		}
+		closedir(dir);
+	}
+
+	if (stricmp(verified, current_task->pwd) != 0)
+		goto error;
+
+	kfree(old_pwd);
 	return 0;
+
+error:
+	current_task->pwd = old_pwd;
+	return -1;
+
 }

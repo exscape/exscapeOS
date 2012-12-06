@@ -157,50 +157,8 @@ static void pwd(void *data, uint32 length) {
 }
 
 static void cd(void *data, uint32 length) {
-	if (strcmp(data, ".") == 0)
-		return;
-
-	if (strcmp(data, "/") == 0) {
-		chdir("/");
-		return;
-	}
-
-	if (strcmp(data, "..") == 0) {
-		if (strcmp(current_task->pwd, "/") == 0)
-			return;
-
-		char *p = strrchr(current_task->pwd, '/');
-		if (p) {
-			if (p != current_task->pwd) // not the / all paths begin with
-				*p = 0;
-			else
-				*(p+1) = 0;
-			return;
-		}
-		else
-			panic("invalid current_task->pwd!");
-	}
-	DIR *dir = opendir(current_task->pwd);
-	// TODO: finddir!
-
-	struct dirent *dirent;
-	while ((dirent = readdir(dir)) != NULL) {
-		if (stricmp(dirent->d_name, data) == 0 && dirent->d_type == DT_DIR) {
-			size_t s = strlen(current_task->pwd) + 2 + strlen(dirent->d_name);
-			char *tmp = kmalloc(s);
-			strcpy(tmp, current_task->pwd);
-			if (current_task->pwd[strlen(current_task->pwd) - 1] != '/')
-				strlcat(tmp, "/", s);
-			strlcat(tmp, dirent->d_name, s);
-			chdir(tmp);
-			kfree(tmp);
-
-			closedir(dir);
-			return;
-		}
-	}
-	printk("cd: no such directory: %s\n", (char *)data);
-	closedir(dir);
+	if (chdir(data) != 0)
+		printk("Unable to chdir() to %s\n", data);
 }
 
 static void print_1_sec(void *data, uint32 length) {
