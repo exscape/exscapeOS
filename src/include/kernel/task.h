@@ -4,7 +4,7 @@
 #include <kernel/vmm.h>
 #include <types.h>
 #include <kernel/console.h>
-#include <kernel/fileio.h> /* struct open_file */
+#include <kernel/vfs.h> /* struct open_file */
 #include <kernel/vfs.h>
 #include <kernel/heap.h>
 

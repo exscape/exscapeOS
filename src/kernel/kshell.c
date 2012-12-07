@@ -12,7 +12,7 @@
 #include <kernel/elf.h>
 #include <kernel/fat.h>
 #include <path.h>
-#include <kernel/fileio.h>
+#include <kernel/vfs.h>
 #include <stdio.h>
 
 #include <kernel/vmm.h>

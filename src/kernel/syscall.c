@@ -3,7 +3,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/task.h> /* sleep, _exit */
 #include <kernel/kernutil.h>
-#include <kernel/fileio.h> /* open, read */
+#include <kernel/vfs.h> /* open, read */
 
 static uint32 syscall_handler(uint32);
 

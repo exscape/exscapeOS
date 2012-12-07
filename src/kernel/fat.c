@@ -8,6 +8,7 @@
 #include <kernel/partition.h>
 #include <kernel/vfs.h>
 #include <path.h>
+#include <kernel/errno.h>
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */

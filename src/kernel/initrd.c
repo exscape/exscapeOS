@@ -4,7 +4,7 @@
 #include <kernel/kernutil.h>
 #include <string.h>
 #include <kernel/heap.h>
-#include <kernel/fileio.h>
+#include <kernel/vfs.h>
 #include <kernel/task.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
