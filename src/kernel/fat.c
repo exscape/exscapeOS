@@ -99,6 +99,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mp->path[0] = 0; // not set up here
 		mp->fops.open     = fat_open;
 		mp->fops.read     = fat_read;
+		mp->fops.write    = NULL;
 		mp->fops.close    = fat_close;
 		mp->fops.opendir  = fat_opendir;
 		mp->fops.readdir  = fat_readdir;

@@ -320,6 +320,7 @@ void init_initrd(uint32 location) {
 	mp->path[0] = 0; // not set up here
 	mp->fops.open     = initrd_open;
 	mp->fops.read     = initrd_read;
+	mp->fops.write    = NULL;
 	mp->fops.close    = initrd_close;
 	mp->fops.opendir  = initrd_opendir;
 	mp->fops.readdir  = initrd_readdir;

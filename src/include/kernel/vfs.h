@@ -51,6 +51,7 @@ typedef struct dir {
 typedef struct file_ops {
 	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
 	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
+	int (*write)(int /* fd */, void * /* buf */, size_t /* length */);
 	int (*close)(int /* fd */);
 	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
 	struct dirent *(*readdir)(DIR *);
@@ -131,6 +132,7 @@ typedef struct open_file {
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);
+int write(int fd, void *buf, int length);
 int close(int fd);
 DIR *opendir(const char *path);
 struct dirent *readdir(DIR *dir);

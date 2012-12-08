@@ -73,5 +73,6 @@ DECL_SYSCALL1(free, int, void *);
 struct stat;
 DECL_SYSCALL2(stat, int, const char *, struct stat *);
 DECL_SYSCALL1(chdir, int, const char *);
+DECL_SYSCALL3(write, int, int, void *, int);
 
 #endif

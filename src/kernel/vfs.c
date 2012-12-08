@@ -5,6 +5,7 @@
 #include <path.h>
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
+#include <kernel/errno.h>
 
 // Stores FS-specific data, indexed by device number
 // Cast to the correct pointer as needed
@@ -96,6 +97,20 @@ int read(int fd, void *buf, int length) {
 	assert(mp != NULL);
 	assert(mp->fops.read != NULL);
 	return mp->fops.read(fd, buf, length);
+}
+
+int write(int fd, void *buf, int length) {
+	assert(fd <= MAX_OPEN_FILES);
+	if (fd < 0)
+		return -EBADF;
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	mountpoint_t *mp = file->mp;
+	assert(mp != NULL);
+	if (mp->fops.write == NULL)
+		return -EBADF;
+	return mp->fops.write(fd, buf, length);
 }
 
 int close(int fd) {
