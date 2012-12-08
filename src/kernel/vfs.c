@@ -71,7 +71,9 @@ int open(const char *path, int mode) {
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
 
-	assert(mode == O_RDONLY);
+	if (mode != O_RDONLY)
+		return -EACCES;
+
 	assert(mp->fops.open != NULL);
 	return mp->fops.open(mp->dev, relpath, mode);
 }
@@ -90,12 +92,15 @@ int stat(const char *path, struct stat *buf) {
 
 int read(int fd, void *buf, int length) {
 	assert(fd <= MAX_OPEN_FILES);
+	if (fd < 0)
+		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	mountpoint_t *mp = file->mp;
 	assert(mp != NULL);
-	assert(mp->fops.read != NULL);
+	if (mp->fops.read == NULL)
+		return -EBADF;
 	return mp->fops.read(fd, buf, length);
 }
 
@@ -115,6 +120,8 @@ int write(int fd, void *buf, int length) {
 
 int close(int fd) {
 	assert(fd <= MAX_OPEN_FILES);
+	if (fd < 0)
+		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
@@ -152,6 +159,8 @@ int chdir(const char *in_path) {
 		path_join(path, in_path);
 	}
 
+	int err = 0;
+
 	char *old_pwd = current_task->pwd;
 	size_t path_len = strlen(path);
 	current_task->pwd = kmalloc(path_len + 1);
@@ -167,13 +176,16 @@ int chdir(const char *in_path) {
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
 		len = strlen(token);
 		DIR *dir = opendir(verified);
-		if (!dir)
+		if (!dir) {
+			err = -ENOENT; // TODO: probably?
 			goto error;
+		}
 		while ((dent = readdir(dir)) != NULL) {
 			if (len == dent->d_namlen && stricmp(dent->d_name, token) == 0) {
 				// This is the token
 				if (dent->d_type != DT_DIR) {
 					closedir(dir);
+					err = -ENOTDIR;
 					goto error;
 				}
 				path_join(verified, token);
@@ -183,15 +195,17 @@ int chdir(const char *in_path) {
 		closedir(dir);
 	}
 
-	if (stricmp(verified, current_task->pwd) != 0)
+	if (stricmp(verified, current_task->pwd) != 0) {
+		err = -ENOENT;
 		goto error;
+	}
 
 	kfree(old_pwd);
 	return 0;
 
 error:
 	current_task->pwd = old_pwd;
-	return -1;
+	return err;
 
 }
 
