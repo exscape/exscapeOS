@@ -42,7 +42,6 @@ task_t kernel_task = {
 	.id = 1,
 	.esp = 0,
 	.ss = 0x10,
-	.eip = 0,
 	.stack = 0, /* set later */
 	.page_directory = 0,
 	.state = TASK_RUNNING,
@@ -325,7 +324,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	task->id = next_pid++;
 	task->esp = 0;
-	task->eip = 0;
 
 	/*
 	 * Use guard pages around the stack

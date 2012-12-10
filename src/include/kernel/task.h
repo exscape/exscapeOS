@@ -10,13 +10,11 @@
 
 #define TASK_NAME_LEN 64
 
-typedef struct task
-{
+typedef struct task {
 	int id;                // Process ID.
 	char name[TASK_NAME_LEN];
 	uint32 esp;
 	uint32 ss;
-	uint32 eip;            // Instruction pointer.
 	void *stack; // This task's kernel stack
 	page_directory_t *page_directory; // Page directory.
 	uint32 state; /* e.g. running, sleeping */
@@ -27,7 +25,6 @@ typedef struct task
 	struct open_file fdtable[MAX_OPEN_FILES];
 	uint32 _next_fd;
 	heap_t *heap;
-
 	char *pwd;
 } task_t;
 
