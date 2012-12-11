@@ -170,7 +170,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 	if (file->ino == 0xffffffff) {
 		// We didn't find it
 		// TODO: errno
-		return -1;
+		return -ENOENT;
 	}
 
 	assert(file->mp != NULL);
@@ -268,7 +268,7 @@ struct dirent *initrd_readdir(DIR *dir) {
 /* Frees the memory associated with a directory entry. */
 int initrd_closedir(DIR *dir) {
 	if (dir == NULL)
-		return -1;
+		return -EINVAL; // TODO: what should closedir return here?
 
 	if (dir->buf != NULL) {
 		kfree(dir->buf);
