@@ -102,7 +102,7 @@ int read(int fd, void *buf, int length) {
 	return file->fops.read(fd, buf, length);
 }
 
-int write(int fd, void *buf, int length) {
+int write(int fd, const void *buf, int length) {
 	assert(fd <= MAX_OPEN_FILES);
 	if (fd < 0)
 		return -EBADF;

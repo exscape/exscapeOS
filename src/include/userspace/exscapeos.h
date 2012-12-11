@@ -71,7 +71,7 @@ DECL_SYSCALL1(malloc, void *, size_t);
 DECL_SYSCALL1(free, int, void *);
 DECL_SYSCALL2(stat, int, const char *, struct stat *);
 DECL_SYSCALL1(chdir, int, const char *);
-DECL_SYSCALL3(write, int, int, void *, int);
+DECL_SYSCALL3(write, int, int, const void *, int);
 
 #endif // _EXSCAPEOS_USERSPACE
 
@@ -87,4 +87,4 @@ DEFN_SYSCALL1(malloc, void *, 8, size_t);
 DEFN_SYSCALL1(free, int, 9, void *);
 DEFN_SYSCALL2(stat, int, 10, const char *, struct stat *);
 DEFN_SYSCALL1(chdir, int, 11, const char *);
-DEFN_SYSCALL3(write, int, 12, int, void *, int);
+DEFN_SYSCALL3(write, int, 12, int, const void *, int);
