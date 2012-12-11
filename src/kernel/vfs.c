@@ -217,6 +217,17 @@ error:
 
 }
 
+off_t lseek(int fd, off_t offset, int whence) {
+
+	return 0x12345678abcdef;
+}
+
+// Wrapper function for the syscall, to handle 64-bit arguments
+off_t _lseek(int fd, uint32 off_high, uint32 off_low, int whence) {
+	off_t off = ((off_t)off_high << 32) | (off_t)off_low;
+	return lseek(fd, off, whence);
+}
+
 mountpoint_t *find_mountpoint_for_path(const char *path) {
 	if (mountpoints == NULL || mountpoints->count == 0 || path == NULL)
 		return NULL;

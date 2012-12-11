@@ -4,6 +4,10 @@
 #include <types.h>
 #include <kernel/list.h>
 
+#define	SEEK_SET 0
+#define	SEEK_CUR 1
+#define	SEEK_END 2
+
 // TODO: this REALLY doesn't belong here
 typedef uint16 dev_t;
 typedef uint16 mode_t;
@@ -153,6 +157,9 @@ struct dirent *readdir(DIR *dir);
 int closedir(DIR *dir);
 int stat(const char *in_path, struct stat *buf);
 int chdir(const char *path);
+off_t _lseek(int fd, uint32 off_high, uint32 off_low, int whence); // Syscall form with split 64-bit argument
+off_t lseek(int fd, off_t offset, int whence); // Real form
+
 #define lstat stat
 
 #endif

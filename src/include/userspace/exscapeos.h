@@ -72,6 +72,13 @@ DECL_SYSCALL1(free, int, void *);
 DECL_SYSCALL2(stat, int, const char *, struct stat *);
 DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const void *, int);
+typedef sint64 off_t;
+DECL_SYSCALL3(_lseek, off_t, int, off_t, int);
+
+// TODO: move these defines
+#define	SEEK_SET 0
+#define	SEEK_CUR 1
+#define	SEEK_END 2
 
 #endif // _EXSCAPEOS_USERSPACE, the below is done in user AND kernel space
 
@@ -88,3 +95,18 @@ DEFN_SYSCALL1(free, int, 9, void *);
 DEFN_SYSCALL2(stat, int, 10, const char *, struct stat *);
 DEFN_SYSCALL1(chdir, int, 11, const char *);
 DEFN_SYSCALL3(write, int, 12, int, const void *, int);
+
+#if _EXSCAPEOS_USERSPACE
+
+// We can't use DEFN_SYSCALL3 because of the 64-bit parameter and return
+off_t lseek(int fd, off_t offset, int whence) {
+	union {
+		off_t o64;
+		uint32 u32[2];
+	} arg, ret;
+	arg.o64 = offset;
+	asm volatile("int $0x80" : "=a" (ret.u32[0]), "=d" (ret.u32[1]) : "0" (13), "b" (fd), "c" (arg.u32[1]), "d"(arg.u32[0]), "S"(whence));
+	return ret.o64;
+}
+
+#endif
