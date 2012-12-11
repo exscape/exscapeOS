@@ -73,7 +73,7 @@ DECL_SYSCALL2(stat, int, const char *, struct stat *);
 DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const void *, int);
 
-#endif // _EXSCAPEOS_USERSPACE
+#endif // _EXSCAPEOS_USERSPACE, the below is done in user AND kernel space
 
 DEFN_SYSCALL0(_exit, int, 0);
 DEFN_SYSCALL1(puts, int, 1, const char *);
