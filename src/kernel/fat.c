@@ -137,8 +137,11 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	assert(path != NULL);
 	mode=mode; // still unused
 
-	assert(current_task->_next_fd + 1 <= MAX_OPEN_FILES);
-	struct open_file *file = (struct open_file *)&current_task->fdtable[current_task->_next_fd++];
+	int fd = get_free_fd();
+	if (fd < 0)
+		return -EMFILE;
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	fat32_partition_t *part = (fat32_partition_t *)devtable[dev];
 	assert(part != NULL);
@@ -164,10 +167,12 @@ int fat_open(uint32 dev, const char *path, int mode) {
 			}
 		}
 		file->path = strdup(path);
+		file->count++;
+		assert(file->count == 1); // We have no dup, dup2 etc. yet
 
 		assert(file->mp != NULL);
 
-		return current_task->_next_fd - 1;
+		return fd;
 	}
 	else {
 		// We couldn't locate/open the file
@@ -255,9 +260,6 @@ int fat_close(int fd) {
 
 	kfree(file->path);
 	file->path = NULL;
-
-	// Zero the entry to note that it's now free
-	memset(file, 0, sizeof(struct open_file));
 
 	return 0;
 }

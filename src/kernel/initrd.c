@@ -6,6 +6,7 @@
 #include <kernel/heap.h>
 #include <kernel/vfs.h>
 #include <kernel/task.h>
+#include <kernel/errno.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 static initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */
@@ -131,8 +132,12 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 	else
 		p = path;
 
-	assert(current_task->_next_fd + 1 <= MAX_OPEN_FILES);
-	struct open_file *file = (struct open_file *)&current_task->fdtable[current_task->_next_fd++];
+	int fd = get_free_fd();
+	if (fd < 0) {
+		return -EMFILE;
+	}
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	file->ino = 0xffffffff;
 	// Find the inode number
@@ -156,6 +161,8 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 					break;
 				}
 			}
+			file->count++;
+			assert(file->count == 1); // We have no dup, dup2 etc. yet
 			break;
 		}
 	}
@@ -168,7 +175,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 
 	assert(file->mp != NULL);
 
-	return current_task->_next_fd - 1;
+	return fd;
 }
 
 int initrd_close(int fd) {
@@ -179,7 +186,6 @@ int initrd_close(int fd) {
 
 	if (file->path)
 		kfree(file->path);
-	memset(file, 0, sizeof(struct open_file));
 
 	return 0;
 }

@@ -14,6 +14,15 @@ uint32 next_dev = 0;
 
 list_t *mountpoints = NULL;
 
+int get_free_fd(void) {
+	for (int i = 0; i < MAX_OPEN_FILES; i++) {
+		if (current_task->fdtable[i].count == 0)
+			return i;
+	}
+
+	return -1;
+}
+
 static bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	// Transforms the path to a function (currently open, opendir and stat)
 	// into a path relative to the mountpoint. E.g. /initrd/mounts would turn in to
@@ -120,10 +129,15 @@ int close(int fd) {
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	if (file->count < 1)
+		return -EBADF;
 
 	assert(file->fops.close != NULL);
 
-	return file->fops.close(fd);
+	int r = file->fops.close(fd);
+	memset(file, 0, sizeof(struct open_file));
+
+	return r;
 }
 
 int closedir(DIR *dir) {

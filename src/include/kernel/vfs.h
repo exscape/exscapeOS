@@ -131,6 +131,7 @@ extern void *devtable[MAX_DEVS];
 extern uint32 next_dev;
 
 typedef struct open_file {
+	int count; // number of fds that link to this file; TODO
 	dev_t dev;
 	ino_t ino;
 	ino_t _cur_ino; // current cluster number, i.e. when offset != 0
@@ -140,6 +141,8 @@ typedef struct open_file {
 	char *path;
 	struct open_file_ops fops;
 } open_file_t;
+
+int get_free_fd(void);
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);
