@@ -12,6 +12,7 @@
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
 #include <path.h>
+#include <kernel/stdio.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -352,10 +353,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	vmm_set_guard(start_guard, kernel_directory);
 	vmm_set_guard(end_guard,   kernel_directory);
 
-	// Clear the task's file descriptor table
-	memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
-	task->_next_fd = 0;
-
 	task->privilege = privilege;
 
 	if (current_task && current_task->pwd)
@@ -409,6 +406,24 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
 		switch_page_directory(kernel_directory);
+
+		// Clear the task's file descriptor table
+		memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
+
+		// Set up stdin, stdout and stderr for this task
+		// Note: The entire table was just zeroed (above)
+		struct open_file *f = (struct open_file *)&task->fdtable[0];
+		f->dev = (dev_t)-1;
+		f->fops.read  = stdio_read;
+		f->fops.write = stdio_write;
+		f->fops.close = stdio_close;
+
+		// Copy this info for stdout and stderr
+		// Differences are handled in the IO functions
+		memcpy(&task->fdtable[1], f, sizeof(struct open_file));
+		memcpy(&task->fdtable[2], f, sizeof(struct open_file));
+
+		task->_next_fd = 3; // 0, 1 and 2 are used for the standard streams
 	}
 	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
