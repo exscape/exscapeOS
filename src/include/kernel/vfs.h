@@ -36,6 +36,13 @@ struct stat {
 /* forward declarations */
 struct fat32_partition;
 struct mountpoint;
+struct dir_ops;
+struct dir;
+
+typedef struct dir_ops {
+	struct dirent *(*readdir)(struct dir *);
+	int (*closedir)(struct dir *);
+} dir_ops_t;
 
 typedef struct dir {
 	uint32 dev; // the partition associated with this DIR
@@ -46,13 +53,12 @@ typedef struct dir {
 	uint32 pos;
 	uint32 len; /* number of valid data bytes in the buffer */
 	struct mountpoint *mp;
+	struct dir_ops dops;
 } DIR;
 
 typedef struct mp_ops {
 	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
 	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
-	struct dirent *(*readdir)(DIR *);
-	int (*closedir)(DIR *);
 	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
 } mp_ops_t;
 

@@ -99,8 +99,6 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		mp->path[0] = 0; // not set up here
 		mp->mpops.open     = fat_open;
 		mp->mpops.opendir  = fat_opendir;
-		mp->mpops.readdir  = fat_readdir;
-		mp->mpops.closedir = fat_closedir;
 		mp->mpops.stat     = fat_stat;
 
 		mp->dev = next_dev; // increased below
@@ -511,6 +509,9 @@ static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpo
 	dir->ino = cluster;
 	dir->mp = mp;
 	dir->dev = mp->dev;
+
+	dir->dops.readdir  = fat_readdir;
+	dir->dops.closedir = fat_closedir;
 
 	// These are set up in fat_readdir, when needed
 	dir->buf = NULL;

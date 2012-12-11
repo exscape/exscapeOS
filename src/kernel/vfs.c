@@ -128,14 +128,14 @@ int close(int fd) {
 
 int closedir(DIR *dir) {
 	assert(dir != NULL);
-	assert(dir->mp != NULL);
-	return dir->mp->mpops.closedir(dir);
+	assert(dir->dops.closedir != NULL);
+	return dir->dops.closedir(dir);
 }
 
 struct dirent *readdir(DIR *dir) {
 	assert(dir != NULL);
-	assert(dir->mp != NULL);
-	return dir->mp->mpops.readdir(dir);
+	assert(dir->dops.readdir != NULL);
+	return dir->dops.readdir(dir);
 }
 
 int chdir(const char *in_path) {

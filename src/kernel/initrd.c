@@ -184,6 +184,9 @@ int initrd_close(int fd) {
 	return 0;
 }
 
+struct dirent *initrd_readdir(DIR *dir);
+int initrd_closedir(DIR *dir);
+
 DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 	assert(mp != NULL);
 	assert(path != NULL);
@@ -201,6 +204,9 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 	dir->_buflen = initrd_header->nfiles * (sizeof(struct dirent) - DIRENT_NAME_LEN + 64 + 4) + sizeof(struct dirent);
 	dir->buf = kmalloc(dir->_buflen);
 	memset(dir->buf, 0, dir->_buflen);
+
+	dir->dops.readdir  = initrd_readdir;
+	dir->dops.closedir = initrd_closedir;
 
 	dir->pos = 0;
 	dir->len = 0;
@@ -325,8 +331,6 @@ void init_initrd(uint32 location) {
 	mp->path[0] = 0; // not set up here
 	mp->mpops.open     = initrd_open;
 	mp->mpops.opendir  = initrd_opendir;
-	mp->mpops.readdir  = initrd_readdir;
-	mp->mpops.closedir = initrd_closedir;
 	mp->mpops.stat     = initrd_stat;
 
 	mp->dev = next_dev; // increased below
