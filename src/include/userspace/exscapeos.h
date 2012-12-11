@@ -73,7 +73,7 @@ DECL_SYSCALL2(stat, int, const char *, struct stat *);
 DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const void *, int);
 typedef sint64 off_t;
-DECL_SYSCALL3(_lseek, off_t, int, off_t, int);
+DECL_SYSCALL3(lseek, off_t, int, off_t, int);
 
 // TODO: move these defines
 #define	SEEK_SET 0
@@ -105,7 +105,7 @@ off_t lseek(int fd, off_t offset, int whence) {
 		uint32 u32[2];
 	} arg, ret;
 	arg.o64 = offset;
-	asm volatile("int $0x80" : "=a" (ret.u32[0]), "=d" (ret.u32[1]) : "0" (13), "b" (fd), "c" (arg.u32[1]), "d"(arg.u32[0]), "S"(whence));
+	asm volatile("int $0x80" : "=a" (ret.u32[0]), "=d" (ret.u32[1]) : "0" (13), "b" (fd), "c" (arg.u32[0]), "d"(arg.u32[1]), "S"(whence));
 	return ret.o64;
 }
 

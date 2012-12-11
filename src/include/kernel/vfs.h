@@ -157,8 +157,7 @@ struct dirent *readdir(DIR *dir);
 int closedir(DIR *dir);
 int stat(const char *in_path, struct stat *buf);
 int chdir(const char *path);
-off_t _lseek(int fd, uint32 off_high, uint32 off_low, int whence); // Syscall form with split 64-bit argument
-off_t lseek(int fd, off_t offset, int whence); // Real form
+off_t lseek(int fd, off_t offset, int whence);
 
 #define lstat stat
 

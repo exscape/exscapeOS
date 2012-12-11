@@ -15,6 +15,7 @@ struct syscall_entry {
 };
 
 struct syscall_entry syscalls[] = {
+/*  { &function, return_size }, */
 	{ &_exit, 32 },
 	{ &puts, 32 },
 	{ &sleep, 32 },
@@ -28,7 +29,7 @@ struct syscall_entry syscalls[] = {
 	{ &stat, 32 },
 	{ &chdir, 32 },
 	{ &write, 32 },
-	{ &_lseek, 64 }
+	{ &lseek, 64 }
 };
 
 uint32 num_syscalls = 0;
