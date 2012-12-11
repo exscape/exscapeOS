@@ -323,14 +323,11 @@ void init_initrd(uint32 location) {
 	memset(mp, 0, sizeof(mountpoint_t));
 
 	mp->path[0] = 0; // not set up here
-	mp->fops.open     = initrd_open;
-	mp->fops.read     = initrd_read;
-	mp->fops.write    = NULL;
-	mp->fops.close    = initrd_close;
-	mp->fops.opendir  = initrd_opendir;
-	mp->fops.readdir  = initrd_readdir;
-	mp->fops.closedir = initrd_closedir;
-	mp->fops.stat     = initrd_stat;
+	mp->mpops.open     = initrd_open;
+	mp->mpops.opendir  = initrd_opendir;
+	mp->mpops.readdir  = initrd_readdir;
+	mp->mpops.closedir = initrd_closedir;
+	mp->mpops.stat     = initrd_stat;
 
 	mp->dev = next_dev; // increased below
 

@@ -48,16 +48,13 @@ typedef struct dir {
 	struct mountpoint *mp;
 } DIR;
 
-typedef struct file_ops {
+typedef struct mp_ops {
 	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
-	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
-	int (*write)(int /* fd */, void * /* buf */, size_t /* length */);
-	int (*close)(int /* fd */);
 	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
 	struct dirent *(*readdir)(DIR *);
 	int (*closedir)(DIR *);
 	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
-} file_ops_t;
+} mp_ops_t;
 
 typedef struct open_file_ops {
 	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
@@ -70,7 +67,7 @@ typedef struct mountpoint {
 	char path[1024];
 
 	uint32 dev;
-	struct file_ops fops;
+	struct mp_ops mpops;
 } mountpoint_t;
 
 /* A list of the mountpoints currently used */

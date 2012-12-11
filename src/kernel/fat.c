@@ -97,14 +97,11 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 		//strlcpy(mp->path, "/", sizeof(mp->path));
 
 		mp->path[0] = 0; // not set up here
-		mp->fops.open     = fat_open;
-		mp->fops.read     = fat_read;
-		mp->fops.write    = NULL;
-		mp->fops.close    = fat_close;
-		mp->fops.opendir  = fat_opendir;
-		mp->fops.readdir  = fat_readdir;
-		mp->fops.closedir = fat_closedir;
-		mp->fops.stat     = fat_stat;
+		mp->mpops.open     = fat_open;
+		mp->mpops.opendir  = fat_opendir;
+		mp->mpops.readdir  = fat_readdir;
+		mp->mpops.closedir = fat_closedir;
+		mp->mpops.stat     = fat_stat;
 
 		mp->dev = next_dev; // increased below
 

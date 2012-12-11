@@ -61,8 +61,8 @@ DIR *opendir(const char *path) {
 	if (!find_relpath(path, relpath, &mp))
 		return NULL;
 
-	assert(mp->fops.opendir != NULL);
-	return mp->fops.opendir(mp, relpath);
+	assert(mp->mpops.opendir != NULL);
+	return mp->mpops.opendir(mp, relpath);
 }
 
 int open(const char *path, int mode) {
@@ -74,8 +74,8 @@ int open(const char *path, int mode) {
 	if (mode != O_RDONLY)
 		return -EACCES;
 
-	assert(mp->fops.open != NULL);
-	return mp->fops.open(mp->dev, relpath, mode);
+	assert(mp->mpops.open != NULL);
+	return mp->mpops.open(mp->dev, relpath, mode);
 }
 
 int stat(const char *path, struct stat *buf) {
@@ -86,8 +86,8 @@ int stat(const char *path, struct stat *buf) {
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
 
-	assert(mp->fops.stat != NULL);
-	return mp->fops.stat(mp, relpath, buf);
+	assert(mp->mpops.stat != NULL);
+	return mp->mpops.stat(mp, relpath, buf);
 }
 
 int read(int fd, void *buf, int length) {
@@ -129,13 +129,13 @@ int close(int fd) {
 int closedir(DIR *dir) {
 	assert(dir != NULL);
 	assert(dir->mp != NULL);
-	return dir->mp->fops.closedir(dir);
+	return dir->mp->mpops.closedir(dir);
 }
 
 struct dirent *readdir(DIR *dir) {
 	assert(dir != NULL);
 	assert(dir->mp != NULL);
-	return dir->mp->fops.readdir(dir);
+	return dir->mp->mpops.readdir(dir);
 }
 
 int chdir(const char *in_path) {
