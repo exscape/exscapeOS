@@ -6,9 +6,43 @@
 /* Implements I/O for the standard streams */
 
 int stdio_read(int fd, void *buf, size_t length) {
+	assert(fd >= 0 && fd <= 2);
 	char *p = (char *)buf;
 
-	return 0;
+	if (fd != 0) {
+		return 0; // Don't allow reading from stdout/stderr
+	}
+
+	int ret = 0;
+	while (p < (char *)buf + length - 1 /* NULL termination */) {
+		char c = getchar();
+
+		if (c >= ' ' || c == '\n') {
+			putchar(c); // echo to screen
+			update_cursor();
+		}
+		else if (c == '\b') {
+			if (p > (char *)buf) {
+				p--;
+				putchar(c);
+				update_cursor();
+			}
+		}
+
+		if (c == '\r' || c == '\n') {
+			*p = 0;
+			return ret;
+		}
+		else if (c != '\b') {
+			*p++ = c;
+			ret++;
+		}
+	}
+
+	assert(p < (char *)buf + length);
+	*p = 0;
+
+	return ret;
 }
 
 int stdio_write(int fd, const void *buf, size_t length) {
@@ -29,6 +63,7 @@ int stdio_write(int fd, const void *buf, size_t length) {
 		putchar(*p++);
 		ret++;
 	}
+	update_cursor();
 
 	return ret;
 }
