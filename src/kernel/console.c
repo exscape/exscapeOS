@@ -468,6 +468,8 @@ int putchar(int c) {
 		// Backspace
 		if (cursor->x > 0)
 			cursor->x--;
+		putchar(' ');
+		cursor->x--;
 	}
 	else if (c >= 0x20) {
 		// 0x20 is the lowest printable character (space)
