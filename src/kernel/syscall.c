@@ -67,7 +67,9 @@ uint32 syscall_handler(uint32 esp) {
 				 "pop %%ebx;"
 				 "pop %%ebx;"
 				 "pop %%ebx;"
-				 : "=a" (ret) : "r" (regs->edi), "r" (regs->esi), "r" (regs->edx), "r" (regs->ecx), "r" (regs->ebx), "r" (func));
+				 : "=a" (ret)
+				 : "r" (regs->edi), "r" (regs->esi), "r" (regs->edx), "r" (regs->ecx), "r" (regs->ebx), "r" (func)
+				 : "cc", "memory");
 
 	regs->eax = ret;
 	}
@@ -84,7 +86,9 @@ uint32 syscall_handler(uint32 esp) {
 				 "pop %%ebx;"
 				 "pop %%ebx;"
 				 "pop %%ebx;"
-				 : "=a" (ret64[1]), "=d" (ret64[0]) : [edi]"r" (regs->edi), [esi]"r" (regs->esi), [edx]"r" (regs->edx), [ecx]"r" (regs->ecx), [ebx]"r" (regs->ebx), [func]"r" (func));
+				 : "=a" (ret64[1]), "=d" (ret64[0])
+				 : [edi]"r" (regs->edi), [esi]"r" (regs->esi), [edx]"r" (regs->edx), [ecx]"r" (regs->ecx), [ebx]"r" (regs->ebx), [func]"r" (func)
+				 : "cc", "memory");
 
 	regs->eax = ret64[1];
 	regs->edx = ret64[0];
