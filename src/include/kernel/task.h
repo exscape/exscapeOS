@@ -23,7 +23,6 @@ typedef struct task {
 	console_t *console;
 	list_t *user_addr_table; /* a list of addresses to unmap when the task exits; user mode only */
 	struct open_file fdtable[MAX_OPEN_FILES];
-	uint32 _next_fd;
 	heap_t *heap;
 	char *pwd;
 } task_t;

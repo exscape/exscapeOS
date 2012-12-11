@@ -70,7 +70,8 @@ int stdio_write(int fd, const void *buf, size_t length) {
 }
 
 int stdio_close(int fd) {
-	panic("TODO: stdio_close()"); // TODO
+	// We really don't need to do anything at all,
+	// except for the stuff that close() does for us after we return!
 
 	return 0;
 }

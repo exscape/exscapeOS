@@ -422,8 +422,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		// Differences are handled in the IO functions
 		memcpy(&task->fdtable[1], f, sizeof(struct open_file));
 		memcpy(&task->fdtable[2], f, sizeof(struct open_file));
-
-		task->_next_fd = 3; // 0, 1 and 2 are used for the standard streams
 	}
 	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
