@@ -150,6 +150,9 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		file->offset = 0;
 		file->size = 0; // TODO: should this be kept or not?
 		file->mp = NULL;
+		file->fops.read  = fat_read;
+		file->fops.write = NULL;
+		file->fops.close = fat_close;
 		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (mp->dev == dev) {

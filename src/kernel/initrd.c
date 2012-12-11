@@ -113,6 +113,8 @@ int initrd_read(int fd, void *buf, size_t length) {
 	return length;
 }
 
+int initrd_close(int fd);
+
 int initrd_open(uint32 dev, const char *path, int mode) {
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] == (void *)0xffffffff);
@@ -144,6 +146,9 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 			file->size = 0; // TODO: remove?
 			file->mp = NULL;
 			file->path = strdup(path); // TODO: what does this turn out to be?
+			file->fops.read  = initrd_read;
+			file->fops.write = NULL;
+			file->fops.close = initrd_close;
 			for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 				mountpoint_t *mp = (mountpoint_t *)it->data;
 				if (mp->dev == dev) {

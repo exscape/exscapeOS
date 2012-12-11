@@ -97,11 +97,9 @@ int read(int fd, void *buf, int length) {
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
-	mountpoint_t *mp = file->mp;
-	assert(mp != NULL);
-	if (mp->fops.read == NULL)
+	if (file->fops.read == NULL)
 		return -EBADF;
-	return mp->fops.read(fd, buf, length);
+	return file->fops.read(fd, buf, length);
 }
 
 int write(int fd, void *buf, int length) {
@@ -111,11 +109,9 @@ int write(int fd, void *buf, int length) {
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
-	mountpoint_t *mp = file->mp;
-	assert(mp != NULL);
-	if (mp->fops.write == NULL)
+	if (file->fops.write == NULL)
 		return -EBADF;
-	return mp->fops.write(fd, buf, length);
+	return file->fops.write(fd, buf, length);
 }
 
 int close(int fd) {
@@ -125,11 +121,9 @@ int close(int fd) {
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
-	mountpoint_t *mp = file->mp;
-	assert(mp != NULL);
-	assert(mp->fops.close != NULL);
+	assert(file->fops.close != NULL);
 
-	return mp->fops.close(fd);
+	return file->fops.close(fd);
 }
 
 int closedir(DIR *dir) {

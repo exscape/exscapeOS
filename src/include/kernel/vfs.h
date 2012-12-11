@@ -59,6 +59,13 @@ typedef struct file_ops {
 	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
 } file_ops_t;
 
+typedef struct open_file_ops {
+	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
+	int (*write)(int /* fd */, void * /* buf */, size_t /* length */);
+	int (*close)(int /* fd */);
+	/* TODO: fstat */
+} open_file_ops_t;
+
 typedef struct mountpoint {
 	char path[1024];
 
@@ -128,6 +135,7 @@ typedef struct open_file {
 	off_t size;
 	mountpoint_t *mp;
 	char *path;
+	struct open_file_ops fops;
 } open_file_t;
 
 int open(const char *path, int mode);
