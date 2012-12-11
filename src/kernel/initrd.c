@@ -116,6 +116,39 @@ int initrd_read(int fd, void *buf, size_t length) {
 
 int initrd_close(int fd);
 
+off_t initrd_lseek(int fd, off_t offset, int whence) {
+	assert(fd <= MAX_OPEN_FILES);
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	assert(file->ino < initrd_header->nfiles);
+	uint32 file_size = file_headers[file->ino].length;
+
+	if (whence == SEEK_SET) {
+		if (offset < 0)
+			return -EINVAL;
+
+		file->offset = offset;
+	}
+	else if (whence == SEEK_CUR) {
+		if (offset + file->offset < 0)
+			return -EINVAL;
+
+		file->offset += offset;
+	}
+	else if (whence == SEEK_END) {
+		if (file_size + offset < 0)
+			return -EINVAL;
+
+		file->offset = file_size + offset;
+	}
+	else
+		return -EINVAL; // invalid whence value
+
+	assert(file->offset >= 0);
+
+	return file->offset;
+}
+
 int initrd_open(uint32 dev, const char *path, int mode) {
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] == (void *)0xffffffff);
@@ -154,6 +187,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 			file->fops.read  = initrd_read;
 			file->fops.write = NULL;
 			file->fops.close = initrd_close;
+			file->fops.lseek = initrd_lseek;
 			for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 				mountpoint_t *mp = (mountpoint_t *)it->data;
 				if (mp->dev == dev) {

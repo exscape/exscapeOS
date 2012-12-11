@@ -218,8 +218,15 @@ error:
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
+	assert(fd <= MAX_OPEN_FILES);
+	if (fd < 0)
+		return -EBADF;
 
-	return 0x12345678abcdef;
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	if (file->fops.lseek == NULL)
+		return -EBADF;
+	return file->fops.lseek(fd, offset, whence);
 }
 
 mountpoint_t *find_mountpoint_for_path(const char *path) {

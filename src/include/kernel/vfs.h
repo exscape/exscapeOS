@@ -67,9 +67,10 @@ typedef struct mp_ops {
 } mp_ops_t;
 
 typedef struct open_file_ops {
-	int (*read)(int /* fd */, void * /* buf */, size_t /* length */);
-	int (*write)(int /* fd */, const void * /* buf */, size_t /* length */);
-	int (*close)(int /* fd */);
+	int   (*read)(int /* fd */, void * /* buf */, size_t /* length */);
+	int   (*write)(int /* fd */, const void * /* buf */, size_t /* length */);
+	int   (*close)(int /* fd */);
+	off_t (*lseek)(int /* fd */, off_t /* offset */, int /* whence */);
 	/* TODO: fstat */
 } open_file_ops_t;
 
