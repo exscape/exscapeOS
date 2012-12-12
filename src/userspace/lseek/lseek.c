@@ -1,5 +1,5 @@
 #include <exscapeos.h>
-#define PATH "/initrd/initrd_test.txt"
+#define PATH "/test.txt"
 
 // These will be in libc eventually
 #define SEEK_SET 0
@@ -11,7 +11,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#define PATH "../../../misc/initrd_contents/initrd_test.txt"
+#define PATH "/Volumes/EXSCAPEOS 1/test.txt"
 */
 
 size_t strlen(const char *s) {
@@ -31,20 +31,20 @@ int main(int argc, char **argv) {
 
 	char buf[128] = {0};
 	read(fd, buf, 10);
-	lseek(fd, 10, SEEK_SET);
+	lseek(fd, 20, SEEK_SET);
 	read(fd, buf + 10, 6);
 	lseek(fd, -6, SEEK_CUR);
 	read(fd, buf + 16, 4);
-	lseek(fd, -3, SEEK_END);
+	lseek(fd, -7, SEEK_END);
 	read(fd, buf + 20, 3);
 
-	lseek(fd, -20, SEEK_CUR);
+	lseek(fd, -30, SEEK_CUR);
 	read(fd, buf + 23, 7);
-	lseek(fd, 0, SEEK_SET);
+	lseek(fd, 12000, SEEK_SET);
 	read(fd, buf + 30, 5);
-	lseek(fd, -11, SEEK_END);
+	lseek(fd, -18, SEEK_END);
 	read(fd, buf + 35, 6);
-	lseek(fd, -8, SEEK_CUR);
+	lseek(fd, -4500, SEEK_CUR);
 	read(fd, buf + 41, 5);
 
 	// Make the whitespace more readable

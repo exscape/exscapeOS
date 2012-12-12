@@ -131,6 +131,72 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	return true;
 }
 
+off_t fat_lseek(int fd, off_t offset, int whence) {
+	assert(fd <= MAX_OPEN_FILES);
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	assert(file->ino >= 2);
+	assert(file->count > 0);
+
+	struct stat st;
+	uint32 file_size;
+	if (fat_fstat(fd, &st) == 0)
+		file_size = st.st_size;
+	else {
+		return -EINVAL; // TODO: proper errno (when stat has that)
+	}
+
+	if (whence == SEEK_SET) {
+		if (offset < 0)
+			return -EINVAL;
+
+		file->offset = offset;
+	}
+	else if (whence == SEEK_CUR) {
+		if (offset + file->offset < 0)
+			return -EINVAL;
+
+		file->offset += offset;
+	}
+	else if (whence == SEEK_END) {
+		if (file_size + offset < 0)
+			return -EINVAL;
+
+		file->offset = file_size + offset;
+	}
+	else
+		return -EINVAL; // invalid whence value
+
+	assert(file->offset >= 0);
+
+	if (file->offset < file_size) {
+		// We can seek to this location; update _cur_ino (which stores the inode to read from at the current offset)
+
+		fat32_partition_t *part = devtable[file->dev];
+		assert(part != NULL);
+		assert(part->magic == FAT32_MAGIC);
+
+		assert(st.st_dev == file->dev);
+		assert(st.st_ino == file->ino);
+
+		uint32 local_offset = (uint32)file->offset;
+
+		file->_cur_ino = file->ino; // TODO: only start from the first cluster/inode if truly necessary
+
+		while (local_offset >= part->cluster_size) {
+			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
+			if (file->_cur_ino >= 0x0ffffff8) {
+				// End of cluster chain
+				panic("lseek: seek beyond file ending despite checks to make this impossible - bug in fat_lseek");
+				return -EINVAL; // not reached
+			}
+			local_offset -= part->cluster_size;
+		}
+	}
+
+	return file->offset;
+}
+
 int fat_open(uint32 dev, const char *path, int mode) {
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] != NULL);
@@ -159,6 +225,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		file->fops.read  = fat_read;
 		file->fops.write = NULL;
 		file->fops.close = fat_close;
+		file->fops.lseek = fat_lseek;
 		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (mp->dev == dev) {
@@ -555,7 +622,7 @@ int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 	path_dirname(path);
 	path_basename(base);
 
-	DIR *dir = fat_opendir(mp, path); // TODO: pass mp to fat_stat instead
+	DIR *dir = fat_opendir(mp, path);
 	if (!dir) {
 		// TODO: errno
 		goto error;
@@ -593,7 +660,10 @@ int fat_fstat(int fd, struct stat *buf) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
-	return fat_stat(file->mp, file->path, buf);
+	char relpath[PATH_MAX+1] = {0};
+	find_relpath(file->path, relpath, NULL);
+
+	return fat_stat(file->mp, relpath, buf);
 }
 
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data) {
