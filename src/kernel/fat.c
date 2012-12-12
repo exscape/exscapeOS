@@ -41,7 +41,7 @@ list_t *fat32_partitions = NULL;
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp);
-static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type);
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path);
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
 int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf);
@@ -213,7 +213,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	assert(part != NULL);
 	assert(part->magic == FAT32_MAGIC);
 
-	uint32 cluster = fat_cluster_for_path(part, path, FS_FILE);
+	uint32 cluster = fat_cluster_for_path(part, path);
 
 	if (cluster >= 2) {
 		file->dev = dev;
@@ -526,10 +526,9 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 #endif
 
 /* Locates the (first) cluster number associated with a path. */
-static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, uint32 type) {
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path) {
 	assert(part != NULL);
 	assert(in_path != NULL && strlen(in_path) >= 1);
-	assert(type == FS_DIRECTORY || type == FS_FILE);
 
 	/* Take care of the simple case first... */
 	if (strcmp(in_path, "/") == 0 /* && part is the root partition */)
@@ -565,11 +564,6 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 		return 0;
 nextloop:
 		fat_closedir(dir);
-	}
-
-	if ((dirent->d_type == DT_DIR) != (type == FS_DIRECTORY)) {
-		/* If the user requested a file, but this is a directory, or the other way around... */
-		panic("Found a file where a directory was requested, or the other way around");
 	}
 
 	return cur_cluster;
@@ -739,7 +733,7 @@ DIR *fat_opendir(mountpoint_t *mp, const char *path) {
 
 	fat32_partition_t *part = devtable[mp->dev];
 
-	uint32 cluster = fat_cluster_for_path(part, path, FS_DIRECTORY);
+	uint32 cluster = fat_cluster_for_path(part, path);
 
 	if (cluster == 0) {
 		// TODO: error reporting (-ENOENT)
