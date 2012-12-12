@@ -42,6 +42,8 @@ void init_syscalls(void) {
 	num_syscalls = sizeof(syscalls) / sizeof(struct syscall_entry);
 }
 
+extern volatile bool in_isr;
+
 uint32 syscall_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* Make sure this is a valid syscall */
@@ -52,6 +54,7 @@ uint32 syscall_handler(uint32 esp) {
 	void *func = syscalls[regs->eax].func;
 
 	enable_interrupts();
+	in_isr = false;
 
 	/* Since we don't know how many arguments the function needs, pass along
 	 * them all, and let it use however many it needs to. */
