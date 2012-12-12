@@ -23,7 +23,7 @@ int get_free_fd(void) {
 	return -1;
 }
 
-static bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
+bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	// Transforms the path to a function (currently open, opendir and stat)
 	// into a path relative to the mountpoint. E.g. /initrd/mounts would turn in to
 	// just "/mounts" if the initrd is mounted under /initrd, and the initrd would then
@@ -60,7 +60,9 @@ static bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_o
 			strcpy(relpath, "/");
 	}
 
-	*mp_out = mp;
+	if (mp_out != NULL)
+		*mp_out = mp;
+
 	return true;
 }
 

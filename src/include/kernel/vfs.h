@@ -160,6 +160,8 @@ int stat(const char *in_path, struct stat *buf);
 int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
 
+bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out);
+
 #define lstat stat
 
 #endif
