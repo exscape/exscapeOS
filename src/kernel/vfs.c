@@ -107,6 +107,8 @@ int read(int fd, void *buf, int length) {
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	if (file->count < 1)
+		return -EBADF;
 
 	if (file->fops.read == NULL)
 		return -EBADF;
@@ -119,6 +121,8 @@ int write(int fd, const void *buf, int length) {
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	if (file->count < 1)
+		return -EBADF;
 
 	if (file->fops.write == NULL)
 		return -EBADF;
@@ -131,13 +135,14 @@ int fstat(int fd, struct stat *buf) {
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	if (file->count < 1)
+		return -EBADF;
 
 	if (file->fops.fstat == NULL)
 		panic("fstat on fd %d: fops.fstat == NULL", fd);
 
 	return file->fops.fstat(fd, buf);
 }
-
 
 int close(int fd) {
 	assert(fd <= MAX_OPEN_FILES);
