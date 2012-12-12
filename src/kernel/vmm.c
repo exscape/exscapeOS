@@ -224,7 +224,7 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 }
 
 void *sbrk(sint32 incr) {
-	// Adds /incr/ bytes (negative values subtract) to this task's heap area.
+	// Adds (at least) /incr/ bytes (negative values subtract) to this task's heap area.
 	// The initial heap area is always zero.
 	// Returns the *previous* break value, i.e. the start of the newly allocated region.
 	// (Or, if incr == 0, the current break value, since the new and the old are equal.)
@@ -241,7 +241,7 @@ void *sbrk(sint32 incr) {
 		return (void *)mm->brk;
 	}
 
-	if (incr >= 0) {
+	if (incr > 0) {
 		uint32 new_end = mm->brk + incr;
 		if (!IS_PAGE_ALIGNED(new_end)) {
 			new_end &= 0xfffff000;
