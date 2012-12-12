@@ -14,6 +14,16 @@
 #define PATH "/Volumes/EXSCAPEOS 1/test.txt"
 */
 
+typedef unsigned long size_t;
+void *memset(void *b, int c, size_t len) {
+	char *p = b;
+	while (p < (char *)b + len) {
+		*p++ = (char)c;
+	}
+
+	return b;
+}
+
 size_t strlen(const char *s) {
 	size_t len = 0;
 	while (*s++) len++;
@@ -58,6 +68,20 @@ int main(int argc, char **argv) {
 	}
 
 	write(1, buf, strlen(buf));
+
+	write(1, "\nOne: ", 6);
+	memset(buf, 0, 128);
+	read(0, buf, 128);
+
+	char buf2[128] = {0};
+	write(1, "Two: ", 5);
+	memset(buf2, 0, 128);
+	read(0, buf2, 128);
+
+	write(1, "You entered: ", 13);
+	write(1, buf, strlen(buf) - 1); // strip \n
+	write(1, " ", 1);
+	write(1, buf2, strlen(buf2)); // don't strip
 
 	return 0;
 }
