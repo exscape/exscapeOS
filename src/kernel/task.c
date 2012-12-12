@@ -414,6 +414,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		// Note: The entire table was just zeroed (above)
 		struct open_file *f = (struct open_file *)&task->fdtable[0];
 		f->dev = (dev_t)-1;
+		f->count = 1;
 		f->fops.read  = stdio_read;
 		f->fops.write = stdio_write;
 		f->fops.close = stdio_close;
