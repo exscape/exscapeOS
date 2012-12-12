@@ -15,7 +15,7 @@ struct task_mm {
 	list_t *pages; // A list of addresses to unmap when the task exits
 	uint32 text_start;
 	uint32 text_end;
-	uint32 brk_begin;
+	uint32 brk_start;
 	uint32 brk;
 };
 

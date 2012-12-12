@@ -223,6 +223,73 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 	}
 }
 
+void *sbrk(sint32 incr) {
+	// Adds /incr/ bytes (negative values subtract) to this task's heap area.
+	// The initial heap area is always zero.
+	// Returns the *previous* break value, i.e. the start of the newly allocated region.
+	// (Or, if incr == 0, the current break value, since the new and the old are equal.)
+	assert(current_task->privilege == 3);
+	assert(current_task->mm != NULL);
+	struct task_mm *mm = current_task->mm;
+
+	uint32 prev_brk = mm->brk;
+
+	assert(IS_PAGE_ALIGNED(mm->brk));
+
+	if (incr == 0) {
+		// Return the current break value
+		return (void *)mm->brk;
+	}
+
+	if (incr >= 0) {
+		uint32 new_end = mm->brk + incr;
+		if (!IS_PAGE_ALIGNED(new_end)) {
+			new_end &= 0xfffff000;
+			new_end += PAGE_SIZE;
+		}
+
+		assert(new_end < 0xb0000000); // TODO: use the actual user stack location here
+
+		vmm_alloc_user(mm->brk, new_end, current_task->page_directory, PAGE_RW);
+
+		// TODO: this should REALLY be in a separate function, or taken care of by vmm_alloc_user
+		addr_entry_t *entry = NULL;
+		INTERRUPT_LOCK;
+		for (node_t *it = mm->pages->head; it != NULL; it = it->next) {
+			addr_entry_t *e = (addr_entry_t *)it->data;
+			if ((uint32)e->start == mm->brk_start) {
+				entry = e;
+				break;
+			}
+		}
+		INTERRUPT_UNLOCK;
+
+		if (entry == NULL) {
+			// This is the first call to sbrk
+			assert(mm->brk_start == mm->brk);
+			entry = kmalloc(sizeof(addr_entry_t));
+			entry->start = (void *)mm->brk_start;
+			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
+			entry->num_pages = (new_end - mm->brk) / PAGE_SIZE;
+
+			list_append(mm->pages, entry);
+		}
+		else {
+			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
+			entry->num_pages += (new_end - mm->brk) / PAGE_SIZE;
+		}
+
+		mm->brk = new_end;
+
+		return (void *)prev_brk;
+	}
+	else {
+		// Caller wants to decrease the heap
+		panic("sbrk with negative argument: TODO"); // TODO
+		return 0;
+	}
+}
+
 void init_double_fault_handler(page_directory_t *pagedir_addr);
 
 static void enable_paging(void) {

@@ -75,6 +75,11 @@ bool elf_load(const char *path, task_t *task) {
 				end_addr += PAGE_SIZE;
 			}
 
+			if (end_addr > task->mm->brk_start) {
+				task->mm->brk_start = end_addr;
+				task->mm->brk = end_addr;
+			}
+
 			// Allocate memory for this address in the task's address space, set for user mode
 			vmm_alloc_user(start_addr, end_addr, task_dir, writable);
 

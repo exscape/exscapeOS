@@ -76,5 +76,6 @@ DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const void *, int);
 DECL_SYSCALL2(fstat, int, int, struct stat *);
 DECL_SYSCALL0(getpid, int);
+DECL_SYSCALL1(sbrk, void *, sint32);
 
 #endif

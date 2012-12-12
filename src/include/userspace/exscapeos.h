@@ -76,6 +76,7 @@ typedef sint64 off_t;
 DECL_SYSCALL3(lseek, off_t, int, off_t, int);
 DECL_SYSCALL2(fstat, int, int, struct stat *);
 DECL_SYSCALL0(getpid, int);
+DECL_SYSCALL1(sbrk, void *, sint32);
 
 // TODO: move these defines
 #define	SEEK_SET 0
@@ -100,6 +101,7 @@ DEFN_SYSCALL3(write, int, 12, int, const void *, int);
 /* lseek is syscall 13! */
 DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 DEFN_SYSCALL0(getpid, int, 15);
+DEFN_SYSCALL1(sbrk, void *, 16, sint32);
 
 #if _EXSCAPEOS_USERSPACE
 

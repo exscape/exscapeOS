@@ -91,6 +91,9 @@ void switch_page_directory(page_directory_t *new);
 /* The page fault interrupt handler. */
 uint32 page_fault_handler(uint32);
 
+// The sbrk syscall (increases heap area for user mode tasks) */
+void *sbrk(sint32 incr);
+
 page_directory_t *create_user_page_dir(void);
 void destroy_user_page_dir(page_directory_t *dir);
 
