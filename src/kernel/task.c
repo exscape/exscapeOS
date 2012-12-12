@@ -109,7 +109,10 @@ void destroy_task(task_t *task) {
 
 	if (task->privilege == 3) {
 		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
-		for (node_t *it = task->user_addr_table->head; it != NULL; it = it->next) {
+		assert(task->mm != NULL);
+		assert(task->mm->pages != NULL);
+
+		for (node_t *it = task->mm->pages->head; it != NULL; it = it->next) {
 			addr_entry_t *entry = (addr_entry_t *)it->data;
 			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += PAGE_SIZE) {
 				vmm_free(addr, task->page_directory);
@@ -129,7 +132,9 @@ void destroy_task(task_t *task) {
 		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
 		destroy_user_page_dir(task->page_directory);
 
-		list_destroy(task->user_addr_table);
+		list_destroy(task->mm->pages);
+		kfree(task->mm);
+		task->mm = NULL;
 	}
 
 	/* Delete this task from the queue */
@@ -371,9 +376,9 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	if (task->privilege == 3) {
 		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
 
-		// Store a list of all virtual addresses to unmap when the task
-		// is destroyed
-		task->user_addr_table = list_create();
+		// Set up the memory map struct for this task
+		task->mm = kmalloc(sizeof(struct task_mm));
+		task->mm->pages = list_create();
 
 		/* Set up a usermode stack for this task */
 		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, PAGE_RW);
@@ -385,7 +390,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
 		entry->start = (void *)(USER_STACK_START - USER_STACK_SIZE - PAGE_SIZE);
 		entry->num_pages = ((USER_STACK_START + PAGE_SIZE) - ((uint32)entry->start)) / PAGE_SIZE;
-		list_append(task->user_addr_table, entry);
+		list_append(task->mm->pages, entry);
 
 		// Pass command line arguments to the task
 		assert(current_directory == kernel_directory);
@@ -427,7 +432,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	}
 	else if (task->privilege == 0) {
 		task->page_directory = current_directory;
-		task->user_addr_table = NULL;
+		task->mm = NULL;
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");

@@ -10,6 +10,15 @@
 
 #define TASK_NAME_LEN 64
 
+// Describes the memory areas of a task; user mode only
+struct task_mm {
+	list_t *pages; // A list of addresses to unmap when the task exits
+	uint32 text_start;
+	uint32 text_end;
+	uint32 brk_begin;
+	uint32 brk;
+};
+
 typedef struct task {
 	int id;                // Process ID.
 	char name[TASK_NAME_LEN];
@@ -21,7 +30,7 @@ typedef struct task {
 	uint32 wakeup_time; /* for sleeping tasks only: at which tick this task should be woken */
 	uint8 privilege; /* this task's privilege level (i.e. 0 or 3) */
 	console_t *console;
-	list_t *user_addr_table; /* a list of addresses to unmap when the task exits; user mode only */
+	struct task_mm *mm;
 	struct open_file fdtable[MAX_OPEN_FILES];
 	heap_t *heap;
 	char *pwd;

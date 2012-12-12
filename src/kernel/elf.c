@@ -82,7 +82,11 @@ bool elf_load(const char *path, task_t *task) {
 			addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
 			entry->start = (void *)start_addr;
 			entry->num_pages = (end_addr - start_addr) / PAGE_SIZE;
-			list_append(task->user_addr_table, entry);
+
+			assert(task->mm != NULL);
+			assert(task->mm->pages != NULL);
+
+			list_append(task->mm->pages, entry);
 
 			// Switch to the new page directory, so that we can copy the data there
 			assert(current_directory == kernel_directory);
