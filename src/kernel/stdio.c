@@ -2,6 +2,7 @@
 #include <kernel/vfs.h>
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
+#include <string.h>
 
 /* Implements I/O for the standard streams */
 
@@ -72,6 +73,16 @@ int stdio_write(int fd, const void *buf, size_t length) {
 int stdio_close(int fd) {
 	// We really don't need to do anything at all,
 	// except for the stuff that close() does for us after we return!
+
+	return 0;
+}
+
+int stdio_fstat(int fd, struct stat *st) {
+	memset(st, 0, sizeof(struct stat));
+	st->st_dev = 0xffff; // TODO
+	st->st_ino = fd; // There's no better meaning, really
+	st->st_mode = 0666 | S_IFCHR;
+	st->st_blksize = 128;
 
 	return 0;
 }

@@ -418,6 +418,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		f->fops.read  = stdio_read;
 		f->fops.write = stdio_write;
 		f->fops.close = stdio_close;
+		f->fops.fstat = stdio_fstat;
 
 		// Copy this info for stdout and stderr
 		// Differences are handled in the IO functions
