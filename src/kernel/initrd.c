@@ -7,6 +7,7 @@
 #include <kernel/vfs.h>
 #include <kernel/task.h>
 #include <kernel/errno.h>
+#include <path.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 static initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */
@@ -148,6 +149,7 @@ off_t initrd_lseek(int fd, off_t offset, int whence) {
 
 	return file->offset;
 }
+int initrd_fstat(int fd, struct stat *st);
 
 int initrd_open(uint32 dev, const char *path, int mode) {
 	assert(dev <= MAX_DEVS - 1);
@@ -188,6 +190,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 			file->fops.write = NULL;
 			file->fops.close = initrd_close;
 			file->fops.lseek = initrd_lseek;
+			file->fops.fstat = initrd_fstat;
 			for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 				mountpoint_t *mp = (mountpoint_t *)it->data;
 				if (mp->dev == dev) {
@@ -312,6 +315,17 @@ int initrd_closedir(DIR *dir) {
 	kfree(dir);
 
 	return 0;
+}
+
+int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st);
+
+int initrd_fstat(int fd, struct stat *st) {
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	char relpath[PATH_MAX+1] = {0};
+	find_relpath(file->path, relpath, NULL);
+
+	return initrd_stat(file->mp, relpath, st);
 }
 
 int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {

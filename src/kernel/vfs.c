@@ -125,6 +125,20 @@ int write(int fd, const void *buf, int length) {
 	return file->fops.write(fd, buf, length);
 }
 
+int fstat(int fd, struct stat *buf) {
+	assert(fd <= MAX_OPEN_FILES);
+	if (fd < 0)
+		return -EBADF;
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	if (file->fops.fstat == NULL)
+		panic("fstat on fd %d: fops.fstat == NULL", fd);
+
+	return file->fops.fstat(fd, buf);
+}
+
+
 int close(int fd) {
 	assert(fd <= MAX_OPEN_FILES);
 	if (fd < 0)

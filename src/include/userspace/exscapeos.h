@@ -74,6 +74,7 @@ DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const void *, int);
 typedef sint64 off_t;
 DECL_SYSCALL3(lseek, off_t, int, off_t, int);
+DECL_SYSCALL2(fstat, int, int, struct stat *);
 
 // TODO: move these defines
 #define	SEEK_SET 0
@@ -95,6 +96,8 @@ DEFN_SYSCALL1(free, int, 9, void *);
 DEFN_SYSCALL2(stat, int, 10, const char *, struct stat *);
 DEFN_SYSCALL1(chdir, int, 11, const char *);
 DEFN_SYSCALL3(write, int, 12, int, const void *, int);
+/* lseek is syscall 13! */
+DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 
 #if _EXSCAPEOS_USERSPACE
 

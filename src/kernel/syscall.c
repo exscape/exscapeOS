@@ -29,7 +29,8 @@ struct syscall_entry syscalls[] = {
 	{ &stat, 32 },
 	{ &chdir, 32 },
 	{ &write, 32 },
-	{ &lseek, 64 }
+	{ &lseek, 64 },
+	{ &fstat, 32 }
 };
 
 uint32 num_syscalls = 0;

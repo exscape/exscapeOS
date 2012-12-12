@@ -71,7 +71,7 @@ typedef struct open_file_ops {
 	int   (*write)(int /* fd */, const void * /* buf */, size_t /* length */);
 	int   (*close)(int /* fd */);
 	off_t (*lseek)(int /* fd */, off_t /* offset */, int /* whence */);
-	/* TODO: fstat */
+	int   (*fstat)(int /* fd */, struct stat *);
 } open_file_ops_t;
 
 typedef struct mountpoint {
@@ -159,6 +159,7 @@ int closedir(DIR *dir);
 int stat(const char *in_path, struct stat *buf);
 int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
+int fstat(int fd, struct stat *buf);
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out);
 

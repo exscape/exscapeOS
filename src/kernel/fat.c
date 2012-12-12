@@ -226,6 +226,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		file->fops.write = NULL;
 		file->fops.close = fat_close;
 		file->fops.lseek = fat_lseek;
+		file->fops.fstat = fat_fstat;
 		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (mp->dev == dev) {
