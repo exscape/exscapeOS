@@ -124,8 +124,16 @@ int write(int fd, const void *buf, int length) {
 	if (file->count < 1)
 		return -EBADF;
 
-	if (file->fops.write == NULL)
-		return -EBADF;
+	if (file->fops.write == NULL) {
+		if (file->path && file->path[0]) {
+			// No FS supports writing yet; return EPERM for these
+			return -EPERM;
+		}
+		else {
+			// Not sure what to return here, though it should never happen at the moment
+			return -EBADF;
+		}
+	}
 	return file->fops.write(fd, buf, length);
 }
 
