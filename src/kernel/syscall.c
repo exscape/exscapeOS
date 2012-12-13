@@ -102,8 +102,3 @@ uint32 syscall_handler(uint32 esp) {
 
 	return esp;
 }
-
-// This include defines the syscalls (not just declares). In order to have
-// e.g. both syscall_puts() (for in-kernel user space code) and puts() for user space,
-// without having to maintain TWO lists of syscalls, this hack is done instead.
-#include "../include/userspace/exscapeos.h"

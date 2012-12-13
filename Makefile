@@ -5,15 +5,18 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wuninitialized -Wstrict-prototypes \
 				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function # TODO: re-add unused-function
 
-ifeq ($(TARGET),SIMICS)
-	CC = i586-elf-gcc
-	CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) -gstabs+
-else
-	CC = clang
-	CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign -ggdb3
-endif
+# TODO: fix this with the new toolchain
+#ifeq ($(TARGET),SIMICS)
+	#CC = i586-elf-gcc
+	#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) -gstabs+
+#else
+	#CC = clang
+	#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign -ggdb3
+#endif
 
-LD = i586-elf-ld
+CC = i586-pc-exscapeos-gcc
+CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) -ggdb3
+LD = i586-pc-exscapeos-ld
 
 PROJDIRS := src/kernel src/include src/lib
 SRCFILES := $(shell find $(PROJDIRS) -type f -name '*.c')
@@ -22,7 +25,7 @@ ASMFILES := $(shell find $(PROJDIRS) -type f -name '*.s')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
 OBJFILES += $(patsubst %.s,%.o,$(ASMFILES))
 
-USERSPACEPROG := $(shell find src/userspace/ -name 'Makefile' -exec dirname {} \;)
+USERSPACEPROG := $(shell find src/userspace/ -maxdepth 2 -name 'Makefile' -exec dirname {} \;)
 
 DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 
@@ -47,7 +50,7 @@ all: $(OBJFILES)
 	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
-	@/opt/local/bin/ctags -R *
+#	@/opt/local/bin/ctags -R *
 	@bash net-scripts/prepare.sh
 
 clean:

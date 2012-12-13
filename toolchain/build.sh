@@ -130,6 +130,8 @@ autoreconf || err
 cd ../../../..
 cd ..
 
+cp -f patches/syscalls.c newlib-1.20.0/newlib/libc/sys/exscapeos/syscalls.c || err
+
 echo
 echo Configuring Newlib...
 echo
