@@ -378,6 +378,9 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		// Set up the memory map struct for this task
 		task->mm = kmalloc(sizeof(struct task_mm));
+		memset(task->mm, 0, sizeof(struct task_mm));
+		task->mm->brk_start = 0;
+		task->mm->brk = 0;
 		task->mm->pages = list_create();
 
 		/* Set up a usermode stack for this task */

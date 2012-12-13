@@ -83,8 +83,13 @@ bool elf_load(const char *path, task_t *task) {
 			}
 
 			if (end_addr > task->mm->brk_start) {
-				task->mm->brk_start = end_addr;
-				task->mm->brk = end_addr;
+				uint32 new_brk = end_addr;
+				if (!IS_PAGE_ALIGNED(new_brk)) {
+					new_brk &= ~(PAGE_SIZE - 1);
+					new_brk += 0x1000;
+				}
+				task->mm->brk_start = new_brk;
+				task->mm->brk = new_brk;
 			}
 
 			// Allocate memory for this address in the task's address space, set for user mode
@@ -165,7 +170,6 @@ bool elf_load(const char *path, task_t *task) {
 			printk("CONTENTS, ");
 		if ((f & SHF_ALLOC))
 			printk("ALLOC, ");
-		// TODO: LOAD
 		if ((f & SHF_WRITE) == 0)
 			printk("READONLY, ");
 		if ((f & SHF_EXECINSTR))

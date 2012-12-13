@@ -281,6 +281,9 @@ void *sbrk(sint32 incr) {
 
 		mm->brk = new_end;
 
+		assert(IS_PAGE_ALIGNED(mm->brk));
+		assert(IS_PAGE_ALIGNED(prev_brk));
+
 		return (void *)prev_brk;
 	}
 	else {
