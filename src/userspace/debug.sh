@@ -11,7 +11,7 @@ function gu() {
 	fi
 
 	i586-elf-gdb -tui --eval-command "set confirm off" \
-                      --eval-command "add-symbol-file $1 0x10000000" \
+                      --eval-command "add-symbol-file $1 $(/usr/local/cross/bin/i586-pc-exscapeos-objdump -x $1| perl -ne '/start address (0x\d{8})/ && print $1')"
                       --eval-command "set confirm on" \
                       --eval-command "continue"
 }
@@ -23,7 +23,7 @@ function gub() {
 	fi
 
 	i586-elf-gdb -tui --eval-command "set confirm off" \
-	                  --eval-command "add-symbol-file $1 0x10000000" \
+	                  --eval-command "add-symbol-file $1 $(/usr/local/cross/bin/i586-pc-exscapeos-objdump -x $1 | perl -ne '/start address (0x\d{8})/ && print $1')"
 					  --eval-command "set confirm on" \
 					  --eval-command "break $2" \
 					  --eval-command "continue"
