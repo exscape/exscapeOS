@@ -1,0 +1,105 @@
+From 078db9a69a7ebea5185f6b559cf78dc3846636c2 Mon Sep 17 00:00:00 2001
+From: Thomas Backman <serenity@exscape.org>
+Date: Thu, 13 Dec 2012 11:11:36 +0100
+Subject: [PATCH] First take at exscapeOS binutils mods
+
+---
+ bfd/config.bfd                  |    4 ++++
+ config.sub                      |    2 +-
+ gas/configure.tgt               |    1 +
+ ld/Makefile.in                  |    3 +++
+ ld/configure.tgt                |    1 +
+ ld/emulparams/exscapeos_i386.sh |   15 +++++++++++++++
+ 6 files changed, 25 insertions(+), 1 deletions(-)
+ create mode 100644 ld/emulparams/exscapeos_i386.sh
+
+diff --git a/bfd/config.bfd b/bfd/config.bfd
+index 6025f26..ab71129 100644
+--- a/bfd/config.bfd
++++ b/bfd/config.bfd
+@@ -495,6 +495,10 @@ case "${targ}" in
+     targ_defvec=bfd_elf32_i386_vec
+     targ_selvecs=i386coff_vec
+     ;;
++  i[3-7]86-*-exscapeos*)
++    targ_defvec=bfd_elf32_i386_vec
++    targ_selvecs=i386coff_vec
++    ;;
+   i[3-7]86-*-solaris2*)
+     targ_defvec=bfd_elf32_i386_sol2_vec
+     targ_selvecs="i386coff_vec"
+diff --git a/config.sub b/config.sub
+index 59bb593..31af25b 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1348,7 +1348,7 @@ case $os in
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
+ 	      | -sym* | -kopensolaris* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+-	      | -aos* | -aros* \
++	      | -aos* | -aros* | -exscapeos* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+ 	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
+diff --git a/gas/configure.tgt b/gas/configure.tgt
+index 9e44de0..80111df 100644
+--- a/gas/configure.tgt
++++ b/gas/configure.tgt
+@@ -188,6 +188,7 @@ case ${generic_target} in
+   i386-*-beos*)				fmt=elf ;;
+   i386-*-coff)				fmt=coff ;;
+   i386-*-elf)				fmt=elf ;;
++  i386-*-exscapeos*)        fmt=elf ;;
+   i386-*-kaos*)				fmt=elf ;;
+   i386-*-bsd*)				fmt=aout em=386bsd ;;
+   i386-*-nacl*)				fmt=elf em=nacl
+diff --git a/ld/Makefile.in b/ld/Makefile.in
+index a675d01..673cb96 100644
+--- a/ld/Makefile.in
++++ b/ld/Makefile.in
+@@ -2683,6 +2683,9 @@ eelf32xtensa.c: $(srcdir)/emulparams/elf32xtensa.sh $(ELF_DEPS) \
+ eelf_i386.c: $(srcdir)/emulparams/elf_i386.sh \
+   $(ELF_DEPS) $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf_i386 "$(tdir_elf_i386)"
++eexscapeos_i386.c: $(srcdir)/emulparams/exscapeos_i386.sh \
++  $(ELF_DEPS) $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
++	${GENSCRIPTS} exscapeos_i386 "$(tdir_exscapeos_i386)"
+ eelf_i386_be.c: $(srcdir)/emulparams/elf_i386_be.sh \
+   $(ELF_DEPS) $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf_i386_be "$(tdir_elf_i386_be)"
+diff --git a/ld/configure.tgt b/ld/configure.tgt
+index 72bc5bc..a572bb8 100644
+--- a/ld/configure.tgt
++++ b/ld/configure.tgt
+@@ -199,6 +199,7 @@ i[3-7]86-*-rtems*)	targ_emul=elf_i386 ;;
+ i[3-7]86-*-aros*)	targ_emul=elf_i386 ;;
+ i[3-7]86-*-rdos*)	targ_emul=elf_i386 ;;
+ i[3-7]86-*-bsd)		targ_emul=i386bsd ;;
++i[3-7]86-*-exscapeos*) targ_emul=exscapeos_i386 ;;
+ i[3-7]86-*-bsd386)	targ_emul=i386bsd ;;
+ i[3-7]86-*-bsdi*)	targ_emul=i386bsd ;;
+ i[3-7]86-*-aout)	targ_emul=i386aout ;;
+diff --git a/ld/emulparams/exscapeos_i386.sh b/ld/emulparams/exscapeos_i386.sh
+new file mode 100644
+index 0000000..76893a9
+--- /dev/null
++++ b/ld/emulparams/exscapeos_i386.sh
+@@ -0,0 +1,15 @@
++. ${srcdir}/emulparams/plt_unwind.sh
++SCRIPT_NAME=elf
++OUTPUT_FORMAT="elf32-i386"
++NO_RELA_RELOCS=yes
++TEXT_START_ADDR=0x10000000
++MAXPAGESIZE="CONSTANT (MAXPAGESIZE)"
++COMMONPAGESIZE="CONSTANT (COMMONPAGESIZE)"
++ARCH=i386
++MACHINE=
++TEMPLATE_NAME=elf32
++GENERATE_SHLIB_SCRIPT=yes
++GENERATE_PIE_SCRIPT=yes
++NO_SMALL_DATA=yes
++SEPARATE_GOTPLT="SIZEOF (.got.plt) >= 12 ? 12 : 0"
++IREL_IN_PLT=
+-- 
+1.7.7.4
+
