@@ -1,0 +1,214 @@
+From ab227300200d86eaea72f59e527007ba2f38359e Mon Sep 17 00:00:00 2001
+From: Thomas Backman <serenity@exscape.org>
+Date: Thu, 13 Dec 2012 14:09:55 +0100
+Subject: [PATCH] Add Newlib changes (w/o syscall implementations!)
+
+---
+ config.sub                             |    2 +-
+ newlib/configure.host                  |    3 +++
+ newlib/libc/sys/configure              |    7 +++++--
+ newlib/libc/sys/configure.in           |    1 +
+ newlib/libc/sys/exscapeos/Makefile.am  |   25 +++++++++++++++++++++++++
+ newlib/libc/sys/exscapeos/configure.in |    7 +++++++
+ newlib/libc/sys/exscapeos/crt0.S       |   29 +++++++++++++++++++++++++++++
+ newlib/libc/sys/exscapeos/syscalls.c   |   28 ++++++++++++++++++++++++++++
+ 8 files changed, 99 insertions(+), 3 deletions(-)
+ create mode 100644 newlib/libc/sys/exscapeos/Makefile.am
+ create mode 100644 newlib/libc/sys/exscapeos/configure.in
+ create mode 100644 newlib/libc/sys/exscapeos/crt0.S
+ create mode 100644 newlib/libc/sys/exscapeos/syscalls.c
+
+diff --git a/config.sub b/config.sub
+index 78176a4..1e8fa8f 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1333,7 +1333,7 @@ case $os in
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
+ 	      | -sym* | -kopensolaris* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+-	      | -aos* | -aros* \
++	      | -aos* | -aros* | -exscapeos* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+ 	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
+diff --git a/newlib/configure.host b/newlib/configure.host
+index ef73fd0..e31e784 100644
+--- a/newlib/configure.host
++++ b/newlib/configure.host
+@@ -406,6 +406,9 @@ case "${host}" in
+   h8500-*-elf*)
+ 	sys_dir=h8500hms
+ 	;;
++  i[3-7]86-*-exscapeos*)
++	sys_dir=exscapeos
++	;;
+   i[34567]86-*-rdos*)
+ 	sys_dir=rdos
+ 	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES"
+diff --git a/newlib/libc/sys/configure b/newlib/libc/sys/configure
+index f1635da..d0f03ba 100755
+--- a/newlib/libc/sys/configure
++++ b/newlib/libc/sys/configure
+@@ -789,6 +789,7 @@ arc
+ arm
+ d10v
+ decstation
++exscapeos
+ h8300hms
+ h8500hms
+ linux
+@@ -11435,7 +11436,7 @@ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<_LT_EOF
+-#line 11438 "configure"
++#line 11439 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+@@ -11541,7 +11542,7 @@ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<_LT_EOF
+-#line 11544 "configure"
++#line 11545 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+@@ -11794,6 +11795,8 @@ subdirs="$subdirs a29khif"
+  ;;
+ 	decstation) subdirs="$subdirs decstation"
+  ;;
++	exscapeos) subdirs="$subdirs exscapeos"
++ ;;
+ 	h8300hms) subdirs="$subdirs h8300hms"
+  ;;
+ 	h8500hms) subdirs="$subdirs h8500hms"
+diff --git a/newlib/libc/sys/configure.in b/newlib/libc/sys/configure.in
+index 5a2b121..acbcf53 100644
+--- a/newlib/libc/sys/configure.in
++++ b/newlib/libc/sys/configure.in
+@@ -27,6 +27,7 @@ if test -n "${sys_dir}"; then
+ 	arm) AC_CONFIG_SUBDIRS(arm) ;;
+ 	d10v) AC_CONFIG_SUBDIRS(d10v) ;;
+ 	decstation) AC_CONFIG_SUBDIRS(decstation) ;;
++	exscapeos) AC_CONFIG_SUBDIRS(exscapeos) ;;
+ 	h8300hms) AC_CONFIG_SUBDIRS(h8300hms) ;;
+ 	h8500hms) AC_CONFIG_SUBDIRS(h8500hms) ;;
+ 	linux) AC_CONFIG_SUBDIRS(linux) ;;
+diff --git a/newlib/libc/sys/exscapeos/Makefile.am b/newlib/libc/sys/exscapeos/Makefile.am
+new file mode 100644
+index 0000000..cd773df
+--- /dev/null
++++ b/newlib/libc/sys/exscapeos/Makefile.am
+@@ -0,0 +1,25 @@
++AUTOMAKE_OPTIONS = cygnus
++INCLUDES = $(NEWLIB_CFLAGS) $(CROSS_CFLAGS) $(TARGET_CFLAGS)
++AM_CCASFLAGS = $(INCLUDES)
++
++noinst_LIBRARIES = lib.a
++
++if MAY_SUPPLY_SYSCALLS
++extra_objs = $(lpfx)syscalls.o
++else
++extra_objs =
++endif
++
++lib_a_SOURCES =
++lib_a_LIBADD = $(extra_objs)
++EXTRA_lib_a_SOURCES = syscalls.c crt0.S
++lib_a_DEPENDENCIES = $(extra_objs)
++lib_a_CCASFLAGS = $(AM_CCASFLAGS)
++lib_a_CFLAGS = $(AM_CFLAGS)
++
++if MAY_SUPPLY_SYSCALLS
++all: crt0.o
++endif
++
++ACLOCAL_AMFLAGS = -I ../../..
++CONFIG_STATUS_DEPENDENCIES = $(newlib_basedir)/configure.host
+diff --git a/newlib/libc/sys/exscapeos/configure.in b/newlib/libc/sys/exscapeos/configure.in
+new file mode 100644
+index 0000000..b4d5400
+--- /dev/null
++++ b/newlib/libc/sys/exscapeos/configure.in
+@@ -0,0 +1,7 @@
++AC_PREREQ(2.59)
++AC_INIT([newlib], [NEWLIB_VERSION])
++AC_CONFIG_SRCDIR([crt0.S])
++AC_CONFIG_AUX_DIR(../../../..)
++NEWLIB_CONFIGURE(../../..)
++AC_CONFIG_FILES([Makefile])
++AC_OUTPUT
+diff --git a/newlib/libc/sys/exscapeos/crt0.S b/newlib/libc/sys/exscapeos/crt0.S
+new file mode 100644
+index 0000000..04807ec
+--- /dev/null
++++ b/newlib/libc/sys/exscapeos/crt0.S
+@@ -0,0 +1,29 @@
++.global _start
++.extern main
++.extern _init_signal
++_start:
++
++# set up Newlib signals (intra-process only), until
++# exscapeOS supports real signals
++call _init_signal
++
++# push argc and argv
++	movl 4(%esp), %eax
++	movl 8(%esp), %ebx
++	pushl %ebx
++	pushl %eax
++# run the program
++	call main
++# clean the parameters off the stack
++	addl $0x8, %esp
++
++# call _exit
++	movl %eax, %ebx # set first argument to _exit syscall
++	movl $0, %eax # _exit is syscall 0
++	int $0x80
++
++# this should not be reached,
++# but in case it is, wait forever
++	.wait:
++	hlt
++	jmp .wait
+diff --git a/newlib/libc/sys/exscapeos/syscalls.c b/newlib/libc/sys/exscapeos/syscalls.c
+new file mode 100644
+index 0000000..5a8be33
+--- /dev/null
++++ b/newlib/libc/sys/exscapeos/syscalls.c
+@@ -0,0 +1,28 @@
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/fcntl.h>
++#include <sys/times.h>
++#include <sys/errno.h>
++#include <sys/time.h>
++#include <stdio.h>
++
++void _exit();
++int close(int file);
++char **environ; /* pointer to array of char * strings that define the current environment variables */
++int execve(char *name, char **argv, char **env);
++int fork();
++int fstat(int file, struct stat *st);
++int getpid();
++int isatty(int file);
++int kill(int pid, int sig);
++int link(char *old, char *new);
++int lseek(int file, int ptr, int dir);
++int open(const char *name, int flags, ...);
++int read(int file, char *ptr, int len);
++caddr_t sbrk(int incr);
++int stat(const char *file, struct stat *st);
++clock_t times(struct tms *buf);
++int unlink(char *name);
++int wait(int *status);
++int write(int file, char *ptr, int len);
++int gettimeofday(struct timeval *p, void *__tz);
+-- 
+1.7.7.4
+

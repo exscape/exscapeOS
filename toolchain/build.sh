@@ -5,9 +5,13 @@
 ###
 
 # Set these up!
-DL=0
+DL=1
 FORCE_CLEAN=1
-MAC=1
+
+MAC=0 # checked below
+if gcc --version | grep -iq llvm;
+	MAC=1
+fi
 
 err() {
 	echo
@@ -16,6 +20,10 @@ err() {
 }
 
 if [[ $MAC -eq 1 ]]; then
+	if [[ ! -f "/usr/bin/gcc-4.2" || ! -f "/usr/bin/g++-4.2" || ! -f "/usr/bin/cpp-4.2" ]]; then
+		echo "/usr/bin{gcc,g++,cpp}-4.2 not found! These are required for Mac OS X builds."
+		exit 1
+	fi
 	export CC=/usr/bin/gcc-4.2
 	export CXX=/usr/bin/g++-4.2
 	export CPP=/usr/bin/cpp-4.2
@@ -24,13 +32,23 @@ fi
 
 if [[ $DL -eq 1 ]]; then
 	echo
-	echo Downloading distfiles...
+	echo 'Downloading distfiles (if necessary)...'
 	echo
 	mkdir -p distfiles
 	cd distfiles
-	wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
-	wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.7.2/gcc-4.7.2.tar.bz2' || err
-	wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
+
+	if [[ ! -f "binutils-2.23.1.tar.bz2" ]]; then 
+		wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
+	fi
+
+	if [[ ! -f "gcc-4.7.2.tar.bz2" ]]; then 
+		wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.7.2/gcc-4.7.2.tar.bz2' || err
+	fi
+
+	if [[ ! -f "newlib-1.20.tar.gz" ]]; then 
+		wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
+	fi
+
 	cd ..
 fi
 

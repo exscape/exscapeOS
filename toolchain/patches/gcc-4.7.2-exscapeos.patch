@@ -1,21 +1,7 @@
-From 8aa22bfc437b780edc103bab4f525ef35d54f4d7 Mon Sep 17 00:00:00 2001
-From: Thomas Backman <serenity@exscape.org>
-Date: Thu, 13 Dec 2012 12:23:26 +0100
-Subject: [PATCH] First take at GCC patches for exscapeOS
-
----
- config.sub             |    2 +-
- gcc/config.gcc         |   11 +++++++++++
- gcc/config/exscapeos.h |    8 ++++++++
- libgcc/config.host     |    2 ++
- 4 files changed, 22 insertions(+), 1 deletions(-)
- create mode 100644 gcc/config/exscapeos.h
-
-diff --git a/config.sub b/config.sub
-index 78176a4..1e8fa8f 100755
---- a/config.sub
-+++ b/config.sub
-@@ -1333,7 +1333,7 @@ case $os in
+diff -Naur gcc-4.7.2/config.sub gcc-4.7.2-MOD/config.sub
+--- gcc-4.7.2/config.sub	2012-08-06 16:34:27.000000000 +0200
++++ gcc-4.7.2-MOD/config.sub	2012-12-13 13:38:30.000000000 +0100
+@@ -1333,7 +1333,7 @@
  	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
  	      | -sym* | -kopensolaris* \
  	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
@@ -24,11 +10,22 @@ index 78176a4..1e8fa8f 100755
  	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
  	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
  	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
-diff --git a/gcc/config.gcc b/gcc/config.gcc
-index 5fcd192..d8bc882 100644
---- a/gcc/config.gcc
-+++ b/gcc/config.gcc
-@@ -553,6 +553,12 @@ case ${target} in
+diff -Naur gcc-4.7.2/gcc/config/exscapeos.h gcc-4.7.2-MOD/gcc/config/exscapeos.h
+--- gcc-4.7.2/gcc/config/exscapeos.h	1970-01-01 01:00:00.000000000 +0100
++++ gcc-4.7.2-MOD/gcc/config/exscapeos.h	2012-12-13 13:38:30.000000000 +0100
+@@ -0,0 +1,8 @@
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()      \
++	do {                                \
++		builtin_define_std ("exscapeos");      \
++		builtin_define_std ("unix");      \
++		builtin_assert ("system=exscapeos");   \
++		builtin_assert ("system=unix");   \
++	} while(0);
+diff -Naur gcc-4.7.2/gcc/config.gcc gcc-4.7.2-MOD/gcc/config.gcc
+--- gcc-4.7.2/gcc/config.gcc	2012-09-12 11:03:54.000000000 +0200
++++ gcc-4.7.2-MOD/gcc/config.gcc	2012-12-13 14:31:13.000000000 +0100
+@@ -553,6 +553,12 @@
      "" | yes | posix) thread_file='posix' ;;
    esac
    ;;
@@ -41,45 +38,29 @@ index 5fcd192..d8bc882 100644
  *-*-freebsd*)
    # This is the generic ELF configuration of FreeBSD.  Later
    # machine-specific sections may refine and add to this
-@@ -1197,6 +1203,11 @@ i[34567]86-*-darwin*)
+@@ -1197,6 +1203,11 @@
  	with_cpu=${with_cpu:-core2}
  	tmake_file="${tmake_file} t-slibgcc"
  	;;
 +i[34567]86-*-exscapeos*)
 +	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h i386/i386elf.h exscapeos.h"
-+	tmake_file="i386/t-i386elf t-svr4"
++	tmake_file="i386/t-i386elf t-svr4 i386/t-crtstuff"
 +	use_fixproto=yes
 +	;;
  x86_64-*-darwin*)
  	with_cpu=${with_cpu:-core2}
  	tmake_file="${tmake_file} ${cpu_type}/t-darwin64 t-slibgcc"
-diff --git a/gcc/config/exscapeos.h b/gcc/config/exscapeos.h
-new file mode 100644
-index 0000000..e63e35e
---- /dev/null
-+++ b/gcc/config/exscapeos.h
-@@ -0,0 +1,8 @@
-+#undef TARGET_OS_CPP_BUILTINS
-+#define TARGET_OS_CPP_BUILTINS()      \
-+	do {                                \
-+		builtin_define_std ("exscapeos");      \
-+		builtin_define_std ("unix");      \
-+		builtin_assert ("system=exscapeos");   \
-+		builtin_assert ("system=unix");   \
-+	} while(0);
-diff --git a/libgcc/config.host b/libgcc/config.host
-index ef9791b..a4b2806 100644
---- a/libgcc/config.host
-+++ b/libgcc/config.host
-@@ -1138,6 +1138,8 @@ mep*-*-*)
+diff -Naur gcc-4.7.2/libgcc/config.host gcc-4.7.2-MOD/libgcc/config.host
+--- gcc-4.7.2/libgcc/config.host	2012-09-05 14:19:47.000000000 +0200
++++ gcc-4.7.2-MOD/libgcc/config.host	2012-12-13 14:37:28.000000000 +0100
+@@ -1138,6 +1138,10 @@
  	tmake_file="mep/t-mep t-fdpbit"
  	extra_parts="crtbegin.o crtend.o"
  	;;
 +i[3-7]86-*-exscapeos*)
++	extra_parts="crtbegin.o crtend.o"
++	tmake_file="$tmake_file i386/t-crtstuff"
 +	;;
  *)
  	echo "*** Configuration ${host} not supported" 1>&2
  	exit 1
--- 
-1.7.7.4
-
