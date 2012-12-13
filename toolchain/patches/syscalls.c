@@ -291,7 +291,7 @@ int write(int file, char *ptr, int len) {
 		return -1;
 	}
 	int ret;
-	if ((ret = sys_read(file, ptr, len)) < 0) {
+	if ((ret = sys_write(file, ptr, len)) < 0) {
 		errno = -ret;
 		return -1;
 	}
