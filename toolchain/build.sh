@@ -71,6 +71,33 @@ echo Installing binutils...
 echo 
 make install || err
 
+cd ..
+
+echo
+echo Patching GCC...
+echo
+cd gcc-4.7.2
+patch -p1 < ../patches/gcc-4.7.2-exscapeos.patch || err
+cd ..
+
+echo 
+echo Configuring GCC...
+echo
+cd build-gcc
+../gcc-4.7.2/configure --target=$TARGET --prefix=$PREFIX --disable-nls --enable-languages=c --with-gmp=/opt/local --with-mpfr=/opt/local --with-mpc=/opt/local || err
+
+echo
+echo Building GCC and libgcc...
+echo
+make -j8 all-gcc || err
+make -j8 all-target-libgcc || err
+
+echo 
+echo Installing GCC and libgcc...
+echo
+make install-gcc || err
+make install-target-libgcc || err
+
 if [[ $MAC -eq 1 ]]; then
 	unset CC
 	unset CXX
