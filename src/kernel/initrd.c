@@ -108,7 +108,8 @@ int initrd_read(int fd, void *buf, size_t length) {
 	if (length == 0)
 		return 0;
 
-	memcpy(buf, (uint8 *)(header.offset + file->offset), length);
+	assert(file->offset >= 0);
+	memcpy(buf, (uint8 *)(header.offset + (uint32)file->offset), length);
 
 	file->offset += length;
 
