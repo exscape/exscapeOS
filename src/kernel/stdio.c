@@ -31,6 +31,7 @@ int stdio_read(int fd, void *buf, size_t length) {
 		}
 
 		if (c == '\r' || c == '\n') {
+			ret++;
 			*p++ = c;
 			*p = 0;
 			return ret;
