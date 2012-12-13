@@ -1,15 +1,13 @@
 #!/bin/sh
 
-###
-### TODO: error checking!
-###
-
 # Set these up!
 DL=1
 FORCE_CLEAN=1
+export TARGET=i586-pc-exscapeos
+export PREFIX=/usr/local/cross
 
 MAC=0 # checked below
-if gcc --version | grep -iq llvm;
+if gcc --version | grep -iq llvm; then
 	MAC=1
 fi
 
@@ -45,7 +43,7 @@ if [[ $DL -eq 1 ]]; then
 		wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.7.2/gcc-4.7.2.tar.bz2' || err
 	fi
 
-	if [[ ! -f "newlib-1.20.tar.gz" ]]; then 
+	if [[ ! -f "newlib-1.20.0.tar.gz" ]]; then 
 		wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
 	fi
 
@@ -60,9 +58,6 @@ if [[ $FORCE_CLEAN -eq 1 ]]; then
 	for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.7.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
 	echo
 fi
-
-export TARGET=i586-pc-exscapeos
-export PREFIX=/usr/local/cross
 
 mkdir -p build-{binutils,gcc,newlib}
 
@@ -115,6 +110,43 @@ echo Installing GCC and libgcc...
 echo
 make install-gcc || err
 make install-target-libgcc || err
+cd ..
+
+# Only necessary for Newlib, from the looks of it
+# That would make sense, since Newlb is the only part of this
+# that builds code *for* exscapeOS, not just code that *targets* it
+export PATH=$PATH:$PREFIX/bin
+
+echo
+echo Patching Newlib...
+echo
+cd newlib-1.20.0
+patch -p1 < ../patches/newlib-1.20.0-exscapeos.patch || err
+
+cd newlib/libc/sys
+autoconf || err
+cd exscapeos
+autoreconf || err
+cd ../../../..
+cd ..
+
+echo
+echo Configuring Newlib...
+echo
+cd build-newlib
+../newlib-1.20.0/configure --target=$TARGET --prefix=$PREFIX || err
+
+echo
+echo Building Newlib...
+echo
+make -j8 || err
+
+echo
+echo Installing Newlib...
+echo
+make install || err
+
+cd ..
 
 if [[ $MAC -eq 1 ]]; then
 	unset CC
@@ -122,3 +154,7 @@ if [[ $MAC -eq 1 ]]; then
 	unset CPP
 	unset LD
 fi
+
+echo
+echo Successfully build and installed exscapeOS toolchain to $PREFIX'!'
+echo
