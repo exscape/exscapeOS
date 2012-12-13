@@ -47,7 +47,8 @@ bool elf_load(const char *path, task_t *task) {
 	assert(header->e_ident.ei_version == 1);
 
 	assert(header->e_machine == EM_386);
-	assert(header->e_entry > 0);
+	assert(header->e_entry >= 0x10000000);
+	assert(header->e_entry <  0x11000000);
 	assert(header->e_type == ET_EXEC);
 
 	for (int i=0; i < header->e_phnum; i++) {
@@ -73,6 +74,12 @@ bool elf_load(const char *path, task_t *task) {
 			if (!IS_PAGE_ALIGNED(end_addr)) {
 				end_addr &= ~(PAGE_SIZE - 1);
 				end_addr += PAGE_SIZE;
+			}
+
+			if (!IS_PAGE_ALIGNED(start_addr)) {
+				start_addr &= ~(PAGE_SIZE - 1);
+				// No + PAGE_SIZE here
+				// TODO: don't call vmm_alloc_user if this is already allocated
 			}
 
 			if (end_addr > task->mm->brk_start) {
@@ -113,6 +120,10 @@ bool elf_load(const char *path, task_t *task) {
 		else
 			printk("Warning: skipping unsupported ELF program header (#%u, p_type = 0x%x)\n", i, phdr->p_type);
 	}
+
+	// If we're still here: set the program entry point
+	// (This updates the value on the stack in task.c)
+	set_entry_point(task, (uint32)header->e_entry);
 
 #if ELF_DEBUG
 

@@ -179,7 +179,7 @@ void _exit(void) {
 }
 
 void user_exit(void) {
-	syscall__exit();
+	asm volatile("int $0x80" : : "a"(0 /* _exit syscall number */));
 }
 
 void idle_task_func(void *data, uint32 length) {
@@ -285,7 +285,7 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 	strlcpy(buf, path, 1024);
 	path_basename(buf);
 
-	task_t *task = create_task_user((void *)0x10000000, buf /* task name */, con, data, data_len);
+	task_t *task = create_task_user((void *)0 /* set up later on */, buf /* task name */, con, data, data_len);
 	assert (task != NULL);
 
 	if (!elf_load(path, task)) {
@@ -508,6 +508,12 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		//console_switch(task->console);
 
 	return task;
+}
+
+void set_entry_point(task_t *task, uint32 addr) {
+	assert(task != NULL);
+	assert(task->privilege == 3);
+	*((uint32 *)((uint32)task->stack - 32)) = addr;
 }
 
 /* Puts the calling process into the IOWAIT state, and returns to it(!). NOT called from ISRs. */

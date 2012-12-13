@@ -59,6 +59,7 @@ typedef struct {
 	uint32 num_pages;
 } addr_entry_t;
 
+void set_entry_point(task_t *task, uint32 addr);
 void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);
