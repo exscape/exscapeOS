@@ -14,8 +14,12 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 	#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign -ggdb3
 #endif
 
+
+GCCINC = /usr/local/cross/lib/gcc/i586-pc-exscapeos/4.7.2/include
+TOOLCHAININC = /usr/local/cross/i586-pc-exscapeos/include
+
 CC = i586-pc-exscapeos-gcc
-CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) -ggdb3
+CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -I$(GCCINC) -I$(TOOLCHAININC) -std=gnu99 -march=i586 $(WARNINGS) -ggdb3
 LD = i586-pc-exscapeos-ld
 
 PROJDIRS := src/kernel src/include src/lib
