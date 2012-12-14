@@ -102,8 +102,7 @@ int stat(const char *path, struct stat *buf) {
 }
 
 int read(int fd, void *buf, int length) {
-	assert(fd <= MAX_OPEN_FILES);
-	if (fd < 0)
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
@@ -116,8 +115,7 @@ int read(int fd, void *buf, int length) {
 }
 
 int write(int fd, const void *buf, int length) {
-	assert(fd <= MAX_OPEN_FILES);
-	if (fd < 0)
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
@@ -138,8 +136,7 @@ int write(int fd, const void *buf, int length) {
 }
 
 int fstat(int fd, struct stat *buf) {
-	assert(fd <= MAX_OPEN_FILES);
-	if (fd < 0)
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
@@ -153,8 +150,7 @@ int fstat(int fd, struct stat *buf) {
 }
 
 int close(int fd) {
-	assert(fd <= MAX_OPEN_FILES);
-	if (fd < 0)
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
@@ -247,8 +243,7 @@ error:
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-	assert(fd <= MAX_OPEN_FILES);
-	if (fd < 0)
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
