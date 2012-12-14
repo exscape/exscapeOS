@@ -234,7 +234,10 @@ int initrd_closedir(DIR *dir);
 DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 	assert(mp != NULL);
 	assert(path != NULL);
-	assert(strcmp(path, "/") == 0); // initrd doesn't support subdirectories!
+	if (strcmp(path, "/") != 0) {
+		// initrd doesn't support subdirectories! / is the only one that can be opened
+		return NULL;
+	}
 
 	DIR *dir = kmalloc(sizeof(DIR));
 	memset(dir, 0, sizeof(DIR));
