@@ -12,7 +12,7 @@
 
 static uint8 *rtl_mmio_base = NULL; // MMIO address to the card
 static uint8 *recv_buf = NULL;      // RX Buffer used by the card
-static uint32 recv_buf_phys = NULL; // Physical address of the above
+static uint32 recv_buf_phys = 0; // Physical address of the above
 static uint8 *rtl8139_packetBuffer; // Where we copy the packet after reception
 
 static uint8 current_descriptor = 0; // There are 4 TX descriptors (0-3)

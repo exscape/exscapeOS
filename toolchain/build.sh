@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Set these up!
+NEWLIB_ONLY=1
 DL=1
 FORCE_CLEAN=1
 export TARGET=i586-pc-exscapeos
@@ -39,12 +40,14 @@ if [[ $DL -eq 1 ]]; then
 		wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
 	fi
 
-	if [[ ! -f "gcc-4.7.2.tar.bz2" ]]; then 
-		wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.7.2/gcc-4.7.2.tar.bz2' || err
-	fi
+	if [[ $NEWLIB_ONLY -ne 1 ]]; then
+		if [[ ! -f "gcc-4.7.2.tar.bz2" ]]; then 
+			wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.7.2/gcc-4.7.2.tar.bz2' || err
+		fi
 
-	if [[ ! -f "newlib-1.20.0.tar.gz" ]]; then 
-		wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
+		if [[ ! -f "newlib-1.20.0.tar.gz" ]]; then 
+			wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
+		fi
 	fi
 
 	cd ..
@@ -55,11 +58,19 @@ if [[ $FORCE_CLEAN -eq 1 ]]; then
 
 	echo
 	echo Unpacking sources... 
-	for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.7.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
+	if [[ $NEWLIB_ONLY -ne 1 ]]; then
+		for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.7.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
+	else
+		tar xf distfiles/newlib-1.20.0.tar.gz || err
+	fi
 	echo
 fi
 
-mkdir -p build-{binutils,gcc,newlib}
+mkdir -p build-newlib
+
+if [[ $NEWLIB_ONLY -ne 1 ]]; then
+
+mkdir -p build-{binutils,gcc}
 
 echo
 echo Patching binutils...
@@ -112,6 +123,8 @@ make install-gcc || err
 make install-target-libgcc || err
 cd ..
 
+fi # end $NEWLIB_ONLY != 1
+
 # Only necessary for Newlib, from the looks of it
 # That would make sense, since Newlb is the only part of this
 # that builds code *for* exscapeOS, not just code that *targets* it
@@ -122,6 +135,8 @@ echo Patching Newlib...
 echo
 cd newlib-1.20.0
 patch -p1 < ../patches/newlib-1.20.0-exscapeos.patch || err
+mkdir -p newlib/libc/sys/exscapeos
+cp -Rf ../patches/exscapeos/* newlib/libc/sys/exscapeos/ || err
 
 cd newlib/libc/sys
 autoconf || err
@@ -129,8 +144,6 @@ cd exscapeos
 autoreconf || err
 cd ../../../..
 cd ..
-
-cp -f patches/syscalls.c newlib-1.20.0/newlib/libc/sys/exscapeos/syscalls.c || err
 
 echo
 echo Configuring Newlib...

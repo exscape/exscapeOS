@@ -8,17 +8,9 @@
 #define	SEEK_CUR 1
 #define	SEEK_END 2
 
-// TODO: this REALLY doesn't belong here
-typedef uint16 dev_t;
-typedef uint16 mode_t;
-typedef uint16 nlink_t;
-typedef uint16 uid_t;
-typedef uint16 gid_t;
-typedef sint64 off_t;
-typedef sint32 blkcnt_t;
+// TODO: HIGHLY temporary, to fix the build while a proper sys/stat is being fixed
 typedef sint32 blksize_t;
-typedef uint32 ino_t;
-typedef sint32 time_t;
+typedef sint32 blkcnt_t;
 
 // TODO: this doesn't really belong here
 struct stat {

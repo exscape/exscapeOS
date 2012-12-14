@@ -692,6 +692,8 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 			}
 		}
 
+		memset(st, 0, sizeof(struct stat));
+
 		st->st_dev = 0xffff; // invalid ID
 		for (int i=0; i < MAX_DEVS; i++) {
 			if ((fat32_partition_t *)devtable[i] == part) {
@@ -705,9 +707,7 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 			st->st_mode |= 040000;
 		st->st_nlink = 1;
 		st->st_size = (disk_direntry->attrib & ATTRIB_DIR) ? 0 : disk_direntry->file_size;
-		st->st_atime = 0; // TODO
-		st->st_ctime = 0; // TODO
-		st->st_mtime = 0; // TODO
+		// TODO: set times!
 		st->st_blksize = part->cluster_size;
 		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_clusters;
 

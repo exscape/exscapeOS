@@ -15,6 +15,7 @@ uint32 next_dev = 0;
 list_t *mountpoints = NULL;
 
 int get_free_fd(void) {
+	// TODO: optimize this
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
 		if (current_task->fdtable[i].count == 0)
 			return i;

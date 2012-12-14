@@ -340,7 +340,7 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 	const char *p = NULL;
 	if (in_path[0] == '/') {
 		p = &in_path[1];
-		if (!strchr(p, '/') == NULL) {
+		if (strchr(p, '/') != NULL) {
 			panic("initrd_stat: initrd does't support subdirectories!");
 			return -1;
 		}
@@ -362,9 +362,7 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 			st->st_mode = 0777; // TODO
 			st->st_nlink = 1;
 			st->st_size = file_headers[i].length;
-			st->st_atime = 0;
-			st->st_ctime = 0;
-			st->st_mtime = 0;
+			// TODO: file times!
 			st->st_blksize = 4096; // Doesn't matter
 			st->st_blocks = blocks;
 
