@@ -5,7 +5,7 @@
 #include <path.h>
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
-#include <kernel/errno.h>
+#include <sys/errno.h>
 
 // Stores FS-specific data, indexed by device number
 // Cast to the correct pointer as needed

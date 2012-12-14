@@ -6,7 +6,7 @@
 #include <kernel/heap.h>
 #include <kernel/vfs.h>
 #include <kernel/task.h>
-#include <kernel/errno.h>
+#include <sys/errno.h>
 #include <path.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
