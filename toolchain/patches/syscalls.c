@@ -193,7 +193,7 @@ int isatty(int file) {
 	struct stat st;
 	int ret;
 	if ((ret = fstat(file, &st)) == 0)
-		return (S_ISCHR(st.st_mode));
+		return (S_ISCHR(st.st_mode)) ? 1 : 0;
 	else {
 		errno = -ret;
 		return 0; // [sic]
@@ -232,6 +232,10 @@ int read(int file, char *ptr, int len) {
 		errno = EBADF;
 		return -1;
 	}
+
+	if (file == 0 && isatty(1))
+		fflush(stdout);
+
 	int ret;
 	if ((ret = sys_read(file, ptr, len)) < 0) {
 		errno = -ret;
