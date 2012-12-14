@@ -1,7 +1,7 @@
 #ifndef _INITRD_H
 #define _INITRD_H
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/vfs.h>
 
 typedef struct {

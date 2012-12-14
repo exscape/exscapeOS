@@ -1,6 +1,6 @@
 #include <kernel/vmm.h>
 #include <kernel/interrupts.h>
-#include <types.h>
+#include <sys/types.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/heap.h>

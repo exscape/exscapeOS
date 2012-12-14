@@ -1,7 +1,7 @@
 #ifndef _FILEIO_H
 #define _FILEIO_H
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/list.h>
 
 #define	SEEK_SET 0

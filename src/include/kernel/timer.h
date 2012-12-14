@@ -1,7 +1,7 @@
 #ifndef _TIMER_H
 #define _TIMER_H
 
-#include <types.h>
+#include <sys/types.h>
 
 /* This is enough to not wrap for 497 days at 100 Hz. */
 #define TIMER_DIVISOR ((uint16)11932)

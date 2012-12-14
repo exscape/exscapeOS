@@ -1,4 +1,4 @@
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/interrupts.h>
 #include <kernel/kernutil.h> /* panic */
 #include <kernel/console.h>

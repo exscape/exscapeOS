@@ -1,7 +1,7 @@
 #ifndef _PARTITION_H
 #define _PARTITION_H
 
-#include <types.h>
+#include <sys/types.h>
 
 typedef struct partition {
 	bool exists;

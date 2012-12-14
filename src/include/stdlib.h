@@ -1,7 +1,7 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
-#include <types.h>
+#include <sys/types.h>
 
 void itoa(signed long, char *);
 void reverse(char *s);

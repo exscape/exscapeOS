@@ -2,7 +2,7 @@
 #define _TASK_H
 
 #include <kernel/vmm.h>
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/console.h>
 #include <kernel/vfs.h> /* struct open_file */
 #include <kernel/vfs.h>

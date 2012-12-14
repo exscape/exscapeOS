@@ -1,4 +1,4 @@
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/gdt.h>
 #include <string.h> /* memset */
 #include <kernel/kernutil.h> /* assert */

@@ -1,6 +1,6 @@
 #include <kernel/initrd.h>
 #include <kernel/vfs.h>
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/kernutil.h>
 #include <string.h>
 #include <kernel/heap.h>

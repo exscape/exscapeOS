@@ -5,7 +5,7 @@
  * implementing adding to a list in 4 rather than 2 functions, due to an oversight
  * while planning... */
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/kernutil.h>
 #include <kernel/heap.h>
 #include <kernel/list.h>

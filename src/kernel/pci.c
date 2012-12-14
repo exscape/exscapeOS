@@ -1,4 +1,4 @@
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/pci.h>
 #include <kernel/kernutil.h>
 #include <kernel/timer.h>

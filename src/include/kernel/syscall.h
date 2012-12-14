@@ -1,7 +1,7 @@
 #ifndef _SYSCALL_H
 #define _SYSCALL_H
 
-#include <types.h>
+#include <sys/types.h>
 
 void init_syscalls(void);
 

@@ -1,7 +1,7 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/interrupts.h>
 
 #define PAGE_SIZE 0x1000

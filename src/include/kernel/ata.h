@@ -1,7 +1,7 @@
 #ifndef _ATA_H
 #define _ATA_H
 
-#include <types.h>
+#include <sys/types.h>
 
 struct ata_device;
 #include <kernel/partition.h> /* partition_t */

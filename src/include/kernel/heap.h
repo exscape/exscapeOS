@@ -1,7 +1,7 @@
 #ifndef _KHEAP_H
 #define _KHEAP_H
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/mutex.h>
 #include <kernel/ordered_array.h>
 #include <kernel/vmm.h>

@@ -1,7 +1,7 @@
 #ifndef _KERNUTIL_H
 #define _KERNUTIL_H
 
-#include <types.h>
+#include <sys/types.h>
 
 uint8  inb(uint16 port);
 uint16 inw(uint16 port);

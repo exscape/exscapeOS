@@ -1,7 +1,7 @@
 #ifndef _ORDERED_ARRAY_H
 #define _ORDERED_ARRAY_H
 
-#include <types.h>
+#include <sys/types.h>
 
 /* This array is sorted on insertion and thus is always sorted. It stores anything that can be cast to a void*. */
 typedef void* type_t;

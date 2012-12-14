@@ -1,4 +1,4 @@
-#include <types.h>
+#include <sys/types.h>
 #include <stdlib.h> /* itoa(), reverse() */
 #include <string.h> /* memset(), strlen() */
 #include <kernel/kernutil.h> /* inb, inw, outw */

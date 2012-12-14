@@ -1,7 +1,7 @@
 #ifndef _INTERRUPTS_H
 #define _INTERRUPTS_H
 
-#include <types.h>
+#include <sys/types.h>
 
 #define EXCEPTION_DIVISION_BY_ZERO 0
 #define EXCEPTION_DEBUG 1 /* Reserved in modern CPUs */

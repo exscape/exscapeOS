@@ -1,6 +1,6 @@
 #ifndef _CONSOLE_H
 #define _CONSOLE_H
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/keyboard.h>
 #include <kernel/list.h>
 

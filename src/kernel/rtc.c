@@ -1,5 +1,5 @@
 #include <kernel/rtc.h>
-#include <types.h>
+#include <sys/types.h>
 
 //#define DIVZERO_10_SEC /* divides by zero every 10 seconds; used to test exceptions */
 

@@ -1,7 +1,7 @@
 #ifndef _FAT_H
 #define _FAT_H
 
-#include <types.h>
+#include <sys/types.h>
 #include <kernel/ata.h>
 #include <kernel/vfs.h>
 

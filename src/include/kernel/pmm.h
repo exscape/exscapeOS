@@ -1,7 +1,7 @@
 #ifndef _PMM_H
 #define _PMM_H
 
-#include <types.h>
+#include <sys/types.h>
 
 void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem);
 uint32 pmm_alloc(void);
