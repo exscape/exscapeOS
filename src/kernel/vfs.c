@@ -91,7 +91,8 @@ int open(const char *path, int mode) {
 }
 
 int stat(const char *path, struct stat *buf) {
-	assert(buf != NULL);
+	if (path == NULL || buf == NULL)
+		return -EFAULT;
 
 	char relpath[PATH_MAX+1] = {0};
 	mountpoint_t *mp = NULL;
