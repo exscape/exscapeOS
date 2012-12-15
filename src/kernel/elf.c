@@ -70,16 +70,11 @@ bool elf_load(const char *path, task_t *task) {
 				assert(phdr->p_vaddr > 0x10000000);
 
 			uint32 start_addr = phdr->p_vaddr;
+			uint32 start_addr_aligned = (phdr->p_vaddr & 0xfffff000);
 			uint32 end_addr   = start_addr + phdr->p_memsz;
 			if (!IS_PAGE_ALIGNED(end_addr)) {
 				end_addr &= ~(PAGE_SIZE - 1);
 				end_addr += PAGE_SIZE;
-			}
-
-			if (!IS_PAGE_ALIGNED(start_addr)) {
-				start_addr &= ~(PAGE_SIZE - 1);
-				// No + PAGE_SIZE here
-				// TODO: don't call vmm_alloc_user if this is already allocated
 			}
 
 			if (end_addr > task->mm->brk_start) {
@@ -93,11 +88,11 @@ bool elf_load(const char *path, task_t *task) {
 			}
 
 			// Allocate memory for this address in the task's address space, set for user mode
-			vmm_alloc_user(start_addr, end_addr, task_dir, writable);
+			vmm_alloc_user(start_addr_aligned, end_addr, task_dir, writable);
 
 			// Keep track of the allocated frames, so that we can free them when the task exits
 			addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
-			entry->start = (void *)start_addr;
+			entry->start = (void *)start_addr_aligned;
 			entry->num_pages = (end_addr - start_addr) / PAGE_SIZE;
 
 			assert(task->mm != NULL);
@@ -111,9 +106,10 @@ bool elf_load(const char *path, task_t *task) {
 
 			// Okay, we should have the memory. Let's clear it (since PARTS may be left empty by the memcpy,
 			// e.g. the .bss section, and we do want zeroes to be there)
-			memset((void *)start_addr, 0, end_addr - start_addr);
+			memset((void *)start_addr_aligned, 0, end_addr - start_addr_aligned);
 
 			// Copy the segment (e.g. .text + .rodata + .eh_frame, or .data + .bss) to the location
+			// DO NOT use start_addr_aligned here - we want the program to dictate the exact location
 			memcpy((void *)start_addr, data + phdr->p_offset, phdr->p_filesz);
 
 			// Return to the kernel's directory again
@@ -148,7 +144,6 @@ bool elf_load(const char *path, task_t *task) {
 		else {
 			printk("unsupported program header (#%u), skipping\n", i);
 		}
-
 	}
 
 	// Find the string table
