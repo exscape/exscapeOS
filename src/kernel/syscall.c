@@ -16,23 +16,24 @@ struct syscall_entry {
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
-	{ &_exit, 32 },
+	{ &_exit, 32 },   /* 0 */
 	{ &puts, 32 },
 	{ &sleep, 32 },
 	{ &getchar, 32 },
 	{ &putchar, 32 },
-	{ &open, 32 },
+	{ &open, 32 },   /* 5 */
 	{ &read, 32 },
 	{ &close, 32 },
 	{ &malloc, 32 },
 	{ &free, 32 },
-	{ &stat, 32 },
+	{ &stat, 32 },   /* 10 */
 	{ &chdir, 32 },
 	{ &write, 32 },
 	{ &lseek, 64 },
 	{ &fstat, 32 },
-	{ &getpid, 32 },
-	{ &sbrk, 32}
+	{ &getpid, 32 }, /* 15 */
+	{ &sbrk, 32 },
+	{ &__getreent, 32 }
 };
 
 uint32 num_syscalls = 0;

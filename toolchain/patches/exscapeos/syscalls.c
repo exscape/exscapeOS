@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <stdio.h>
 #include <limits.h>
+#include <reent.h>
 
 typedef signed   char  sint8;
 typedef unsigned char  uint8;
@@ -87,6 +88,7 @@ DECL_SYSCALL3(write, int, int, const char *, int);
 DECL_SYSCALL2(fstat, int, int, struct stat *);
 DECL_SYSCALL0(getpid, int);
 DECL_SYSCALL1(sbrk, void *, sint32); // TODO: return type caddr_t
+DECL_SYSCALL0(__getreent, struct _reent *);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -109,6 +111,7 @@ DEFN_SYSCALL3(write, int, 12, int, const char *, int);
 DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 DEFN_SYSCALL0(getpid, int, 15);
 DEFN_SYSCALL1(sbrk, void *, 16, sint32);
+DEFN_SYSCALL0(__getreent, struct _reent *, 17);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {

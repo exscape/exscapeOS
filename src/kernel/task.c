@@ -13,6 +13,7 @@
 #include <kernel/elf.h>
 #include <path.h>
 #include <kernel/stdio.h>
+#include <reent.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -81,6 +82,12 @@ bool does_task_exist(task_t *task) {
 }
 
 extern list_t *pagedirs;
+
+struct _reent *__getreent(void) {
+	assert(current_task->privilege == 3);
+	assert(current_task->reent != NULL);
+	return current_task->reent;
+}
 
 void destroy_task(task_t *task) {
 	assert(task != &kernel_task);
@@ -412,6 +419,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
+
+		// Set up the Newlib reentrancy structure
+		task->reent = heap_alloc(sizeof(struct _reent), false, task->heap);
+		_REENT_INIT_PTR(task->reent);
 
 		switch_page_directory(kernel_directory);
 

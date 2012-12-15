@@ -7,6 +7,7 @@
 #include <kernel/vfs.h> /* struct open_file */
 #include <kernel/vfs.h>
 #include <kernel/heap.h>
+#include <reent.h>
 
 #define TASK_NAME_LEN 64
 
@@ -34,6 +35,7 @@ typedef struct task {
 	struct open_file fdtable[MAX_OPEN_FILES];
 	heap_t *heap;
 	char *pwd;
+	struct _reent *reent; // Used by Newlib
 } task_t;
 
 extern volatile task_t *current_task;
