@@ -1,9 +1,9 @@
 #include <kernel/syscall.h>
-#include <kernel/console.h> /* puts, getchar, putchar */
+#include <kernel/console.h>
 #include <kernel/interrupts.h>
-#include <kernel/task.h> /* sleep, _exit */
+#include <kernel/task.h>
 #include <kernel/kernutil.h>
-#include <kernel/vfs.h> /* open, read */
+#include <kernel/vfs.h>
 
 static uint32 syscall_handler(uint32);
 
