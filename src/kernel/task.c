@@ -293,6 +293,7 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 	path_basename(buf);
 
 	task_t *task = create_task_user((void *)0 /* set up later on */, buf /* task name */, con, data, data_len);
+	task->state = TASK_IDLE; // Ensure the task doesn't start until the image is fully loaded
 	assert (task != NULL);
 
 	if (!elf_load(path, task)) {
@@ -302,6 +303,9 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 		INTERRUPT_UNLOCK;
 		return NULL;
 	}
+
+	// Okay, we can let it run now!
+	task->state = TASK_RUNNING;
 
 	INTERRUPT_UNLOCK;
 	return task;
