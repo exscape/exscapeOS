@@ -27,8 +27,16 @@ bool elf_load(const char *path, task_t *task) {
 	unsigned char *data = kmalloc(file_size);
 
 	int fd = open(path, O_RDONLY);
-	assert(fd >= 0);
-	assert(read(fd, data, file_size) /* == file_size */); // TODO: check proper read!
+	if (fd < 0) {
+		printk("elf_load(): unable to open %s\n", path);
+		return false;
+	}
+
+	int r;
+	if ((r = read(fd, data, file_size)) != (int)file_size) {
+		printk("elf_load(): unable to read from %s; got %d bytes, requested %d\n", path, r, (int)file_size);
+		return false;
+	}
 
 	close(fd);
 
