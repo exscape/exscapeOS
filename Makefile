@@ -40,9 +40,6 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
-	@if [[ ! -d "misc/initrd_contents" ]]; then \
-		mkdir -p misc/initrd_contents; \
-	fi
 	@if [[ ! -f "misc/create_initrd" ]]; then \
 		$(CC) -o misc/create_initrd misc/src/create_initrd.c -std=gnu99; \
 	fi
@@ -51,7 +48,7 @@ all: $(OBJFILES)
 	@for prog in $(USERSPACEPROG); do \
 		make -C $$prog ; \
 	done
-	@cd misc; ./create_initrd initrd_contents/* > /dev/null ; cd ..
+	@cd misc; ./create_initrd ../initrd/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
@@ -61,7 +58,7 @@ clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 	@for prog in $(USERSPACEPROG); do \
 		make -C $$prog clean ; \
-		rm -f misc/initrd_contents/`basename $$prog` ; \
+		rm -f initrd/`basename $$prog` ; \
 	done
 
 -include $(DEPFILES)
