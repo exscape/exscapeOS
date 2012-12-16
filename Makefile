@@ -45,8 +45,8 @@ all: $(OBJFILES)
 	fi
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
-	@for prog in $(USERSPACEPROG); do \
-		make -C $$prog ; \
+	@set -e; for prog in $(USERSPACEPROG); do \
+		make -C $$prog; \
 	done
 	@cd misc; ./create_initrd ../initrd/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
@@ -57,7 +57,7 @@ all: $(OBJFILES)
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 	@for prog in $(USERSPACEPROG); do \
-		make -C $$prog clean ; \
+		make -C $$prog clean; \
 		rm -f initrd/`basename $$prog` ; \
 	done
 
@@ -72,7 +72,6 @@ todolist:
 
 %.o: %.s Makefile
 	@nasm -o $@ $< -f elf -F dwarf -g
-
 
 net: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64

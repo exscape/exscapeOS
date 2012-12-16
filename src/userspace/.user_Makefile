@@ -15,7 +15,7 @@ DEPFILES := $(patsubst %.c,%.d,$(SRCFILES))
 OUTNAME := $(shell basename `pwd`)
 
 all: $(OBJFILES)
-	$(LD) $(LDFLAGS) -o $(OUTNAME) $(OBJFILES)
+	@$(LD) $(LDFLAGS) -o $(OUTNAME) $(OBJFILES)
 	@mv -f $(OUTNAME) ../../../initrd
 
 clean:
@@ -24,4 +24,4 @@ clean:
 -include $(DEPFILES)
 
 %.o: %.c Makefile
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
