@@ -249,8 +249,6 @@ int fat_open(uint32 dev, const char *path, int mode) {
 }
 
 int fat_read(int fd, void *buf, size_t length) {
-	assert(fd <= MAX_OPEN_FILES);
-
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 	assert(file->ino != 0);
 
@@ -265,6 +263,11 @@ int fat_read(int fd, void *buf, size_t length) {
 	fat_fstat(fd, &st);
 	assert(st.st_dev == file->dev);
 	assert(st.st_ino == file->ino);
+
+	if (S_ISDIR(st.st_mode)) {
+		// TODO: don't perform this check over and over
+		return -EISDIR;
+	}
 
 	file_size = st.st_size;
 	uint32 bytes_read = 0; // this call to read() only
