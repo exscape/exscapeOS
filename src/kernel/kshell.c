@@ -181,33 +181,6 @@ static void fpu_task(void *data, uint32 length) {
 	asm volatile("fldpi");
 }
 
-static void guess_num(void *data, uint32 length) {
-	/* A simple "guess the number" game. 1-digit number due to the lack of simple library functions
-	 * for keyboard input. */
-
-	int num = RAND_RANGE(0, 9);
-	int guess = -1;
-	int num_guesses = 0;
-
-	while (guess != num) {
-		num_guesses++;
-		printk("Guess the number (0-9): ");
-		guess = getchar();
-		printk("%c  ", guess);
-		guess -= 0x30; /* ASCII to num */
-		if (guess == num) {
-			printk("You got it! I was looking for %d.\nIt took you %d guesses to find it.\n", num, num_guesses);
-			break;
-		}
-		else if (guess > num) {
-			printk("Nope. Try lower.\n");
-		}
-		else if (guess < num) {
-			printk("Nope. Try higher.\n");
-		}
-	}
-}
-
 static void test_dfault(void *data, uint32 length) {
 	asm volatile("movl $0xfabcabcd, %esp;"
 	"popl %eax;");
@@ -405,7 +378,6 @@ void kshell(void *data, uint32 length) {
 			printk("clear            - clear the screen\n");
 			printk("exit             - exit the shell\n");
 			printk("free             - display how much memory is used/free\n");
-			printk("guess            - in-kernel guess-the-number game\n");
 			printk("heaptest         - heap stress test\n");
 			printk("help             - this help screen\n");
 			printk("kill <pid>       - kill a process\n");
@@ -560,9 +532,6 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "pwd") == 0) {
 			pwd(NULL, 0);
-		}
-		else if (strcmp(p, "guess") == 0) {
-			task = create_task(&guess_num, "guess_num", con, NULL, 0);
 		}
 		else if (strcmp(p, "divzero_task") == 0) {
 			task = create_task(&divzero, "divzero", con, NULL, 0);
