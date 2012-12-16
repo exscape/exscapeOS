@@ -1,8 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-
-#define MAX_GUESSES 10
 
 #define MAX_GUESSES 10
 
