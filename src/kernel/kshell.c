@@ -104,6 +104,10 @@ static void cat(void *data, uint32 length) {
 
 static void ls(void *data, uint32 length) {
 	DIR *dir = opendir(current_task->pwd);
+	if (!dir) {
+		printk("ls: unable to opendir(%s) (PWD)!\n", current_task->pwd);
+		return;
+	}
 	struct dirent *dirent;
 	struct stat st;
 	while ((dirent = readdir(dir)) != NULL) {

@@ -41,7 +41,7 @@ list_t *fat32_partitions = NULL;
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
 //static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp);
-static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path);
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, int type);
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
 int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf);
@@ -213,9 +213,9 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	assert(part != NULL);
 	assert(part->magic == FAT32_MAGIC);
 
-	uint32 cluster = fat_cluster_for_path(part, path);
+	uint32 cluster = fat_cluster_for_path(part, path, 0 /* any type */);
 
-	if (cluster >= 2) {
+	if (cluster <= 0x0ffffff6) {
 		file->dev = dev;
 		file->ino = cluster;
 		file->_cur_ino = cluster;
@@ -243,14 +243,24 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		return fd;
 	}
 	else {
-		// We couldn't locate/open the file
 		return -ENOENT;
 	}
 }
 
 int fat_read(int fd, void *buf, size_t length) {
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
-	assert(file->ino != 0);
+
+	if (file->ino == 0 && file->count != 0) {
+		// This file appears to be empty (FAT cluster 0 means a size-0 file). Let's verify.
+		struct stat st;
+		if (fat_fstat(fd, &st) == 0 && st.st_size == 0) {
+			// Yup!
+			return 0;
+		}
+		else {
+			panic("file->ino == 0 on opened file");
+		}
+	}
 
 	fat32_partition_t *part = devtable[file->dev];
 	assert(part != NULL);
@@ -327,7 +337,7 @@ int fat_close(int fd) {
 	assert(fd <= MAX_OPEN_FILES);
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
-	assert(file->ino != 0);
+	assert(file->count != 0);
 
 	kfree(file->path);
 	file->path = NULL;
@@ -529,7 +539,7 @@ static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster) {
 #endif
 
 /* Locates the (first) cluster number associated with a path. */
-static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path) {
+static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, int type) {
 	assert(part != NULL);
 	assert(in_path != NULL && strlen(in_path) >= 1);
 
@@ -559,12 +569,16 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path)
 		while ((dirent = fat_readdir(dir)) != NULL) {
 			if (stricmp(dirent->d_name, token) == 0) {
 				/* We found the entry we were looking for! */
+				if (type == DT_DIR && dirent->d_type != DT_DIR) {
+					fat_closedir(dir);
+					return (uint32)(-ENOTDIR);
+				}
 				cur_cluster = dirent->d_ino;
 				goto nextloop;
 			}
 		}
 		fat_closedir(dir);
-		return 0;
+		return 0xffffffff; /* we didn't find anything! */
 nextloop:
 		fat_closedir(dir);
 	}
@@ -736,10 +750,10 @@ DIR *fat_opendir(mountpoint_t *mp, const char *path) {
 
 	fat32_partition_t *part = devtable[mp->dev];
 
-	uint32 cluster = fat_cluster_for_path(part, path);
+	uint32 cluster = fat_cluster_for_path(part, path, DT_DIR);
 
-	if (cluster == 0) {
-		// TODO: error reporting (-ENOENT)
+	if (cluster == 0 || cluster >= 0x0fffffff) {
+		// TODO: error reporting (-ENOENT, -ENOTDIR)
 		return NULL;
 	}
 
