@@ -127,17 +127,12 @@ sint64 sys_lseek(int fd, sint64 offset, int whence) {
  *** WRAPPERS ***
  ****************/
 
-int lseek(int fd, int offset, int whence) {
+off_t lseek(int fd, off_t offset, int whence) {
 	sint64 ret;
 	ret = sys_lseek(fd, offset, whence);
 
 	if (ret > 0) {
-		if (ret <= INT_MAX)
-			return (int)ret;
-		else {
-			errno = EOVERFLOW;
-			return -1;
-		}
+		return ret;
 	}
 	else {
 		errno = (int)(-ret);

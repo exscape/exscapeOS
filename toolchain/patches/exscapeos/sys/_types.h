@@ -12,9 +12,7 @@
 #include <machine/_types.h>
 #include <sys/lock.h>
 
-#ifndef __off_t_defined
-typedef long long _off_t;
-#endif
+typedef signed long long _off_t;
 
 #ifndef __dev_t_defined
 typedef short __dev_t;
