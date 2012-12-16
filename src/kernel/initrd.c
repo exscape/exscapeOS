@@ -53,6 +53,8 @@ bool fs_mount(void) {
 	char path[256] = {0};
 	int ap = 0;
 
+	bool root_mounted = false;
+
 	while (true) {
 		ap = 0;
 		while (*p > ' ') { mount[ap++] = *p++; }
@@ -68,6 +70,8 @@ bool fs_mount(void) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (strcmp(mount, "fat") == 0) {
 				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {
+					if (strcmp(path, "/") == 0)
+						root_mounted = true;
 					strcpy(mp->path, path);
 					printk("%s, ", mp->path);
 					break;
@@ -75,6 +79,8 @@ bool fs_mount(void) {
 			}
 			else if(strcmp(mount, "initrd") == 0) {
 				if (devtable[mp->dev] == (void *)0xffffffff) {
+					if (strcmp(path, "/") == 0)
+						root_mounted = true;
 					strcpy(mp->path, path);
 					printk("%s, ", mp->path);
 					break;
@@ -83,6 +89,11 @@ bool fs_mount(void) {
 		}
 		if (*p == 0)
 			break;
+	}
+
+	if (!root_mounted) {
+		putchar('\n');
+		panic("No root file system was mounted! Make sure initrd/mounts is correct: with no FAT filesystems, it should contain the lone line \"initrd /\" (without quotes).");
 	}
 
 	printk("\b\b: ");
