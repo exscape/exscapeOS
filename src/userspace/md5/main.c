@@ -33,7 +33,8 @@ int main(int argc, char *argv[])
 	const char *hexfmt = "%02X", *ifname;
     FILE *in = stdin, *out = stdout;
     unsigned char signature[16], csig[16];
-	unsigned char *buffer = malloc(16384);
+#define BUFSIZE 16384
+	unsigned char *buffer = malloc(BUFSIZE);
     struct MD5Context md5c;
     
     /*	Build parameter quality control.  Verify machine
@@ -236,7 +237,7 @@ int main(int argc, char *argv[])
 #endif
     
     	    MD5Init(&md5c);
-	    while ((j = (int) fread(buffer, 1, sizeof buffer, in)) > 0) {
+	    while ((j = (int) fread(buffer, 1, BUFSIZE, in)) > 0) {
 		MD5Update(&md5c, buffer, (unsigned) j);
 	    }
 	    
