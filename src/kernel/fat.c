@@ -100,25 +100,14 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	part_info->part_info = &dev->partition[part];
 	part_info->cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
 
-	/* This will need fixing later. The partition that is detected first turns in to the FS root. */
-	//if (mountpoints->count == 0) {
-		mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
-		//strlcpy(mp->path, "/", sizeof(mp->path));
-
-		mp->path[0] = 0; // not set up here
-		mp->mpops.open     = fat_open;
-		mp->mpops.opendir  = fat_opendir;
-		mp->mpops.stat     = fat_stat;
-
-		mp->dev = next_dev; // increased below
-
-		list_append(mountpoints, mp);
-/*
-	}
-	else {
-		panic("FAT partition is not root - other mountpoints are not yet supported!");
-	}
-*/
+	// Set up the mountpoint
+	mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
+	mp->path[0] = 0; // not set up here
+	mp->mpops.open     = fat_open;
+	mp->mpops.opendir  = fat_opendir;
+	mp->mpops.stat     = fat_stat;
+	mp->dev = next_dev; // increased below
+	list_append(mountpoints, mp);
 
 	// Store this in the device table (used for dev ID number -> partition mappings)
 	devtable[next_dev++] = (void *)part_info;
@@ -645,7 +634,7 @@ int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 		buf->st_nlink = 1;
 		buf->st_size = 0;
 		// TODO: set times!
-		buf->st_blksize = 4096; // doesn't really matter
+		buf->st_blksize = 4096;
 		buf->st_blocks = 1;
 
 		return 0;
@@ -714,15 +703,11 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 	if (stricmp(name, data->file) == 0) {
 		// We found it! We can finally fill in the struct stat.
 
-		uint32 num_clusters = 0;
+		uint32 num_blocks = 0;
 		if (!(disk_direntry->attrib & ATTRIB_DIR)) {
 			// Calculate how many clusters this file uses. If the file size is evenly
 			// divisible into the cluster size, that's the count. If not, an additional cluster
 			// is used for the last part of the file.
-			num_clusters = disk_direntry->file_size / part->cluster_size;
-			if (disk_direntry->file_size % part->cluster_size != 0) {
-				num_clusters += 1;
-			}
 		}
 
 		memset(st, 0, sizeof(struct stat));
@@ -741,8 +726,12 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 		st->st_nlink = 1;
 		st->st_size = (disk_direntry->attrib & ATTRIB_DIR) ? 0 : disk_direntry->file_size;
 		// TODO: set times!
-		st->st_blksize = part->cluster_size;
-		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_clusters;
+		st->st_blksize = (part->cluster_size > 16384 ? part->cluster_size : 16384);
+		num_blocks = disk_direntry->file_size / st->st_blksize;
+		if (disk_direntry->file_size % st->st_blksize != 0) {
+			num_blocks += 1;
+		}
+		st->st_blocks = (disk_direntry->attrib & ATTRIB_DIR) ? 1 : num_blocks;
 
 		data->success = true;
 
