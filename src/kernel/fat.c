@@ -45,6 +45,7 @@ static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path,
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster);
 int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf);
+int fat_getdents (int fd, void *dp, int count);
 
 bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Quite a few sanity checks */
@@ -132,7 +133,6 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 }
 
 off_t fat_lseek(int fd, off_t offset, int whence) {
-	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	assert(file->ino >= 2);
@@ -227,6 +227,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		file->fops.close = fat_close;
 		file->fops.lseek = fat_lseek;
 		file->fops.fstat = fat_fstat;
+		file->fops.getdents = fat_getdents;
 		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (mp->dev == dev) {
@@ -334,8 +335,6 @@ done:
 }
 
 int fat_close(int fd) {
-	assert(fd <= MAX_OPEN_FILES);
-
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 	assert(file->count != 0);
 
@@ -669,7 +668,6 @@ error:
 
 int fat_fstat(int fd, struct stat *buf) {
 	// Ugh, this feels like a huge hack.
-	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
 	char relpath[PATH_MAX+1] = {0};
@@ -775,6 +773,92 @@ int fat_closedir(DIR *dir) {
 	return 0;
 }
 
+int fat_getdents (int fd, void *dp, int count) {
+	// Fill upp /dp/ with at most /count/ bytes of struct dirents, read from the
+	// open directory with descriptor /fd/. We need to keep track of where we are,
+	// since the caller doesn't do that via the parameters.
+	// TODO: read stuff as-needed from the file system, instead of reading EVERYTHING
+	// at once. That was the easy solution as I already had the parsing in place prior
+	// to deciding to use getdents() for user mode...
+
+	if (count < 128) {
+		return -EINVAL;
+	}
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	if (file->data == NULL) {
+		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
+		assert(file->dev < MAX_DEVS);
+		fat32_partition_t *part = (fat32_partition_t *)devtable[file->dev];
+		assert(part != NULL);
+		file->data = fat_opendir_cluster(part, file->ino, file->mp);
+		if (file->data == NULL) {
+			return -ENOTDIR; // TODO - this can't happen at the moment, though (fat_opendir_cluster always succeds)
+		}
+	}
+
+	DIR *dir = file->data;
+	assert(dir != NULL);
+
+	if (dir->len != 0 && dir->pos >= dir->len) {
+		// We're done!
+		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
+		closedir(dir);
+		file->data = NULL;
+		// TODO: is this cleanup enough?
+		return 0;
+	}
+
+	if (dir->buf == NULL) {
+		/* Create the list of directory entries */
+		fat_parse_dir(dir, fat_callback_create_dentries, NULL /* callback-specific data, not used for this one */);
+	}
+
+	if (dir->buf == NULL) {
+		// If we get here, fat_parse_dir failed
+		// TODO: error reporting
+		return -1;
+	}
+
+	assert(dir->len > dir->pos);
+	assert((dir->pos & 3) == 0);
+	assert(dir->_buflen > dir->len);
+
+	// Okay, time to get to work!
+	// buffer to copy to is /dp/, and at most /count/ bytes can be written safely
+	int written = 0;
+	while (dir->pos < dir->len) {
+		struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
+		if (written + dent->d_reclen > count) {
+			if (dent->d_reclen > count) {
+				// Won't fit the next time around, either!
+				return -EINVAL; // TODO: memory leak if we don't clean up somewhere
+			}
+			else {
+				// This won't fit! Read it the next time around.
+				return written;
+			}
+		}
+		assert((char *)dp + written + dent->d_reclen <= (char *)dp + count);
+
+		// Okay, this entry fits; copy it over.
+		memcpy((char *)dp + written, dent, dent->d_reclen);
+		written += dent->d_reclen;
+
+		dir->pos += dent->d_reclen;
+		assert((dir->pos & 3) == 0);
+	}
+
+	// If we get here, the loop exited due to there being no more entries,
+	// though the caller can receive more still. Ensure the state is consistent,
+	// and return.
+	assert(written != 0); // we shouldn't get here if nothing was written
+	assert(dir->pos == dir->len);
+
+	return written;
+}
+
 /* Parses a directory structure, as returned by fat_opendir().
  * Returns one entry at a time (tracking is done inside the DIR struct).
  * Returns NULL when the entire directory has been read. */
@@ -812,7 +896,6 @@ struct dirent *fat_readdir(DIR *dir) {
 
 	return dent;
 }
-
 
 // Used with fat_parse_dir to read a directory structure into a DIR struct,
 // which is then used by readdir() to return struct dirents to the caller.
