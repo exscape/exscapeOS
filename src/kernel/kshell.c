@@ -102,7 +102,7 @@ static void cat(void *data, uint32 length) {
 }
 */
 
-static void ls(void *data, uint32 length) {
+static void lsk(void *data, uint32 length) {
 	DIR *dir = opendir(current_task->pwd);
 	if (!dir) {
 		printk("ls: unable to opendir(%s) (PWD)!\n", current_task->pwd);
@@ -386,7 +386,7 @@ void kshell(void *data, uint32 length) {
 			printk("help             - this help screen\n");
 			printk("kill <pid>       - kill a process\n");
 			printk("kshell           - start a nested kernel shell\n");
-			printk("ls               - list files\n");
+			printk("lsk              - list files (in-kernel)\n");
 			printk("lspci            - print the PCI device database\n");
 			printk("print_heap       - print the kernel heap index (used/free areas)\n");
 			printk("ps               - show processes\n");
@@ -396,6 +396,8 @@ void kshell(void *data, uint32 length) {
 			printk("testbench        - run a simple test benchmark in-kernel\n");
 			printk("testbench_task   - run a simple test benchmark as a task in-kernel\n");
 			printk("uptime           - show the current system uptime\n");
+
+			printk("Additional commands may exist on the file system!\n");
 
 			if (strcmp(p, "help all") != 0)
 				printk("Type \"help all\" to also display more obscure testing commands\n");
@@ -528,8 +530,8 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "divzero") == 0) {
 			divzero(NULL, 0);
 		}
-		else if (strcmp(p, "ls") == 0) {
-			ls(NULL, 0);
+		else if (strcmp(p, "lsk") == 0) {
+			lsk(NULL, 0);
 		}
 		else if (strcmp(p, "initrd_test") == 0) {
 			initrd_test();
