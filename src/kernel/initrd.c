@@ -357,6 +357,25 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 		}
 	}
 
+	if (!*p) {
+		// Path is just /
+		// SPECIAL CASE: stat the root directory, which
+		// won't be found in the directory list on-disk. Ugh.
+		memset(st, 0, sizeof(struct stat));
+
+		st->st_dev = mp->dev;
+		st->st_ino = 0xffff;
+		st->st_mode = 0777; // TODO
+		st->st_mode |= 040000; // directory
+		st->st_nlink = 1;
+		st->st_size = 0;
+		// TODO: set times!
+		st->st_blksize = 4096; // doesn't really matter
+		st->st_blocks = 1;
+
+		return 0;
+	}
+
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
 		if (strcmp(file_headers[i].name, p) == 0) {
 			memset(st, 0, sizeof(struct stat));
