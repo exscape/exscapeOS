@@ -317,10 +317,6 @@ task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name,
 	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */, data, length);
 	assert(task != NULL);
 
-	static int count = 0;
-	printk("create_task_user run #%d\n", count + 1);
-	count++;
-
 	assert(task->console == con);
 	if (con != NULL) {
 		node_t *n = list_find_last(con->tasks, (void *)task);
