@@ -13,7 +13,8 @@ int main(int argc, char **argv) {
 	if (argc == 1)
 		return 0;
 
-	char *buf = malloc(16385);
+#define BUFSIZE (16*1024)
+	char *buf = malloc(BUFSIZE + 1);
 
 	bool error = false;
 
@@ -27,10 +28,10 @@ int main(int argc, char **argv) {
 		int r = 0;
 		uint32 tot = 0;
 		do {
-			memset(buf, 0, 16385);
-			r = read(fd, buf, 16384);
+			memset(buf, 0, BUFSIZE + 1);
+			r = read(fd, buf, BUFSIZE);
 			tot += r;
-			fputs(buf, stdout);
+			//fputs(buf, stdout);
 		} while (r > 0);
 
 		close(fd);
