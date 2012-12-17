@@ -33,7 +33,8 @@ struct syscall_entry syscalls[] = {
 	{ &fstat, 32 },
 	{ &getpid, 32 }, /* 15 */
 	{ &sbrk, 32 },
-	{ &__getreent, 32 }
+	{ &__getreent, 32 },
+	{ &getdents, 32 }
 };
 
 uint32 num_syscalls = 0;

@@ -151,6 +151,19 @@ int fstat(int fd, struct stat *buf) {
 	return file->fops.fstat(fd, buf);
 }
 
+int getdents(int fd, void *dp, int count) {
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
+		return -EBADF;
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	if (file->count < 1)
+		return -EBADF;
+
+	if(file->fops.getdents == NULL)
+		return -ENOTDIR;
+	return file->fops.getdents(fd, dp, count);
+}
+
 int close(int fd) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;

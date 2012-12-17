@@ -44,6 +44,7 @@ typedef struct open_file_ops {
 	int   (*close)(int /* fd */);
 	off_t (*lseek)(int /* fd */, off_t /* offset */, int /* whence */);
 	int   (*fstat)(int /* fd */, struct stat *);
+	int (*getdents)(int /* fd */, void * /* buffer */, int /* count */);
 } open_file_ops_t;
 
 typedef struct mountpoint {
@@ -58,36 +59,7 @@ extern list_t *mountpoints;
 
 mountpoint_t *find_mountpoint_for_path(const char *path);
 
-#define DIRENT_NAME_LEN 256
-
-/* POSIX struct dirent */
-struct dirent {
-	uint32 d_ino;
-	uint16 d_dev; // custom field, to allow a dirent to uniquely specify a file
-	uint16 __pad;
-	uint16 d_reclen;
-	uint8 d_type;
-	uint8 d_namlen;
-	char d_name[DIRENT_NAME_LEN];
-};
-
-// Used by glibc, perhaps others? They may be useful some day
-#define _DIRENT_HAVE_D_NAMLEN
-#define _DIRENT_HAVE_D_RECLEN
-#define _DIRENT_HAVE_D_TYPE
-
-// struct dirent.flags
-enum {
-	DT_UNKNOWN = 0,
-	DT_FIFO = 1,
-	DT_CHR = 2,
-	DT_DIR = 4,
-	DT_BLK = 6,
-	DT_REG = 8,
-	DT_LNK = 10,
-	DT_SOCK = 12,
-    DT_WHT = 14
-};
+#include <sys/dirent.h>
 
 #define MAX_OPEN_FILES 128
 
@@ -107,6 +79,7 @@ typedef struct open_file {
 	mountpoint_t *mp;
 	char *path;
 	struct open_file_ops fops;
+	void *data; // implementation specific data
 } open_file_t;
 
 int get_free_fd(void);
@@ -122,6 +95,7 @@ int closedir(DIR *dir);
 //int fstat(int fd, struct stat *buf);
 int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
+int getdents (int fd, void *dp, int count);
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out);
 

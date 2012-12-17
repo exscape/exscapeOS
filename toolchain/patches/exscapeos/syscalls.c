@@ -4,6 +4,7 @@
 #include <sys/times.h>
 #include <sys/errno.h>
 #include <sys/time.h>
+#include <sys/dirent.h>
 #include <stdio.h>
 #include <limits.h>
 #include <reent.h>
@@ -89,6 +90,7 @@ DECL_SYSCALL2(fstat, int, int, struct stat *);
 DECL_SYSCALL0(getpid, int);
 DECL_SYSCALL1(sbrk, void *, sint32); // TODO: return type caddr_t
 DECL_SYSCALL0(__getreent, struct _reent *);
+DECL_SYSCALL3(getdents, int, int, void *, int);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -112,6 +114,7 @@ DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 DEFN_SYSCALL0(getpid, int, 15);
 DEFN_SYSCALL1(sbrk, void *, 16, sint32);
 DEFN_SYSCALL0(__getreent, struct _reent *, 17);
+DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -305,6 +308,17 @@ int gettimeofday(struct timeval *p, void *__tz) {
 	// TODO: gettimeofday!
 	errno = EINVAL; // TODO: is this OK?
 	return -1;
+}
+
+int getdents(int fd, void *dp, int count) {
+	int ret;
+	if ((ret = sys_getdents(fd, dp, count)) >= 0) {
+		return ret;
+	}
+	else {
+		errno = -ret;
+		return -1;
+	}
 }
 
 char *__env[1] = { 0 };
