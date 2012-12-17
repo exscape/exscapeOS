@@ -223,8 +223,8 @@ static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task
 	// We use heap_alloc here to specify the heap, since malloc() uses current_task->heap;
 	// current_task is still set to the parent task
 
-	char **argv = heap_alloc(max_args * sizeof(char *), false, task->heap);
-	memset(argv, 0, max_args * sizeof(char *));
+	char **argv = heap_alloc((max_args + 1) * sizeof(char *), false, task->heap);
+	memset(argv, 0, (max_args + 1) * sizeof(char *));
 
 	const char *c = cmdline;
 
