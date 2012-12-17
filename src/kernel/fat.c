@@ -633,6 +633,24 @@ int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 	path_dirname(path);
 	path_basename(base);
 
+	if (strcmp(path, "/") == 0 && strcmp(base, "/") == 0) {
+		// SPECIAL CASE: stat the root directory, which
+		// won't be found in the directory list on-disk. Ugh.
+		memset(buf, 0, sizeof(struct stat));
+
+		buf->st_dev = mp->dev;
+		buf->st_ino = 2;
+		buf->st_mode = 0777; // TODO
+		buf->st_mode |= 040000; // directory
+		buf->st_nlink = 1;
+		buf->st_size = 0;
+		// TODO: set times!
+		buf->st_blksize = 4096; // doesn't really matter
+		buf->st_blocks = 1;
+
+		return 0;
+	}
+
 	DIR *dir = fat_opendir(mp, path);
 	if (!dir) {
 		// TODO: errno
