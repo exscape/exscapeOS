@@ -12,6 +12,8 @@
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 static initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */
 
+mountpoint_t *initrd_mp = NULL;
+
 //struct dirent dirent;
 
 // Returns the file size
@@ -83,6 +85,7 @@ bool fs_mount(void) {
 						root_mounted = true;
 					strcpy(mp->path, path);
 					printk("%s, ", mp->path);
+					initrd_mp = mp;
 					break;
 				}
 			}
@@ -96,12 +99,16 @@ bool fs_mount(void) {
 		panic("No root file system was mounted! Make sure initrd/mounts is correct: with no FAT filesystems, it should contain the lone line \"initrd /\" (without quotes).");
 	}
 
+	if (initrd_mp == NULL) {
+		panic("initrd not mounted! Make sure there's an entry such as \"initrd /initrd\" in initrd/mounts (on the building system).");
+	}
+
 	printk("\b\b: ");
 	kfree(buf);
 	return true;
 }
 
-
+int initrd_getdents(int fd, void *dp, int count);
 int initrd_read(int fd, void *buf, size_t length) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
@@ -186,9 +193,26 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
+	if (strcmp(path, "/.") == 0 || strcmp(path, "/") == 0) {
+		// Special case for the root directory
+		memset(file, 0, sizeof (struct open_file));
+		file->ino = 0xfffffff;
+		file->dev = dev;
+		file->_cur_ino = 0xffffffff;
+		file->count++;
+		assert(file->count == 1); // until dup/dup2 etc. exists
+		file->path = strdup(path);
+		file->fops.close = initrd_close;
+		file->fops.lseek = initrd_lseek;
+		file->fops.fstat = initrd_fstat;
+		file->fops.getdents = initrd_getdents;
+		file->mp = initrd_mp;
+
+		return fd;
+	}
+
 	file->ino = 0xffffffff;
 	// Find the inode number
-	// TODO: use finddir here
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
 		if (strcmp(file_headers[i].name, p) == 0) {
 			file->ino = i;
@@ -196,20 +220,13 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 			file->_cur_ino = i;
 			file->offset = 0;
 			file->size = 0; // TODO: remove?
-			file->mp = NULL;
+			file->mp = initrd_mp;
 			file->path = strdup(path); // TODO: what does this turn out to be?
 			file->fops.read  = initrd_read;
 			file->fops.write = NULL;
 			file->fops.close = initrd_close;
 			file->fops.lseek = initrd_lseek;
 			file->fops.fstat = initrd_fstat;
-			for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
-				mountpoint_t *mp = (mountpoint_t *)it->data;
-				if (mp->dev == dev) {
-					file->mp = mp;
-					break;
-				}
-			}
 			file->count++;
 			assert(file->count == 1); // We have no dup, dup2 etc. yet
 			break;
@@ -402,6 +419,79 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 
 	return -1;
 }
+
+int initrd_getdents(int fd, void *dp, int count) {
+	// Fill upp /dp/ with at most /count/ bytes of struct dirents, read from the
+	// open directory with descriptor /fd/. We need to keep track of where we are,
+	// since the caller doesn't do that via the parameters.
+
+	if (count < 128) {
+		return -EINVAL;
+	}
+
+	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+
+	if (file->data == NULL) {
+		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
+		assert(file->dev < MAX_DEVS);
+		file->data = initrd_opendir(initrd_mp, "/");
+	}
+
+	DIR *dir = file->data;
+	assert(dir != NULL);
+
+	if (dir->len != 0 && dir->pos >= dir->len) {
+		// We're done!
+		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
+		initrd_closedir(dir);
+		file->data = NULL;
+		// TODO: is this cleanup enough?
+		return 0;
+	}
+
+	if (dir->buf == NULL) {
+		// TODO: error reporting
+		return -1;
+	}
+
+	assert(dir->len > dir->pos);
+	assert((dir->pos & 3) == 0);
+	assert(dir->_buflen > dir->len);
+
+	// Okay, time to get to work!
+	// buffer to copy to is /dp/, and at most /count/ bytes can be written safely
+	int written = 0;
+	while (dir->pos < dir->len) {
+		struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
+		if (written + dent->d_reclen > count) {
+			if (dent->d_reclen > count) {
+				// Won't fit the next time around, either!
+				return -EINVAL; // TODO: memory leak if we don't clean up somewhere
+			}
+			else {
+				// This won't fit! Read it the next time around.
+				return written;
+			}
+		}
+		assert((char *)dp + written + dent->d_reclen <= (char *)dp + count);
+
+		// Okay, this entry fits; copy it over.
+		memcpy((char *)dp + written, dent, dent->d_reclen);
+		written += dent->d_reclen;
+
+		dir->pos += dent->d_reclen;
+		assert((dir->pos & 3) == 0);
+	}
+
+	// If we get here, the loop exited due to there being no more entries,
+	// though the caller can receive more still. Ensure the state is consistent,
+	// and return.
+	assert(written != 0); // we shouldn't get here if nothing was written
+	assert(dir->pos == dir->len);
+
+	return written;
+}
+
 
 /* Fetches the initrd from the location specified (provided by GRUB),
  * and sets up the necessary structures. */
