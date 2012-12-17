@@ -1,5 +1,6 @@
 .global _start
 .extern main
+.extern exit
 .extern _init_signal
 _start:
 
@@ -17,10 +18,8 @@ call _init_signal
 # clean the parameters off the stack
 	addl $0x8, %esp
 
-# call _exit
-	movl %eax, %ebx # set first argument to _exit syscall
-	movl $0, %eax # _exit is syscall 0
-	int $0x80
+	pushl %eax
+	call exit
 
 # this should not be reached,
 # but in case it is, wait forever
