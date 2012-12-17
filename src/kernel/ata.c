@@ -614,8 +614,8 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
  * the buffer must be at least 2048 bytes, etc. Always in multiples of 512. */
 bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer) {
 	uint32 sectors = bytes/512;
-	if (sectors == 0)
-		sectors = 1;
+	if (bytes % 512)
+		sectors++;
 
 	// TODO: read the last sector to a local buffer and copy the data over,
 	// such that we never write more than /bytes/ bytes to the buffer.
