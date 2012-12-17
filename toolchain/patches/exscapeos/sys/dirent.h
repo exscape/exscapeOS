@@ -3,7 +3,7 @@
 
 #include <sys/types.h>
 
-#define DIRENT_NAME_LEN 256
+#define MAXNAMLEN 256
 
 /* POSIX struct dirent */
 struct dirent {
@@ -13,7 +13,7 @@ struct dirent {
 	uint16 d_reclen;
 	uint8 d_type;
 	uint8 d_namlen;
-	char d_name[DIRENT_NAME_LEN];
+	char d_name[MAXNAMLEN];
 };
 
 #define _DIRENT_HAVE_D_NAMLEN
@@ -32,5 +32,26 @@ enum {
 	DT_SOCK = 12,
     DT_WHT = 14
 };
+
+#ifndef  _EXSCAPEOS_KERNEL
+typedef struct {
+    int dd_fd;		/* directory file */
+    int dd_loc;		/* position in buffer */
+    int dd_seek;
+    char *dd_buf;	/* buffer */
+    int dd_len;		/* buffer length */
+    int dd_size;	/* amount of data in buffer */
+//	_LOCK_RECURSIVE_T dd_lock;
+} DIR;
+
+struct dirent *readdir(DIR *dirp);
+DIR *opendir(const char *name);
+int closedir(DIR *dirp);
+
+int scandir(const char *dirname, struct dirent ***namelist, int (*select)(const struct dirent *), int (*dcomp)(const struct dirent **, const struct dirent **));
+void rewinddir(DIR *dirp);
+void seekdir(DIR *dirp, long loc);
+long telldir(DIR *dirp);
+#endif
 
 #endif

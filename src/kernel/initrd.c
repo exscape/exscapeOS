@@ -259,7 +259,7 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 	// struct dirent has space for (currently) 256 chars in the path; the initrd only supports 64,
 	// so we can cut back a bit. Add 4 bytes for padding, and the rest to ensure that the last dirent
 	// is all within the buffer.
-	dir->_buflen = initrd_header->nfiles * (sizeof(struct dirent) - DIRENT_NAME_LEN + 64 + 4) + sizeof(struct dirent);
+	dir->_buflen = initrd_header->nfiles * (sizeof(struct dirent) - MAXNAMLEN + 64 + 4) + sizeof(struct dirent);
 	dir->buf = kmalloc(dir->_buflen);
 	memset(dir->buf, 0, dir->_buflen);
 

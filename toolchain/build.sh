@@ -129,6 +129,7 @@ fi # end $NEWLIB_ONLY != 1
 # That would make sense, since Newlb is the only part of this
 # that builds code *for* exscapeOS, not just code that *targets* it
 export PATH=$PATH:$PREFIX/bin
+export CFLAGS_FOR_TARGET="-O0 -gstabs+"
 
 echo
 echo Patching Newlib...

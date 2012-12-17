@@ -4,7 +4,7 @@
 #include <sys/times.h>
 #include <sys/errno.h>
 #include <sys/time.h>
-#include <sys/dirent.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <limits.h>
 #include <reent.h>

@@ -928,7 +928,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 		//printk("writing dent at %u\n", dir->len);
 
 		dent = (struct dirent *)(dir->buf + dir->len);
-		strlcpy(dent->d_name, ".", DIRENT_NAME_LEN);
+		strlcpy(dent->d_name, ".", MAXNAMLEN);
 		dent->d_ino = part->root_dir_first_cluster;
 		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
@@ -938,7 +938,7 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 
 		//printk("writing dent at %u\n", dir->len);
 		dent = (struct dirent *)(dir->buf + dir->len);
-		strlcpy(dent->d_name, "..", DIRENT_NAME_LEN);
+		strlcpy(dent->d_name, "..", MAXNAMLEN);
 		dent->d_ino = part->root_dir_first_cluster;
 		dent->d_dev = dev;
 		dent->d_type = DT_DIR;
@@ -980,10 +980,10 @@ static bool fat_callback_create_dentries(fat32_direntry_t *disk_direntry, DIR *d
 	dent->d_dev = dev;
 
 	if (lfn_buf) {
-		strlcpy(dent->d_name, lfn_buf, DIRENT_NAME_LEN);
+		strlcpy(dent->d_name, lfn_buf, MAXNAMLEN);
 	}
 	else {
-		strlcpy(dent->d_name, short_name, DIRENT_NAME_LEN);
+		strlcpy(dent->d_name, short_name, MAXNAMLEN);
 	}
 
 	dent->d_namlen = strlen(dent->d_name);

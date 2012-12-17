@@ -15,13 +15,14 @@ diff --git a/newlib/configure.host b/newlib/configure.host
 index ef73fd0..e31e784 100644
 --- a/newlib/configure.host
 +++ b/newlib/configure.host
-@@ -406,6 +406,10 @@ case "${host}" in
+@@ -406,6 +406,11 @@ case "${host}" in
    h8500-*-elf*)
  	sys_dir=h8500hms
  	;;
 +  i[3-7]86-*-exscapeos*)
 +	sys_dir=exscapeos
 +	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -D__DYNAMIC_REENT__ -O0 -gstabs+" # -DREENTRANT_SYSCALLS_PROVIDED
++	posix_dir=posix
 +	;;
    i[34567]86-*-rdos*)
  	sys_dir=rdos
