@@ -353,9 +353,9 @@ void kshell(void *data, uint32 length) {
 
 			putchar(ch);
 
-			//if (ch == 0x08) {
-			//putchar(' '); cursor_left();
-			//}
+			if (ch == 0x08) {
+				putchar(' '); cursor_left();
+			}
 
 			update_cursor();
 		}
