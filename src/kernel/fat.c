@@ -9,6 +9,7 @@
 #include <kernel/vfs.h>
 #include <path.h>
 #include <sys/errno.h>
+#include <kernel/pmm.h>
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */
@@ -117,6 +118,22 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
+
+	// Cache the entire FAT in RAM. TODO: don't do this if it wouldn't fit
+	uint32 fat_bytes = part_info->bpb->sectors_per_fat * 512;
+	if (fat_bytes % 512) {
+		// disk_read only reads full sectors!
+		fat_bytes %= 512;
+		fat_bytes += 512;
+	}
+
+	if (fat_bytes < pmm_bytes_free() / 2) {
+		// Only cache if there's at least *some* RAM to spare for it
+		part_info->cached_fat = kmalloc(fat_bytes);
+		assert(disk_read(part_info->dev, part_info->fat_start_lba, fat_bytes, part_info->cached_fat));
+	}
+	else
+		part_info->cached_fat = NULL;
 
 	return true;
 }
@@ -337,24 +354,30 @@ int fat_close(int fd) {
 static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 	assert(part != NULL);
 	assert(cur_cluster >= 2);
+	uint32 val = 0;
+	if (part->cached_fat) {
+		// FAT is cached; read from RAM
+		uint32 *fat = (uint32 *)part->cached_fat;
+		val = fat[cur_cluster];
+	}
+	else {
+		/* Formulas taken from the FAT spec */
+		uint32 fat_offset = cur_cluster * 4;
+		uint32 fat_sector = part->fat_start_lba + (fat_offset / 512);
+		uint32 entry_offset = fat_offset % 512;
 
-	/* Formulas taken from the FAT spec */
-	uint32 fat_offset = cur_cluster * 4;
-	uint32 fat_sector = part->fat_start_lba + (fat_offset / 512);
-	uint32 entry_offset = fat_offset % 512;
+		/* Make sure the FAT LBA is within the FAT on disk */
+		assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + part->bpb->sectors_per_fat));
 
-	/* Make sure the FAT LBA is within the FAT on disk */
-	assert((fat_sector >= part->fat_start_lba) && (fat_sector <= part->fat_start_lba + part->bpb->sectors_per_fat));
+		/* Read the FAT sector to RAM */
+		uint8 fat[512];
+		assert(disk_read(part->dev, fat_sector, 512, (uint8 *)fat));
 
-	/* Read the FAT sector to RAM */
-	uint8 fat[512];
-	assert(disk_read(part->dev, fat_sector, 512, (uint8 *)fat));
+		/* Read the FAT */
+		val = *(uint32 *)(&fat[entry_offset]);
+	}
 
-	/* Read the FAT */
-	uint32 *addr = (uint32 *)(&fat[entry_offset]);
-	uint32 val = (*addr) & 0x0fffffff;
-
-	return val;
+	return (val & 0x0fffffff);
 }
 
 /* Converts from the UTF-16 LFN buffer to a ASCII. Convert at most /len/ characters. */
