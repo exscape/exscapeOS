@@ -17,7 +17,9 @@
 	[x] Basic reading (PIO)
 	[x] Basic writing (PIO)
 	[ ] Decent error handling
-[ ] File system
+[-] File system
+	[x] Read-only FAT
+	[ ] Write suppport
 [x] Executable loading (ELF parsing, etc.)
-[ ] User-mode libc
+[x] User-mode libc (wohoo!)
 [ ] FPU/SSE/AVX state saving during context switches

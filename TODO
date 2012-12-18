@@ -1,2 +1,11 @@
-* TODO: implement queues for mutexes
-* TODO: directory caching - searching and stat()ing a "large" (20+ entries) directory is slow! 100+ is *very* slow!
+* DMA for ATA transfers? If not: READ MULTIPLE to speed up slightly
+* FAT: read multiple clusters at once, if continuous on disk and request is > 1 cluster size
+* Keyboard input: pass more info to userland, so that e.g. ^C and ^D could work.
+* Signal support
+* fork + execve
+* User-mode shell (I've already written a half-finished one)
+* Pipes
+* Proper VFS
+* Implement the remaining syscalls for Newlib
+* Implement queues for mutexes
+* Directory caching - searching and stat()ing a "large" (20+ entries) directory is slow! 100+ is *very* slow!
