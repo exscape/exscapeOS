@@ -14,6 +14,7 @@
 #include <path.h>
 #include <kernel/vfs.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #include <kernel/vmm.h>
 #include <kernel/pmm.h>
@@ -307,6 +308,13 @@ static void sleep_test(void *data, uint32 length) {
 	printk("sleep test done\n");
 }
 
+static void utime(void *data, uint32 length) {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	printk("%d\n", tv.tv_sec);
+}
+
 void kshell(void *data, uint32 length) {
 	unsigned char *buf = kmalloc(1024);
 	memset(buf, 0, 1024);
@@ -446,6 +454,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "exit") == 0) {
 			break;
+		}
+		else if (strcmp(p, "utime") == 0) {
+			utime(NULL, 0);
 		}
 		else if (strcmp(p, "print_1_sec") == 0) {
 			task = create_task(&print_1_sec, "print_1_sec", con, NULL, 0);
