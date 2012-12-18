@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 void print_help(void) {
 	fprintf(stderr, "Usage: ls [-alh] [files...]\n");
@@ -17,7 +18,6 @@ void print_help(void) {
 }
 
 int main(int argc, char **argv) {
-
 	assert(argv[argc] == NULL);
 
 	int c;
@@ -61,6 +61,10 @@ int main(int argc, char **argv) {
 	}
 	else
 		memcpy(files, argv, argc * sizeof(char *));
+
+	time_t tmp = time(NULL);
+	struct tm *tm = localtime(&tmp);
+	int current_year = tm->tm_year + 1900;
 
 	do {
 		if (argc > 1) {
@@ -110,7 +114,15 @@ int main(int argc, char **argv) {
 					}
 				}
 
-				printf("%s 1 root  root %8u 01 Jan 1970 %s%s\n", perm_str, (uint32)st.st_size, dent->d_name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+				tmp = st.st_mtime;
+				tm = localtime(&tmp);
+				char date_buf[16] = {0};
+				if (tm->tm_year + 1900 == current_year)
+					strftime(date_buf,  16, "%d %b %H:%M", tm);
+				else
+					strftime(date_buf, 16, "%d %b  %Y", tm);
+
+				printf("%s 1 root  root %8u %s %s%s\n", perm_str, (uint32)st.st_size, date_buf, dent->d_name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
 			}
 			else {
 				// standard format
