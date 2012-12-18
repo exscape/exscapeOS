@@ -4,6 +4,7 @@
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
 #include <kernel/vfs.h>
+#include <sys/time.h>
 
 static uint32 syscall_handler(uint32);
 
@@ -34,7 +35,8 @@ struct syscall_entry syscalls[] = {
 	{ &getpid, 32 }, /* 15 */
 	{ &sbrk, 32 },
 	{ &__getreent, 32 },
-	{ &getdents, 32 }
+	{ &getdents, 32 },
+	{ &gettimeofday, 32 }
 };
 
 uint32 num_syscalls = 0;

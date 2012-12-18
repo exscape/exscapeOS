@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <kernel/kernutil.h>
 #include <string.h>
+#include <sys/errno.h>
 
 	/*
 	 * This is a big chunk of code used for debugging the RTC routines.
@@ -144,7 +145,9 @@ static void rtc_reformat(Time *t) {
 
 void get_time(Time *t) {
 	//
-	// Logic: wait while an update is in progress; when done,
+	// Logic: wait while an update is in progress; when done, read the date/time
+	// until the last two readings are equal. This way, even if the readings
+	// change mid-read, we will still get a consistent reading in the end.
 	//
 	assert(t != NULL);
 	Time prev;
@@ -163,10 +166,140 @@ void get_time(Time *t) {
 	// ... that's it!
 }
 
-int gettimeofday(struct timeval *restrict tp, void *restrict tzp) {
-	Time t;
-	get_time(&t);
-	assert(t.year == 2012);
+/*****************************************************************
+ * ABOVE: RTC handling code.                                     *
+ * BELOW: kern_mktime() and gettimeofday() plus helper functions *
+ *****************************************************************/
+
+typedef struct {
+	int quot;
+	int rem;
+} div_t;
+
+static div_t div(int a, int b) {
+	div_t d = {0};
+	if (b == 0)
+		return d;
+
+	d.quot = a / b;
+	d.rem = a % b;
+
+	return d;
+}
+
+#define _SEC_IN_MINUTE 60L
+#define _SEC_IN_HOUR 3600L
+#define _SEC_IN_DAY 86400L
+
+static const int DAYS_IN_MONTH[12] =
+{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+#define _DAYS_IN_MONTH(x) ((x == 1) ? days_in_feb : DAYS_IN_MONTH[x])
+
+static const int _DAYS_BEFORE_MONTH[12] =
+{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+
+#define _ISLEAP(y) (((y) % 4) == 0 && (((y) % 100) != 0 || (((y)+1900) % 400) == 0))
+#define _DAYS_IN_YEAR(year) (_ISLEAP(year) ? 366 : 365)
+
+static void validate_structure (Time *tim_p) {
+  div_t res;
+  int days_in_feb = 28;
+
+  /* calculate time & date to account for out of range values */
+  if (tim_p->second > 59)
+    {
+      res = div (tim_p->second, 60);
+      tim_p->minute += res.quot;
+    }
+
+  if (tim_p->minute > 59)
+    {
+      res = div (tim_p->minute, 60);
+      tim_p->hour += res.quot;
+    }
+
+  if (tim_p->hour > 23)
+    {
+      res = div (tim_p->hour, 24);
+      tim_p->day += res.quot;
+    }
+
+  if (tim_p->month > 11)
+    {
+      res = div (tim_p->month, 12);
+      tim_p->year += res.quot;
+    }
+
+  if (_DAYS_IN_YEAR (tim_p->year) == 366)
+    days_in_feb = 29;
+
+	while (tim_p->day > _DAYS_IN_MONTH (tim_p->month))
+	{
+	  tim_p->day -= _DAYS_IN_MONTH (tim_p->month);
+	  if (++tim_p->month == 12)
+	    {
+	      tim_p->year++;
+	      tim_p->month = 0;
+	      days_in_feb =
+		((_DAYS_IN_YEAR (tim_p->year) == 366) ?
+		 29 : 28);
+	    }
+	}
+}
+
+time_t kern_mktime(Time *tim_p) {
+  time_t tim = 0;
+  long days = 0;
+  int year;
+
+  /* validate structure */
+  validate_structure (tim_p);
+
+  /* compute hours, minutes, seconds */
+  tim += tim_p->second + (tim_p->minute * _SEC_IN_MINUTE) +
+    (tim_p->hour * _SEC_IN_HOUR);
+
+  /* compute days in year */
+  days += tim_p->day - 1;
+  days += _DAYS_BEFORE_MONTH[tim_p->month];
+  if (tim_p->month > 1 && _DAYS_IN_YEAR (tim_p->year) == 366)
+    days++;
+
+  /* compute days in other years */
+  if ((year = tim_p->year) > 70)
+    {
+      for (year = 70; year < tim_p->year; year++)
+	days += _DAYS_IN_YEAR (year);
+    }
+  else if (year < 70)
+    {
+      for (year = 69; year > tim_p->year; year--)
+	days -= _DAYS_IN_YEAR (year);
+      days -= _DAYS_IN_YEAR (year);
+    }
+
+  /* compute total seconds */
+  tim += (days * _SEC_IN_DAY);
+
+  return tim;
+}
+
+int gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute__((unused))) {
+	if (tp == NULL)
+		return -EFAULT;
+
+	Time kt;
+	get_time(&kt);
+	assert(kt.month > 0);
+	kt.month--; // convert from [1,12] to [0,11] as mktime expects
+	kt.year -= 1900; // convert from year to "year since 1900"
+	kt.hour++; // TODO: timezone hack; the code above corrects if this overflows
+
+	time_t t = kern_mktime(&kt);
+
+	tp->tv_sec = t;
+	tp->tv_usec = 0;
 
 	return 0;
 }

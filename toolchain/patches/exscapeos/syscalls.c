@@ -91,6 +91,7 @@ DECL_SYSCALL0(getpid, int);
 DECL_SYSCALL1(sbrk, void *, sint32); // TODO: return type caddr_t
 DECL_SYSCALL0(__getreent, struct _reent *);
 DECL_SYSCALL3(getdents, int, int, void *, int);
+DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -115,6 +116,7 @@ DEFN_SYSCALL0(getpid, int, 15);
 DEFN_SYSCALL1(sbrk, void *, 16, sint32);
 DEFN_SYSCALL0(__getreent, struct _reent *, 17);
 DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
+DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -305,9 +307,13 @@ int write(int file, char *ptr, int len) {
 }
 
 int gettimeofday(struct timeval *p, void *__tz) {
-	// TODO: gettimeofday!
-	errno = EINVAL; // TODO: is this OK?
-	return -1;
+	int ret;
+	if ((ret = sys_gettimeofday(p, __tz)) == 0)
+		return ret;
+	else {
+		errno = -ret;
+		return -1;
+	}
 }
 
 int getdents(int fd, void *dp, int count) {
