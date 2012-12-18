@@ -31,11 +31,10 @@ int main(int argc, char **argv) {
 			memset(buf, 0, BUFSIZE + 1);
 			r = read(fd, buf, BUFSIZE);
 			tot += r;
-			//fputs(buf, stdout);
+			fputs(buf, stdout);
 		} while (r > 0);
 
 		close(fd);
-		//printf("read a total of %u bytes from %s\n", tot, argv[i]);
 	}
 
 	if (!error)
