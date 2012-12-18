@@ -10,7 +10,7 @@
 #include <kernel/timer.h>
 #include <kernel/heap.h>
 #include <kernel/vmm.h>
-#include <kernel/rtc.h>
+#include <kernel/time.h>
 #include <kernel/multiboot.h>
 #include <kernel/initrd.h>
 #include <kernel/task.h>

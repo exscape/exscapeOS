@@ -7,7 +7,7 @@
 #include <kernel/heap.h>
 #include <kernel/list.h>
 #include <kernel/timer.h>
-#include <kernel/rtc.h>
+#include <kernel/time.h>
 
 /* A character representing empty space on the screen */
 static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
