@@ -1,13 +1,7 @@
 #include <kernel/time.h>
 #include <sys/types.h>
-
-//#define DIVZERO_10_SEC /* divides by zero every 10 seconds; used to test exceptions */
-
-void get_time(Time *t) {
-	/* This function isn't pretty, at all, but it didn't appear very easy to share
-	   structs between nasm and C, so I chose to use inline assembly. */
-
-	unsigned char yeartmp = 0;
+#include <kernel/kernutil.h>
+#include <string.h>
 
 	/*
 	 * This is a big chunk of code used for debugging the RTC routines.
@@ -15,10 +9,9 @@ void get_time(Time *t) {
 	 * of 12h/24h time and BCD/binary representations.
 	 * It's still here just in case; rewriting it would be boring.
 	 */
-
 /*
 	// Set status reg B for debugging purposes
-	unsigned char rb = 0;
+	uint8 rb = 0;
 
 	asm volatile(
 	// wait until no update is in progress
@@ -61,74 +54,52 @@ void get_time(Time *t) {
 */
 	// END DEBUGGING CODE
 
-	asm volatile(
-		/* make sure the update flag isn't set */
-		".ll:"
-		"movb $10, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"testb $0x80, %%al;"
-		"jne .ll;"
+	uint8 yeartmp = 0;
 
-		/* fetch the year (00-99) */
-		"movb $0x09, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[yeartmp];"
+static bool rtc_update_in_progress(void) {
+	outb(0x70, 10);
+	return ((inb(0x71) & 0x80) != 0);
+}
 
-		/* month */
-		"movb $0x08, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[month];"
+static uint8 rtc_get_reg(uint8 reg) {
+	assert(reg <= 0xb);
+	outb(0x70, reg);
+	return inb(0x71);
+}
 
-		/* day of month */
-		"movb $0x07, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[day];"
+#define REG_YEAR 0x09
+#define REG_MONTH 0x08
+#define REG_DAYOFMONTH 0x07
+#define REG_HOUR 0x04
+#define REG_MINUTE 0x02
+#define REG_SECOND 0x00
+#define REG_STATUS_B 0xb
 
-		/* hour (12h or 24h) */
-		"movb $0x04, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[hour];"
+static void rtc_get_raw(Time *t) {
+	assert(t != NULL);
 
-		/* minute */
-		"movb $0x02, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[minute];"
+	while (rtc_update_in_progress()) {
+	}
 
-		/* second */
-		"movb $0x0, %%al;"
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[second];"
+	t->year   = rtc_get_reg(REG_YEAR);
+	t->month  = rtc_get_reg(REG_MONTH);
+	t->day    = rtc_get_reg(REG_DAYOFMONTH);
+	t->hour   = rtc_get_reg(REG_HOUR);
+	t->minute = rtc_get_reg(REG_MINUTE);
+	t->second = rtc_get_reg(REG_SECOND);
+}
 
-		:
-		[yeartmp]"=m"(yeartmp),
-		[month]"=m"(t->month),
-		[day]  "=m"(t->day),
-		[hour] "=m"(t->hour),
-		[minute]"=m"(t->minute),
-		[second]"=m"(t->second)
-		: : "%al", "memory");
+static void rtc_reformat(Time *t) {
+	assert(t != NULL);
 
 	/* Fetch CMOS status register B */
-	unsigned char regb;
-	asm volatile("movb $0xb, %%al;" // 0xb = status reg B
-		"outb %%al, $0x70;"
-		"inb $0x71, %%al;"
-		"movb %%al, %[regb];"
-		:
-		[regb]"=m"(regb)
-		: : "%al", "memory");
+	uint8 regb = rtc_get_reg(REG_STATUS_B);
 
-	/* These bits describe the output from the RTC - whether the data is
+	/*
+	 * These bits describe the output from the RTC - whether the data is
 	 * in BCD or binary form, and whether the clock is 12-hour or 24-hour.
 	 */
-	unsigned char is_bcd, is_24_hour;
+	uint8 is_bcd, is_24_hour;
 	is_bcd     = (regb & 4) ? 0 : 1; /* [sic] */
 	is_24_hour = (regb & 2) ? 1 : 0; 
 
@@ -150,8 +121,9 @@ void get_time(Time *t) {
 
 	/* Convert the data from BCD to binary form, if needed */
 	if (is_bcd) {
-#define bcd_to_bin(x) ((x / 16) * 10) + (unsigned char)(x & (unsigned char)0xf)
-		yeartmp   = bcd_to_bin(yeartmp);
+#define bcd_to_bin(x) (((x) / 16) * 10) + (uint8)((x) & (uint8)0xf)
+		t->year   = bcd_to_bin(t->year);
+		t->year  += (t->year < 12 ? 2100 : 2000);
 		t->month  = bcd_to_bin(t->month);
 		t->day    = bcd_to_bin(t->day);
 		t->hour   = bcd_to_bin(t->hour);
@@ -168,19 +140,33 @@ void get_time(Time *t) {
 			t->hour += 12;
 		}
 	}
+}
 
-/* Used to debug exception handling */
-#ifdef DIVZERO_10_SEC
-	if (t->second % 10 == 0) {
-		asm volatile("mov $0xDEADBEEF, %eax;"
-			"mov $0, %ebx;"
-			"div %ebx;"); 
-	}
-#endif
+void get_time(Time *t) {
+	//
+	// Logic: wait while an update is in progress; when done,
+	//
+	assert(t != NULL);
+	Time prev;
+	memset(t, 0, sizeof(Time));
 
-	/*
-	 * This will fail for year 2100+, and I frankly don't care enough to fix it.
-	 * Actually, I would fix this if I was *sure* it was always stored it register 0x32, but that appears uncertain...?
-	 */
-	t->year = 2000 + yeartmp; 
+	do {
+		memcpy(&prev, t, sizeof(Time));
+		while (rtc_update_in_progress()) { }
+		rtc_get_raw(t);
+	} while(memcmp(&prev, t, sizeof(Time)) != 0);
+
+	// OK, we should have a non-corrupt representation of the current time now,
+	// even if the RTC happened to update mid-reading. Reformat it.
+	rtc_reformat(t);
+
+	// ... that's it!
+}
+
+int gettimeofday(struct timeval *restrict tp, void *restrict tzp) {
+	Time t;
+	get_time(&t);
+	assert(t.year == 2012);
+
+	return 0;
 }
