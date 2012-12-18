@@ -10,6 +10,7 @@
 #include <path.h>
 #include <sys/errno.h>
 #include <kernel/pmm.h>
+#include <kernel/time.h>
 
 /* TODO: Add more comments! */
 /* TODO: FAT is case-insensitive!!! */
@@ -705,6 +706,71 @@ int fat_fstat(int fd, struct stat *buf) {
 
 	return fat_stat(file->mp, relpath, buf);
 }
+#define FAT_MTIME 0
+#define FAT_CTIME 1
+#define FAT_ATIME 2
+
+static time_t fat_calc_time(fat32_direntry_t *direntry, int type) {
+	/*
+DIRENTRY:
+	 fat32_time_t create_time;
+    fat32_date_t create_date;
+
+    fat32_date_t access_date;
+
+    uint16 high_cluster_num;
+
+    fat32_time_t mod_time;
+    fat32_date_t mod_date;
+
+typedef struct fat32_time {
+    uint16 second : 5;
+    uint16 minute : 6;
+    uint16 hour : 5;
+} __attribute__((packed)) fat32_time_t;
+
+// Date format used in fat32_direntry_t. Relative to 1980-01-01
+typedef struct fat32_date {
+    uint16 day : 5;
+    uint16 month : 4;
+    uint16 year : 7;
+} __attribute__((packed)) fat32_date_t;
+
+*/
+	fat32_date_t *fdate;
+	fat32_time_t *ftime;
+
+	switch (type) {
+		case FAT_MTIME:
+			fdate = &direntry->mod_date;
+			ftime = &direntry->mod_time;
+			break;
+		case FAT_CTIME:
+			fdate = &direntry->create_date;
+			ftime = &direntry->create_time;
+			break;
+		case FAT_ATIME:
+			/* FAT doesn't store access *time*, only date... */
+			fdate = &direntry->access_date;
+			ftime = NULL;
+			break;
+		default:
+			panic("Invalid parameter to fat_calc_time");
+	}
+
+	Time ts;
+	memset(&ts, 0, sizeof(Time));
+	ts.year = (1980 + fdate->year) - 1900;
+	ts.month = fdate->month - 1;
+	ts.day = fdate->day;
+	if (ftime != NULL) {
+		ts.hour = ftime->hour;
+		ts.minute = ftime->minute;
+		ts.second = ftime->second * 2;
+	}
+
+	return kern_mktime(&ts);
+}
 
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data) {
 	assert(disk_direntry != NULL);
@@ -748,7 +814,9 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 			st->st_mode |= 040000;
 		st->st_nlink = 1;
 		st->st_size = (disk_direntry->attrib & ATTRIB_DIR) ? 0 : disk_direntry->file_size;
-		// TODO: set times!
+		st->st_mtime = fat_calc_time(disk_direntry, FAT_MTIME);
+		st->st_ctime = fat_calc_time(disk_direntry, FAT_CTIME);
+		st->st_atime = fat_calc_time(disk_direntry, FAT_ATIME);
 		st->st_blksize = (part->cluster_size > 16384 ? part->cluster_size : 16384);
 		num_blocks = disk_direntry->file_size / st->st_blksize;
 		if (disk_direntry->file_size % st->st_blksize != 0) {
