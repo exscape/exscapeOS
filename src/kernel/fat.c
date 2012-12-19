@@ -23,25 +23,11 @@ int fat_open(uint32 dev, const char *path, int mode);
 int fat_read(int fd, void *buf, size_t length);
 int fat_close(int fd);
 
-/* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
-typedef uint16 UTF16_char;
-typedef struct fat32_lfn {
-	uint8 entry;
-	UTF16_char name_1[5];
-	uint8 attrib; /* Always 0xF for LFN entries */
-	uint8 long_entry_type; /* should be 0 for all LFN entries */
-	uint8 checksum;
-	UTF16_char name_2[6];
-	char zero[2]; /* always zero */
-	UTF16_char name_3[2];
-} __attribute__((packed)) fat32_lfn_t;
-
 list_t *fat32_partitions = NULL;
 
 #define min(a,b) ( (a < b ? a : b) )
 
 static void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *);
-//static uint32 fat_dir_num_entries(fat32_partition_t *part, uint32 cluster);
 static DIR *fat_opendir_cluster(fat32_partition_t *part, uint32 cluster, mountpoint_t *mp);
 static uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, int type);
 static inline bool fat_read_cluster(fat32_partition_t *part, uint32 cluster, uint8 *buffer);
@@ -56,7 +42,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	assert(!dev->is_atapi);
 	assert(part <= 3);
 	assert(dev->partition[part].exists);
-	assert(dev->partition[part].type == PART_FAT32 || 
+	assert(dev->partition[part].type == PART_FAT32 || \
 	       dev->partition[part].type == PART_FAT32_LBA);
 	assert(sizeof(fat32_direntry_t) == 32);
 	assert(sizeof(fat32_lfn_t) == 32);
@@ -104,6 +90,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	// Set up the mountpoint
 	mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
+	memset(mp, 0, sizeof(mountpoint_t));
 	mp->path[0] = 0; // not set up here
 	mp->mpops.open     = fat_open;
 	mp->mpops.opendir  = fat_opendir;
@@ -120,7 +107,6 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	/* Add the new partition entry to the list */
 	list_append(fat32_partitions, part_info);
 
-	// Cache the entire FAT in RAM. TODO: don't do this if it wouldn't fit
 	uint32 fat_bytes = part_info->bpb->sectors_per_fat * 512;
 	if (fat_bytes % 512) {
 		// disk_read only reads full sectors!
@@ -129,7 +115,7 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	}
 
 	if (fat_bytes < pmm_bytes_free() / 2) {
-		// Only cache if there's at least *some* RAM to spare for it
+		// Cache the FAT in RAM if there's some room to spare
 		part_info->cached_fat = kmalloc(fat_bytes);
 		assert(disk_read(part_info->dev, part_info->fat_start_lba, fat_bytes, part_info->cached_fat));
 	}
@@ -728,37 +714,12 @@ int fat_fstat(int fd, struct stat *buf) {
 
 	return fat_stat(file->mp, relpath, buf);
 }
+
 #define FAT_MTIME 0
 #define FAT_CTIME 1
 #define FAT_ATIME 2
 
 static time_t fat_calc_time(fat32_direntry_t *direntry, int type) {
-	/*
-DIRENTRY:
-	 fat32_time_t create_time;
-    fat32_date_t create_date;
-
-    fat32_date_t access_date;
-
-    uint16 high_cluster_num;
-
-    fat32_time_t mod_time;
-    fat32_date_t mod_date;
-
-typedef struct fat32_time {
-    uint16 second : 5;
-    uint16 minute : 6;
-    uint16 hour : 5;
-} __attribute__((packed)) fat32_time_t;
-
-// Date format used in fat32_direntry_t. Relative to 1980-01-01
-typedef struct fat32_date {
-    uint16 day : 5;
-    uint16 month : 4;
-    uint16 year : 7;
-} __attribute__((packed)) fat32_date_t;
-
-*/
 	fat32_date_t *fdate;
 	fat32_time_t *ftime;
 
@@ -780,8 +741,7 @@ typedef struct fat32_date {
 			panic("Invalid parameter to fat_calc_time");
 	}
 
-	Time ts;
-	memset(&ts, 0, sizeof(Time));
+	Time ts = {0};
 	ts.year = (1980 + fdate->year) - 1900;
 	ts.month = fdate->month - 1;
 	ts.day = fdate->day;

@@ -108,4 +108,17 @@ typedef struct fat32_direntry {
 	uint32 file_size;
 } __attribute__((packed)) fat32_direntry_t;
 
+/* Maps on to a dir fat32_direntry_t if attrib == 0xF (ATTRIB_LFN) */
+typedef uint16 UTF16_char;
+typedef struct fat32_lfn {
+	uint8 entry;
+	UTF16_char name_1[5];
+	uint8 attrib; /* Always 0xF for LFN entries */
+	uint8 long_entry_type; /* should be 0 for all LFN entries */
+	uint8 checksum;
+	UTF16_char name_2[6];
+	char zero[2]; /* always zero */
+	UTF16_char name_3[2];
+} __attribute__((packed)) fat32_lfn_t;
+
 #endif
