@@ -139,6 +139,11 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	return true;
 }
 
+/* Calculates the absolute LBA where a cluster starts on disk, given a partition and a cluster number. */
+inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluster_num) {
+	return ((part->cluster_start_lba + ((cluster_num - 2) * part->sectors_per_cluster)));
+}
+
 off_t fat_lseek(int fd, off_t offset, int whence) {
 	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
 
@@ -274,7 +279,7 @@ int fat_read(int fd, void *buf, size_t length) {
 	assert(part != NULL);
 	assert(part->magic == FAT32_MAGIC);
 
-	uint8 *cluster_buf = kmalloc(part->cluster_size);
+	uint8 *cluster_buf = kmalloc(part->cluster_size * 32);
 
 	if (file->size == 0) {
 		// Size is not initialized; this should be the first read. Set it up.
@@ -299,16 +304,33 @@ int fat_read(int fd, void *buf, size_t length) {
 	assert(file->offset >= 0);
 	uint32 local_offset = (uint32)file->offset % part->cluster_size;
 
+	uint32 continuous_clusters = 1;
 	do {
-		assert(fat_read_cluster(part, file->_cur_ino, cluster_buf));
+		if (length > part->cluster_size) {
+			// The request is for more than one cluster, so at least two need to be
+			// read from disk; if they are continuous on disk, we can read them faster
+			// by coalescing them into a single disk request.
+			uint32 next = 0, cur = file->_cur_ino;
+			while ((next = fat_next_cluster(part, cur)) == cur + 1 && \
+					continuous_clusters * part->cluster_size < length && \
+					continuous_clusters < 32)
+			{
+				cur = next;
+				continuous_clusters++;
+			}
+		}
 
-		// We read a full cluster, but we need to stop if either the file size is up, or
-		// if the user didn't want more bytes.
-		uint32 bytes_copied = min(min(file->size - file->offset, length), part->cluster_size);
+		uint32 nbytes_read_from_disk = continuous_clusters * part->cluster_size;
 
-		if (bytes_copied >= part->cluster_size - local_offset) {
-			// We'd read outside the cluster! Limit this read size.
-			bytes_copied = part->cluster_size - local_offset;
+		assert(disk_read(part->dev, fat_lba_from_cluster(part, file->_cur_ino), nbytes_read_from_disk, cluster_buf));
+		file->_cur_ino += continuous_clusters - 1; // the last one is taken care of later in all cases
+
+		// We need to stop if either the file size is up, or if the user didn't want more bytes.
+		uint32 bytes_copied = min(min(file->size - file->offset, length), nbytes_read_from_disk);
+
+		if (bytes_copied >= nbytes_read_from_disk - local_offset) {
+			// We'd read outside the buffer we've read from disk! Limit this read size.
+			bytes_copied = nbytes_read_from_disk - local_offset;
 		}
 
 		// Copy the data to the buffer
@@ -325,12 +347,15 @@ int fat_read(int fd, void *buf, size_t length) {
 
 		if (local_offset >= part->cluster_size) {
 			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
+			assert(file->_cur_ino > 2);
 			if (file->_cur_ino >= 0x0ffffff8) {
 				// End of cluster chain
 				assert(file->offset == file->size);
 				goto done;
 			}
-			local_offset %= part->cluster_size;
+		}
+		while (local_offset >= part->cluster_size) {
+			local_offset -= part->cluster_size;
 		}
 
 		if (length == 0 || file->offset >= file->size)
@@ -409,11 +434,6 @@ static void parse_lfn(UTF16_char *lfn_buf, char *ascii_buf) {
 	}
 
 	ascii_buf[i] = 0;
-}
-
-/* Calculates the absolute LBA where a cluster starts on disk, given a partition and a cluster number. */
-inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluster_num) {
-	return ((part->cluster_start_lba + ((cluster_num - 2) * part->sectors_per_cluster)));
 }
 
 /* Converts a short name from the directory entry (e.g. "FOO     BAR") to

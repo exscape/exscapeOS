@@ -1,5 +1,5 @@
+* FAT: write support!
 * DMA for ATA transfers? If not: READ MULTIPLE to speed up slightly
-* FAT: read multiple clusters at once, if continuous on disk and request is > 1 cluster size
 * Keyboard input: pass more info to userland, so that e.g. ^C and ^D could work.
 * Signal support
 * fork + execve
