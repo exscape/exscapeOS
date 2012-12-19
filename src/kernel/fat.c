@@ -276,21 +276,23 @@ int fat_read(int fd, void *buf, size_t length) {
 
 	uint8 *cluster_buf = kmalloc(part->cluster_size);
 
-	size_t file_size;
-	struct stat st;
-	fat_fstat(fd, &st);
-	assert(st.st_dev == file->dev);
-	assert(st.st_ino == file->ino);
+	if (file->size == 0) {
+		// Size is not initialized; this should be the first read. Set it up.
+		struct stat st;
+		fat_fstat(fd, &st);
+		assert(st.st_dev == file->dev);
+		assert(st.st_ino == file->ino);
 
-	if (S_ISDIR(st.st_mode)) {
-		// TODO: don't perform this check over and over
-		return -EISDIR;
+		if (S_ISDIR(st.st_mode)) {
+			return -EISDIR;
+		}
+
+		file->size = st.st_size;
 	}
 
-	file_size = st.st_size;
 	uint32 bytes_read = 0; // this call to read() only
 
-	if (file->offset >= file_size) {
+	if (file->offset >= file->size) {
 		goto done;
 	}
 
@@ -302,7 +304,7 @@ int fat_read(int fd, void *buf, size_t length) {
 
 		// We read a full cluster, but we need to stop if either the file size is up, or
 		// if the user didn't want more bytes.
-		uint32 bytes_copied = min(min(file_size - file->offset, length), part->cluster_size);
+		uint32 bytes_copied = min(min(file->size - file->offset, length), part->cluster_size);
 
 		if (bytes_copied >= part->cluster_size - local_offset) {
 			// We'd read outside the cluster! Limit this read size.
@@ -316,7 +318,7 @@ int fat_read(int fd, void *buf, size_t length) {
 		file->offset += bytes_copied;
 		local_offset += bytes_copied;
 
-		assert(file->offset <= file_size);
+		assert(file->offset <= file->size);
 
 		assert(length >= bytes_copied);
 		length -= bytes_copied;
@@ -325,13 +327,13 @@ int fat_read(int fd, void *buf, size_t length) {
 			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
 			if (file->_cur_ino >= 0x0ffffff8) {
 				// End of cluster chain
-				assert(file->offset == file_size);
+				assert(file->offset == file->size);
 				goto done;
 			}
 			local_offset %= part->cluster_size;
 		}
 
-		if (length == 0 || file->offset >= file_size)
+		if (length == 0 || file->offset >= file->size)
 			break;
 
 	} while (length > 0);
