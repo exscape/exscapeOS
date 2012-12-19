@@ -8,5 +8,10 @@
 struct _reent *
 _DEFUN_VOID(__getreent)
 {
-  return _impure_ptr;
+	// NULL is undeclared here
+	static struct _reent *ptr = (struct _reent *)0;
+	if (ptr == (struct _reent *)0)
+		ptr = sys___getreent();
+
+	return ptr;
 }

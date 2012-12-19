@@ -138,6 +138,7 @@ cd newlib-1.20.0
 patch -p1 < ../patches/newlib-1.20.0-exscapeos.patch || err
 mkdir -p newlib/libc/sys/exscapeos
 cp -Rf ../patches/exscapeos/* newlib/libc/sys/exscapeos/ || err
+cp ../patches/exscapeos/getreent.c newlib/libc/reent/getreent.c || err # I'm not a fan of doing this!
 
 cd newlib/libc/sys
 autoconf || err

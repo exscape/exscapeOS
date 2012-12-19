@@ -420,10 +420,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
-		// Set up the Newlib reentrancy structure
-		task->reent = heap_alloc(sizeof(struct _reent), false, task->heap);
-		_REENT_INIT_PTR(task->reent);
-
 		switch_page_directory(kernel_directory);
 
 		// Clear the task's file descriptor table

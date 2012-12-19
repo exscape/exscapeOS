@@ -134,6 +134,24 @@ bool elf_load(const char *path, task_t *task) {
 	// (This updates the value on the stack in task.c)
 	set_entry_point(task, (uint32)header->e_entry);
 
+	// Set up the reentrancy structure for Newlib
+	uint32 size = sizeof(struct _reent);
+	if (size & 0xfff) {
+		size &= 0xfffff000;
+		size += 0x1000;
+	}
+	vmm_alloc_user(task->mm->brk, task->mm->brk + size, task->page_directory, true);
+	assert(current_directory == kernel_directory);
+	switch_page_directory(task->page_directory);
+	task->reent = (struct _reent *)task->mm->brk;
+	_REENT_INIT_PTR(task->reent);
+	switch_page_directory(kernel_directory);
+	task->mm->brk += size;
+	task->mm->brk_start += size;
+
+	assert(IS_PAGE_ALIGNED(task->mm->brk));
+	assert(task->mm->brk == task->mm->brk_start);
+
 #if ELF_DEBUG
 
 	printk("File has %u program headers (each %u bytes), %u section headers (each %u bytes)\n",
