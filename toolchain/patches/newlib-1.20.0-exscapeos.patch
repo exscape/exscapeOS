@@ -1,8 +1,7 @@
-diff --git a/config.sub b/config.sub
-index 78176a4..1e8fa8f 100755
---- a/config.sub
-+++ b/config.sub
-@@ -1333,7 +1333,7 @@ case $os in
+diff -Naur newlib-1.20.0/config.sub newlib-1.20.0-exscapeos/config.sub
+--- newlib-1.20.0/config.sub	2011-11-02 01:56:53.000000000 +0100
++++ newlib-1.20.0-exscapeos/config.sub	2012-12-20 16:38:45.000000000 +0100
+@@ -1333,7 +1333,7 @@
  	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
  	      | -sym* | -kopensolaris* \
  	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
@@ -11,11 +10,10 @@ index 78176a4..1e8fa8f 100755
  	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
  	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
  	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
-diff --git a/newlib/configure.host b/newlib/configure.host
-index ef73fd0..e31e784 100644
---- a/newlib/configure.host
-+++ b/newlib/configure.host
-@@ -406,6 +406,11 @@ case "${host}" in
+diff -Naur newlib-1.20.0/newlib/configure.host newlib-1.20.0-exscapeos/newlib/configure.host
+--- newlib-1.20.0/newlib/configure.host	2011-11-29 07:33:48.000000000 +0100
++++ newlib-1.20.0-exscapeos/newlib/configure.host	2012-12-20 16:38:45.000000000 +0100
+@@ -406,6 +406,11 @@
    h8500-*-elf*)
  	sys_dir=h8500hms
  	;;
@@ -27,11 +25,30 @@ index ef73fd0..e31e784 100644
    i[34567]86-*-rdos*)
  	sys_dir=rdos
  	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES"
-diff --git a/newlib/libc/sys/configure b/newlib/libc/sys/configure
-index f1635da..d0f03ba 100755
---- a/newlib/libc/sys/configure
-+++ b/newlib/libc/sys/configure
-@@ -789,6 +789,7 @@ arc
+diff -Naur newlib-1.20.0/newlib/libc/machine/i386/setjmp.S newlib-1.20.0-exscapeos/newlib/libc/machine/i386/setjmp.S
+--- newlib-1.20.0/newlib/libc/machine/i386/setjmp.S	2010-11-16 18:52:21.000000000 +0100
++++ newlib-1.20.0-exscapeos/newlib/libc/machine/i386/setjmp.S	2012-12-20 16:39:16.000000000 +0100
+@@ -75,7 +75,7 @@
+ 
+ 	movl	24(edi),ebp
+ 
+-       __CLI
++/*       __CLI */
+ 	movl	28(edi),esp
+ 	
+ 	pushl	32(edi)	
+@@ -86,6 +86,6 @@
+ 	movl	12(edi),edx
+ 	movl	16(edi),esi
+ 	movl	20(edi),edi
+-       __STI
++/*       __STI */
+ 
+ 	ret
+diff -Naur newlib-1.20.0/newlib/libc/sys/configure newlib-1.20.0-exscapeos/newlib/libc/sys/configure
+--- newlib-1.20.0/newlib/libc/sys/configure	2011-12-19 23:03:37.000000000 +0100
++++ newlib-1.20.0-exscapeos/newlib/libc/sys/configure	2012-12-20 16:38:45.000000000 +0100
+@@ -789,6 +789,7 @@
  arm
  d10v
  decstation
@@ -39,7 +56,7 @@ index f1635da..d0f03ba 100755
  h8300hms
  h8500hms
  linux
-@@ -11435,7 +11436,7 @@ else
+@@ -11435,7 +11436,7 @@
    lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
    lt_status=$lt_dlunknown
    cat > conftest.$ac_ext <<_LT_EOF
@@ -48,7 +65,7 @@ index f1635da..d0f03ba 100755
  #include "confdefs.h"
  
  #if HAVE_DLFCN_H
-@@ -11541,7 +11542,7 @@ else
+@@ -11541,7 +11542,7 @@
    lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
    lt_status=$lt_dlunknown
    cat > conftest.$ac_ext <<_LT_EOF
@@ -57,7 +74,7 @@ index f1635da..d0f03ba 100755
  #include "confdefs.h"
  
  #if HAVE_DLFCN_H
-@@ -11794,6 +11795,8 @@ subdirs="$subdirs a29khif"
+@@ -11794,6 +11795,8 @@
   ;;
  	decstation) subdirs="$subdirs decstation"
   ;;
@@ -66,11 +83,10 @@ index f1635da..d0f03ba 100755
  	h8300hms) subdirs="$subdirs h8300hms"
   ;;
  	h8500hms) subdirs="$subdirs h8500hms"
-diff --git a/newlib/libc/sys/configure.in b/newlib/libc/sys/configure.in
-index 5a2b121..acbcf53 100644
---- a/newlib/libc/sys/configure.in
-+++ b/newlib/libc/sys/configure.in
-@@ -27,6 +27,7 @@ if test -n "${sys_dir}"; then
+diff -Naur newlib-1.20.0/newlib/libc/sys/configure.in newlib-1.20.0-exscapeos/newlib/libc/sys/configure.in
+--- newlib-1.20.0/newlib/libc/sys/configure.in	2010-02-24 21:59:55.000000000 +0100
++++ newlib-1.20.0-exscapeos/newlib/libc/sys/configure.in	2012-12-20 16:38:45.000000000 +0100
+@@ -27,6 +27,7 @@
  	arm) AC_CONFIG_SUBDIRS(arm) ;;
  	d10v) AC_CONFIG_SUBDIRS(d10v) ;;
  	decstation) AC_CONFIG_SUBDIRS(decstation) ;;
