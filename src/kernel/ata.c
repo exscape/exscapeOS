@@ -325,6 +325,8 @@ void ata_init(void) {
 				devices[dev].capabilities |= ATA_CAPABILITY_LBA48;
 			}
 
+			devices[dev].max_sectors_multiple = (words[47] & 0xff);
+
 			/* check for PIO mode support */
 			devices[dev].max_pio_mode = 0;
 			if (words[64] & (1 << 0))
@@ -447,11 +449,11 @@ void ata_init(void) {
 	INTERRUPT_UNLOCK;
 }
 
-/* Reads a single sector at LBA /lba/. /buffer/ must be at least 512 bytes, or buffer overrun WILL occur. */
-bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
+/* This function assumes that the caller specifes correct sector values! */
+static bool ata_read_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors) {
 	assert(dev != NULL);
 	assert(dev->exists);
-	assert(dev->size - 1 >= lba);
+	assert(dev->size - 1 >= lba + (sectors - 1));
 	assert(buffer != NULL);
 
 	/* TODO: LBA48 */
@@ -468,8 +470,11 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* Temporarily disable ATA interrupts for this drive (TODO: channel?!) */
 	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
 
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, sectors);
+	ata_cmd(dev->channel, ATA_CMD_SET_MULTIPLE_MODE);
+
 	/* Set the sector count and the lower 24 bits of the LBA address */
-	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, 1);
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, sectors);
 	ata_reg_write(dev->channel, ATA_REG_LBA_LO, (lba & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
@@ -481,7 +486,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* Send the READ SECTOR(S) command */
 	uint32 old_handled = ata_interrupts_handled;
 	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, 0); /* enable ATA interrupts */
-	ata_cmd(dev->channel, ATA_CMD_READ_SECTORS);
+	ata_cmd(dev->channel, ATA_CMD_READ_MULTIPLE);
 
 	/* The process state is set, the ATA command is sent... take us out of here! */
 	INTERRUPT_UNLOCK;
@@ -506,7 +511,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	/* Let's do this thing */
 	uint16 *words = (uint16 *)buffer;
-	uint32 count = 256;
+	uint32 count = 256 * sectors; // number of words, i.e. bytes / 2
 	uint16 port = channels[dev->channel].base;
 	asm volatile("rep insw" : : "c"(count), "d"(port), "D"(words)); /* c for ecx, d for dx, D for edi */
 
@@ -522,6 +527,37 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	if (status & ATA_SR_ERR)
 		ata_error(dev->channel, status, ATA_CMD_READ_SECTORS);
+
+	return true;
+}
+
+bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
+	assert(sectors_total > 0);
+	assert(dev != NULL);
+	assert(dev->exists);
+	assert(dev->size - 1 >= lba + (sectors_total - 1));
+	assert(buffer != NULL);
+
+	int sectors_read = 0;
+
+	/*
+	 * Calls ata_read_int with blocks of sectors, as large as possible.
+	 * The limiting factors are:
+	 * 1) the maximum supported block length, i.e. dev->max_sectors_multiple (from IDENTIFY DEVICE),
+	 * 2) the number of sector the caller wants, and
+	 * 3) it must be a power of 2, so for 3 sectors, two reads are issued: first for 2 sectors, then for 1 sector.
+	 */
+
+	while (sectors_read < sectors_total) {
+		int sectors_to_read = 1; // sectors to read in this loop; the total may be greater
+		while (sectors_to_read < (sectors_total - sectors_read) && sectors_to_read < dev->max_sectors_multiple) {
+			sectors_to_read *= 2;
+		}
+
+		if (!ata_read_int(dev, lba + sectors_read, buffer + sectors_read*512, sectors_to_read))
+			return false;
+		sectors_read += sectors_to_read;
+	}
 
 	return true;
 }
@@ -624,10 +660,5 @@ bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer)
 	assert(dev->exists && !dev->is_atapi);
 	assert(start_lba + sectors <= dev->size - 1); /* TODO: OBOE? */
 
-	for (uint32 i = 0; i < sectors; i++) {
-		if (!ata_read(dev, start_lba + i, buffer + 512*i))
-			return false;
-	}
-
-	return true;
+	return ata_read(dev, start_lba, buffer, sectors);
 }

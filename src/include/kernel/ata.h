@@ -25,10 +25,11 @@ typedef struct ata_device {
 	uint8 max_udma_mode; /* 0 through 5; other values are invalid */
 	uint8 max_pio_mode; /* should be at least 3 for all ATA drives */
 	partition_t partition[4]; /* the 4 primary MBR partitions on this disk */
+	uint8 max_sectors_multiple; /* how many sectors READ MULTIPLE can work with per block */
 } ata_device_t;
 
 void ata_init(void); /* detects drives and creates the structures used */
-bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer); /* reads a single sector */
+bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors);
 bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer); /* writes a single sector */
 
 bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer); /* reads a buffer */
@@ -65,6 +66,9 @@ extern ata_device_t devices[4];
 #define ATA_CMD_IDENTIFY 0xec
 #define ATA_CMD_READ_SECTORS 0x20
 #define ATA_CMD_WRITE_SECTORS 0x30
+#define ATA_CMD_READ_MULTIPLE 0xc4
+#define ATA_CMD_WRITE_MULTIPLE 0xc5
+#define ATA_CMD_SET_MULTIPLE_MODE 0xc6
 #define ATA_CMD_SET_FEATURES 0xef
 
 /* SET FEATURES subcommands */

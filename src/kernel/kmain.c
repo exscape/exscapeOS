@@ -240,7 +240,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 #if 0
 	uint8 buf[512] = {0};
 	ata_device_t *ata_dev = &devices[0];
-	ata_read(ata_dev, 0, buf);
+	ata_read(ata_dev, 0, buf, 1);
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 
 	((char *)buf)[0] = 'Y';
