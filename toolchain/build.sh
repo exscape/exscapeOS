@@ -130,6 +130,8 @@ fi # end $NEWLIB_ONLY != 1
 # that builds code *for* exscapeOS, not just code that *targets* it
 export PATH=$PATH:$PREFIX/bin
 export CFLAGS_FOR_TARGET="-O0 -gstabs+"
+export CFLAGS="-O0 -gstabs+"
+export CFLAGS_FOR_BUILD="-O0 -gstabs+"
 
 echo
 echo Patching Newlib...
@@ -171,6 +173,10 @@ if [[ $MAC -eq 1 ]]; then
 	unset CPP
 	unset LD
 fi
+
+unset CFLAGS_FOR_TARGET
+unset CFLAGS
+unset CFLAGS_FOR_BUILD
 
 echo
 echo Successfully build and installed exscapeOS toolchain to $PREFIX'!'
