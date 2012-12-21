@@ -60,6 +60,15 @@ extern page_directory_t *current_directory;
 #define PAGE_ANY_PHYS 0
 #define PAGE_CONTINUOUS_PHYS 1
 
+// Everything outside of the user mode address range of 0x1000000 to 0xc0000000 (exclusive) is kernel space.
+// Currently, 0x10000000 is where ELF programs are loaded, while 0xbffff000 is the start of the userspace stack.
+// The rest of the space (virtually that entire space except the few pages used by the program + data and
+// the stack) is currently unused.
+// (Keep in mind that the stack grows towards LOWER addresses).
+#define IS_USER_SPACE(addr) ( (((uint32)addr) >= 0x10000000 && ((uint32)addr) < 0xc0000000) )
+#define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
+#define CHECK_ACCESS(addr, len) ( IS_USER_SPACE(addr) && IS_USER_SPACE((uint32)addr + (uint32)len) )
+
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
 

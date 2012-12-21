@@ -20,14 +20,6 @@ uint32 mem_end_page = 0;
 
 list_t *pagedirs = NULL;
 
-// Everything outside of the user mode address range of 0x1000000 to 0xc0000000 (exclusive) is kernel space.
-// Currently, 0x10000000 is where ELF programs are loaded, while 0xbffff000 is the start of the userspace stack.
-// The rest of the space (virtually that entire space except the few pages used by the program + data and
-// the stack) is currently unused.
-// (keep in mind that the stack grows towards LOWER addresses).
-#define IS_USER_SPACE(addr) ( (addr >= 0x10000000 && addr < 0xc0000000) )
-#define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
-
 // Forward declarations; the internal (static, _ prefixed) functions are below the public ones
 static void _vmm_invalidate(void *addr);
 static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable);
