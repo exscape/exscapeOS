@@ -562,8 +562,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
 	return true;
 }
 
-/* Writes a single sector at LBA /lba/. The first 512 bytes of data in /buffer/ will be written. */
-bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
+static bool ata_write_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors) {
 	assert(dev != NULL);
 	assert(dev->exists);
 	assert(dev->size - 1 >= lba);
@@ -583,16 +582,18 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* Temporarily disable ATA interrupts for this drive (TODO: channel?!) */
 	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, ATA_REG_DEV_CONTROL_NIEN);
 
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, sectors);
+	ata_cmd(dev->channel, ATA_CMD_SET_MULTIPLE_MODE);
+
 	/* Set the sector count and the lower 24 bits of the LBA address */
-	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, 1);
+	ata_reg_write(dev->channel, ATA_REG_SECTOR_COUNT, sectors);
 	ata_reg_write(dev->channel, ATA_REG_LBA_LO, (lba & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_MID, ((lba >> 8) & 0xff));
 	ata_reg_write(dev->channel, ATA_REG_LBA_HI, ((lba >> 16) & 0xff));
 
-	/* Send the WRITE SECTOR(S) command */
 	uint32 old_handled = ata_interrupts_handled;
 	ata_reg_write(dev->channel, ATA_REG_DEV_CONTROL, 0); /* enable ATA interrupts */
-	ata_cmd(dev->channel, ATA_CMD_WRITE_SECTORS);
+	ata_cmd(dev->channel, ATA_CMD_WRITE_MULTIPLE);
 
 	/* State HPIOO0: Check_Status State */
 	uint8 test = 0;
@@ -607,7 +608,8 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 	/* Let's do this thing */
 	uint16 *words = (uint16 *)buffer;
 	uint16 port = channels[dev->channel].base;
-	for (int i=0; i < 256; i++) {
+	for (int i=0; i < 256 * sectors; i++) {
+		// NOTE: don't use rep outsw; we need the tiny bit of delay the loop provides
 		outw(port, words[i]);
 	}
 
@@ -641,6 +643,40 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer) {
 
 	if (status & ATA_SR_ERR)
 		ata_error(dev->channel, status, ATA_CMD_WRITE_SECTORS);
+
+	return true;
+}
+
+bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
+	assert(sectors_total > 0);
+	assert(dev != NULL);
+	assert(dev->exists);
+	assert(dev->size - 1 >= lba + (sectors_total - 1));
+	assert(buffer != NULL);
+
+	int sectors_written = 0;
+
+	/*
+	 * Calls ata_write_int with blocks of sectors, as large as possible.
+	 * The limiting factors are:
+	 * 1) the maximum supported block length, i.e. dev->max_sectors_multiple (from IDENTIFY DEVICE),
+	 * 2) the number of sector the caller wants to write, and
+	 * 3) it must be a power of 2, so for 3 sectors, two writes are issued: first for 2 sectors, then for 1 sector.
+	 */
+
+	while (sectors_written < sectors_total) {
+		int sectors_to_write = 1; // sectors to write in this loop; the total may be greater
+		while (sectors_to_write < (sectors_total - sectors_written) && sectors_to_write < dev->max_sectors_multiple) {
+			sectors_to_write *= 2;
+		}
+		if (sectors_to_write > dev->max_sectors_multiple)
+			sectors_to_write /= 2;
+		assert(sectors_to_write > 0);
+
+		if (!ata_write_int(dev, lba + sectors_written, buffer + sectors_written*512, sectors_to_write))
+			return false;
+		sectors_written += sectors_to_write;
+	}
 
 	return true;
 }
