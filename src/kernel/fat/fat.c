@@ -340,13 +340,14 @@ int fat_read(int fd, void *buf, size_t length) {
 		length -= bytes_copied;
 
 		if (local_offset >= part->cluster_size) {
-			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
-			assert(file->_cur_ino > 2);
-			if (file->_cur_ino >= 0x0ffffff8) {
-				// End of cluster chain
+			ino_t next = fat_next_cluster(part, file->_cur_ino);
+			if (file->_cur_ino >= 0x0ffffff8 || file->_cur_ino < 2) {
+				// End of cluster chain / no data
 				assert(file->offset == file->size);
 				goto done;
 			}
+			else
+				file->_cur_ino = next;
 		}
 		while (local_offset >= part->cluster_size) {
 			local_offset -= part->cluster_size;
