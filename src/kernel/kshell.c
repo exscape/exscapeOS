@@ -215,6 +215,28 @@ static void user_stress_elf(void *data, uint32 length) {
 #endif
 }
 
+static void test_write(void *data, uint32 length) {
+	int fd = open("/mm.mp3", 0);
+	assert(fd >= 0);
+	struct stat st;
+	fstat(fd, &st);
+	char *buf2 = kmalloc(st.st_size);
+	assert(buf2 != NULL);
+	uint32 start_t = gettickcount();
+	assert(read(fd, buf2, st.st_size) == st.st_size);
+	uint32 end_t = gettickcount();
+	printk("read took %u ms. starting write...\n", (end_t - start_t) * 10);
+	ata_device_t *ata_dev = &devices[0];
+	int sect = st.st_size / 512;
+	if (st.st_size % 512)
+		sect += 1;
+	start_t = gettickcount();
+	ata_write(ata_dev, 0, (uint8 *)buf2, sect);
+	end_t = gettickcount();
+	printk("write of %u bytes (%d sectors) took %u ms\n", (uint32)(st.st_size), sect, (end_t - start_t) * 10);
+}
+
+
 static void kernel_stress(void *data, uint32 length) {
 	for (int i=0; i < 1000; i++) {
 		create_task(kernel_test, "kernel_test", (console_t *)data, NULL, 0);
@@ -439,6 +461,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "delaypanic") == 0) {
 			task = create_task(&delaypanic, "delaypanic", con, NULL, 0);
+		}
+		else if (strcmp(p, "test_write") == 0) {
+			task = create_task(&test_write, "test_write", con, NULL, 0);
 		}
 		else if (strcmp(p, "fill_scrollback") == 0) {
 			task = create_task(&fill_scrollback, "fill_scrollback", con, NULL, 0);

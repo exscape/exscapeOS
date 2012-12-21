@@ -244,17 +244,18 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
 
 	((char *)buf)[0] = 'Y';
-	ata_write(ata_dev, 0, buf);
+	ata_write(ata_dev, 0, buf, 1);
 #endif
 
 #if 0
-	/*
-	 * DON'T ENABLE THIS without really taking care of having the correct disk image used!
+	/* DON'T ENABLE THIS without double-checking the disk images!!!
 	memset(buf, 0, 512);
+	char *b2 = kmalloc(32768);
+	assert(b2 != NULL);
 	uint32 start_t = gettickcount();
-	for (uint64 i = 10+0; i < 10+64000; i++) {
+	for (uint64 i = 0; i < 1000; i++) {
 		assert(buf != NULL);
-		ata_write(ata_dev, i, buf);
+		ata_write(ata_dev, i * (32768/512), (uint8 *)b2, (32768 / 512));
 		//assert(buf != NULL);
 		//if (*buf == 0)
 			//continue;
