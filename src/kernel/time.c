@@ -3,6 +3,7 @@
 #include <kernel/kernutil.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <kernel/vmm.h>
 
 	/*
 	 * This is a big chunk of code used for debugging the RTC routines.
@@ -302,4 +303,10 @@ int gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute__((
 	tp->tv_usec = 0;
 
 	return 0;
+}
+
+int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute__((unused))) {
+	if (!CHECK_ACCESS(tp, sizeof(struct timeval)))
+		return -EFAULT;
+	return gettimeofday(tp, tzp); // TODO: check tzp
 }

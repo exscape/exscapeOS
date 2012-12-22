@@ -90,6 +90,12 @@ int open(const char *path, int mode) {
 	return mp->mpops.open(mp->dev, relpath, mode);
 }
 
+int sys_open(const char *path, int mode) {
+	if (!CHECK_ACCESS_STR(path))
+		return -EFAULT;
+	return open(path, mode);
+}
+
 int stat(const char *path, struct stat *buf) {
 	if (path == NULL || buf == NULL)
 		return -EFAULT;
@@ -103,6 +109,12 @@ int stat(const char *path, struct stat *buf) {
 	return mp->mpops.stat(mp, relpath, buf);
 }
 
+int sys_stat(const char *path, struct stat *buf) {
+	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS(buf, sizeof(struct stat)))
+		return -EFAULT;
+	return stat(path, buf);
+}
+
 int read(int fd, void *buf, int length) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
@@ -114,6 +126,12 @@ int read(int fd, void *buf, int length) {
 	if (file->fops.read == NULL)
 		return -EBADF;
 	return file->fops.read(fd, buf, length);
+}
+
+int sys_read(int fd, void *buf, int length) {
+	if (!CHECK_ACCESS(buf, length))
+		return -EFAULT;
+	return read(fd, buf, length);
 }
 
 int write(int fd, const void *buf, int length) {
@@ -137,6 +155,12 @@ int write(int fd, const void *buf, int length) {
 	return file->fops.write(fd, buf, length);
 }
 
+int sys_write(int fd, const void *buf, int length) {
+	if (!CHECK_ACCESS(buf, length))
+		return -EFAULT;
+	return write(fd, buf, length);
+}
+
 int fstat(int fd, struct stat *buf) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
@@ -151,6 +175,12 @@ int fstat(int fd, struct stat *buf) {
 	return file->fops.fstat(fd, buf);
 }
 
+int sys_fstat(int fd, struct stat *buf) {
+	if (!CHECK_ACCESS(buf, sizeof(struct stat)))
+		return -EFAULT;
+	return fstat(fd, buf);
+}
+
 int getdents(int fd, void *dp, int count) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
@@ -162,6 +192,12 @@ int getdents(int fd, void *dp, int count) {
 	if(file->fops.getdents == NULL)
 		return -ENOTDIR;
 	return file->fops.getdents(fd, dp, count);
+}
+
+int sys_getdents(int fd, void *dp, int count) {
+	if (!CHECK_ACCESS(dp, count))
+		return -EFAULT;
+	return getdents(fd, dp, count);
 }
 
 int close(int fd) {
@@ -255,6 +291,12 @@ error:
 	current_task->pwd = old_pwd;
 	return err;
 
+}
+
+int sys_chdir(const char *in_path) {
+	if (!CHECK_ACCESS_STR(in_path))
+		return -EFAULT;
+	return chdir(in_path);
 }
 
 off_t lseek(int fd, off_t offset, int whence) {

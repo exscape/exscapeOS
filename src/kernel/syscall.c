@@ -15,6 +15,16 @@ struct syscall_entry {
 	uint8 return_size; // 32 or 64
 };
 
+// Syscalls that have extra checking due to userspace pointers, etc.
+int sys_open(const char *path, int mode);
+int sys_write(int fd, const void *buf, int length);
+int sys_read(int fd, void *buf, int length);
+int sys_stat(const char *path, struct stat *buf);
+int sys_chdir(const char *in_path);
+int sys_fstat(int fd, struct stat *buf);
+int sys_getdents(int fd, void *dp, int count);
+int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp);
+
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
 	{ &_exit, 32 },   /* 0 */
@@ -22,21 +32,21 @@ struct syscall_entry syscalls[] = {
 	{ &sleep, 32 },
 	{ &getchar, 32 },
 	{ &putchar, 32 },
-	{ &open, 32 },   /* 5 */
-	{ &read, 32 },
+	{ &sys_open, 32 },   /* 5 */
+	{ &sys_read, 32 },
 	{ &close, 32 },
 	{ &malloc, 32 },
 	{ &free, 32 },
-	{ &stat, 32 },   /* 10 */
-	{ &chdir, 32 },
-	{ &write, 32 },
+	{ &sys_stat, 32 },   /* 10 */
+	{ &sys_chdir, 32 },
+	{ &sys_write, 32 },
 	{ &lseek, 64 },
-	{ &fstat, 32 },
+	{ &sys_fstat, 32 },
 	{ &getpid, 32 }, /* 15 */
 	{ &sbrk, 32 },
 	{ &__getreent, 32 },
-	{ &getdents, 32 },
-	{ &gettimeofday, 32 }
+	{ &sys_getdents, 32 },
+	{ &sys_gettimeofday, 32 }
 };
 
 uint32 num_syscalls = 0;
