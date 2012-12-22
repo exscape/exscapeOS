@@ -137,6 +137,12 @@ void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable) {
 	_vmm_map(virtual, physical, kernel_directory, true /* kernel mode */, writable);
 }
 
+size_t user_strlen(const char *p) {
+	size_t len = 0;
+	for (; *p != 0; len++, p++) { }
+	return len;
+}
+
 // Internal function: map a virtual address to a physical one, for kernel- or userspace
 static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable) {
 	assert(dir != NULL);

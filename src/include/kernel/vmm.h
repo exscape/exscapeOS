@@ -65,10 +65,11 @@ extern page_directory_t *current_directory;
 // The rest of the space (virtually that entire space except the few pages used by the program + data and
 // the stack) is currently unused.
 // (Keep in mind that the stack grows towards LOWER addresses).
+size_t user_strlen(const char *);
 #define IS_USER_SPACE(addr) ( (((uint32)addr) >= 0x10000000 && ((uint32)addr) < 0xc0000000) )
 #define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
 #define CHECK_ACCESS(addr, len) ( IS_USER_SPACE(addr) && IS_USER_SPACE((uint32)addr + (uint32)len) )
-#define CHECK_ACCESS_STR(s) (true) // TODO: implement this check!
+#define CHECK_ACCESS_STR(s) ( CHECK_ACCESS(s, user_strlen(s) + 1) )
 
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
