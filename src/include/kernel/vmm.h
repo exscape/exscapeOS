@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 #include <kernel/interrupts.h>
+#include <kernel/list.h>
 
 #define PAGE_SIZE 0x1000
 
@@ -70,6 +71,22 @@ size_t user_strlen(const char *);
 #define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
 #define CHECK_ACCESS(addr, len) ( IS_USER_SPACE(addr) && IS_USER_SPACE((uint32)addr + (uint32)len) )
 #define CHECK_ACCESS_STR(s) ( CHECK_ACCESS(s, user_strlen(s) + 1) )
+
+// Describes the memory areas of a task; user mode only
+struct task_mm {
+	list_t *pages; // A list of addresses to unmap when the task exits
+	uint32 text_start;
+	uint32 text_end;
+	uint32 brk_start;
+	uint32 brk;
+};
+
+/* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
+   that last byte, of course; e.g. with start = 0x10000 and num_pages=1, [0x10000, 0x10fff] is mapped)  */
+typedef struct {
+	void *start;
+	uint32 num_pages;
+} addr_entry_t;
 
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);

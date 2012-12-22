@@ -5,20 +5,10 @@
 #include <sys/types.h>
 #include <kernel/console.h>
 #include <kernel/vfs.h> /* struct open_file */
-#include <kernel/vfs.h>
 #include <kernel/heap.h>
 #include <reent.h>
 
 #define TASK_NAME_LEN 64
-
-// Describes the memory areas of a task; user mode only
-struct task_mm {
-	list_t *pages; // A list of addresses to unmap when the task exits
-	uint32 text_start;
-	uint32 text_end;
-	uint32 brk_start;
-	uint32 brk;
-};
 
 typedef struct task {
 	int id;                // Process ID.
@@ -53,13 +43,6 @@ void user_exit(void); // called from user mode
 
 #define USER_STACK_START 0xbffff000
 #define USER_STACK_SIZE 16384 /* overkill? */
-
-/* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
-   that last byte, of course; e.g. with start = 0x10000 and num_pages=1, [0x10000, 0x10fff] is mapped)  */
-typedef struct {
-	void *start;
-	uint32 num_pages;
-} addr_entry_t;
 
 void set_entry_point(task_t *task, uint32 addr);
 void set_next_task(task_t *task);

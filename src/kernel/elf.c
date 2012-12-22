@@ -50,6 +50,9 @@ bool elf_load(const char *path, task_t *task) {
 		return false;
 	}
 
+	// TODO SECURITY: don't trust anything from the file - users can EASILY execute
+	// "forged" ELF files!
+
 	assert(header->e_ident.ei_class == ELFCLASS32);
 	assert(header->e_ident.ei_data == ELFDATA2LSB);
 	assert(header->e_ident.ei_version == 1);
