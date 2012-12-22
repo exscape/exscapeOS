@@ -55,9 +55,7 @@ void handle_icmp(void *data, uint32 length) {
 			// Data length is the packet length, minus the 8 byte header
 			//printk("Data length: %u\n", length - 8);
 
-			// TODO: don't alloc here...?
 			uint8 buf[1500];
-			//uint8 *buf = kmalloc(length);
 			memcpy(buf, packet, length);
 
 			// Set the type field

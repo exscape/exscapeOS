@@ -572,14 +572,16 @@ uint32 scheduler_wake_iowait(uint32 esp) {
 }
 
 uint32 switch_task(task_t *new_task, uint32 esp) {
+	assert(interrupts_enabled() == false);
 	if (current_task == NULL || task_switching == false) {
 		panic("switch_task with no current_task or task_switching disabled");
 		// return 0;
 	}
-	if (new_task == current_task)
-		return esp;
 
 	assert(new_task->state != TASK_SLEEPING);
+
+	if (new_task == current_task)
+		return esp;
 
 	if (new_task->state == TASK_WAKING_UP)
 		new_task->state = TASK_RUNNING;
@@ -640,6 +642,11 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	if (next_task) {
 		task_t *tmp = next_task;
 		next_task = NULL;
+		if (tmp->state & TASK_SLEEPING) {
+			tmp->state = TASK_RUNNING;
+			tmp->wakeup_time = 0;
+		}
+
 		return switch_task(tmp, esp);
 	}
 

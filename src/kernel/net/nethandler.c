@@ -55,9 +55,10 @@ void nethandler_add_packet(nethandler_t *worker, void *data, uint32 length) {
 			break;
 		}
 	}
-	if (buffer == NULL)
+	if (buffer == NULL) {
+		// No free buffers: drop this packet
 		return;
-	//assert(buffer != NULL); // Later on: return and drop this packet
+	}
 
 	memcpy(buffer->buffer, data, length);
 	buffer->length = length;
