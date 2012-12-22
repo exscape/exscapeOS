@@ -120,11 +120,11 @@ void destroy_task(task_t *task) {
 		assert(task->mm->pages != NULL);
 
 		for (node_t *it = task->mm->pages->head; it != NULL; it = it->next) {
-			addr_entry_t *entry = (addr_entry_t *)it->data;
-			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += PAGE_SIZE) {
+			vm_area_t *area = (vm_area_t *)it->data;
+			for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
 				vmm_free(addr, task->mm->page_directory);
 			}
-			kfree(entry);
+			kfree(area);
 		}
 
 		// Free stuff in the file descriptor table (the table itself is in struct task)
@@ -397,10 +397,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
 
 		// Write down the above
-		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
-		entry->start = (void *)(USER_STACK_START - USER_STACK_SIZE - PAGE_SIZE);
-		entry->num_pages = ((USER_STACK_START + PAGE_SIZE) - ((uint32)entry->start)) / PAGE_SIZE;
-		list_append(task->mm->pages, entry);
+		vm_area_t *area = kmalloc(sizeof(vm_area_t));
+		area->start = (void *)(USER_STACK_START - USER_STACK_SIZE - PAGE_SIZE);
+		area->end = (void *)(USER_STACK_START + PAGE_SIZE);
+		list_append(task->mm->pages, area);
 
 		// Pass command line arguments to the task
 		assert(current_directory == kernel_directory);

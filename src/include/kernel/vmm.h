@@ -82,12 +82,10 @@ struct task_mm {
 	page_directory_t *page_directory;
 };
 
-/* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
-   that last byte, of course; e.g. with start = 0x10000 and num_pages=1, [0x10000, 0x10fff] is mapped)  */
-typedef struct {
+typedef struct vm_area {
 	void *start;
-	uint32 num_pages;
-} addr_entry_t;
+	void *end; // exclusive; a 1-page area starting at address 0x1000 has end == 0x2000
+} vm_area_t;
 
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);

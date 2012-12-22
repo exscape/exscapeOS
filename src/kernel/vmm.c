@@ -252,30 +252,30 @@ void *sbrk(sint32 incr) {
 		vmm_alloc_user(mm->brk, new_end, current_task->mm, PAGE_RW);
 
 		// TODO: this should REALLY be in a separate function, or taken care of by vmm_alloc_user
-		addr_entry_t *entry = NULL;
+		vm_area_t *area = NULL;
 		INTERRUPT_LOCK;
 		for (node_t *it = mm->pages->head; it != NULL; it = it->next) {
-			addr_entry_t *e = (addr_entry_t *)it->data;
-			if ((uint32)e->start == mm->brk_start) {
-				entry = e;
+			vm_area_t *a = (vm_area_t *)it->data;
+			if ((uint32)a->start == mm->brk_start) {
+				area = a;
 				break;
 			}
 		}
 		INTERRUPT_UNLOCK;
 
-		if (entry == NULL) {
+		if (area == NULL) {
 			// This is the first call to sbrk
 			assert(mm->brk_start == mm->brk);
-			entry = kmalloc(sizeof(addr_entry_t));
-			entry->start = (void *)mm->brk_start;
+			area = kmalloc(sizeof(vm_area_t));
+			area->start = (void *)mm->brk_start;
 			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
-			entry->num_pages = (new_end - mm->brk) / PAGE_SIZE;
+			area->end = (void *)new_end;
 
-			list_append(mm->pages, entry);
+			list_append(mm->pages, area);
 		}
 		else {
 			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
-			entry->num_pages += (new_end - mm->brk) / PAGE_SIZE;
+			area->end = (void *)((uint32)area->end + (new_end - mm->brk));
 		}
 
 		mm->brk = new_end;
