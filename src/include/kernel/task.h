@@ -16,12 +16,11 @@ typedef struct task {
 	uint32 esp;
 	uint32 ss;
 	void *stack; // This task's kernel stack
-	page_directory_t *page_directory; // Page directory.
 	uint32 state; /* e.g. running, sleeping */
 	uint32 wakeup_time; /* for sleeping tasks only: at which tick this task should be woken */
 	uint8 privilege; /* this task's privilege level (i.e. 0 or 3) */
 	console_t *console;
-	struct task_mm *mm;
+	struct task_mm *mm; /* memory info, including the page directory pointer */
 	struct open_file fdtable[MAX_OPEN_FILES];
 	heap_t *heap;
 	char *pwd;

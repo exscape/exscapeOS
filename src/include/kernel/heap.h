@@ -73,7 +73,7 @@ typedef struct {
 #define USER_HEAP_START 0x20000000
 #define USER_HEAP_MAX_ADDR 0xbff00000
 
-heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addr, uint8 supervisor, uint8 readonly, page_directory_t *dir);
+heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly, struct task_mm *mm);
 void heap_destroy(heap_t *heap, page_directory_t *dir);
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap);
 void heap_free(void *p, heap_t *heap);

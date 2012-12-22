@@ -15,7 +15,9 @@ bool elf_load(const char *path, task_t *task) {
 
 	assert(interrupts_enabled() == false); // TODO: get rid of the race condition from create_task, so that this isn't needed
 
-	page_directory_t *task_dir = task->page_directory;
+	assert(task != NULL);
+	struct task_mm *mm = task->mm;
+	assert(mm != NULL);
 
 	struct stat st;
 
@@ -99,7 +101,7 @@ bool elf_load(const char *path, task_t *task) {
 			}
 
 			// Allocate memory for this address in the task's address space, set for user mode
-			vmm_alloc_user(start_addr_aligned, end_addr, task_dir, writable);
+			vmm_alloc_user(start_addr_aligned, end_addr, mm, writable);
 
 			// Keep track of the allocated frames, so that we can free them when the task exits
 			addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
@@ -113,7 +115,7 @@ bool elf_load(const char *path, task_t *task) {
 
 			// Switch to the new page directory, so that we can copy the data there
 			assert(current_directory == kernel_directory);
-			switch_page_directory(task_dir);
+			switch_page_directory(mm->page_directory);
 
 			// Okay, we should have the memory. Let's clear it (since PARTS may be left empty by the memcpy,
 			// e.g. the .bss section, and we do want zeroes to be there)
@@ -143,9 +145,9 @@ bool elf_load(const char *path, task_t *task) {
 		size &= 0xfffff000;
 		size += 0x1000;
 	}
-	vmm_alloc_user(task->mm->brk, task->mm->brk + size, task->page_directory, true);
+	vmm_alloc_user(task->mm->brk, task->mm->brk + size, mm, true);
 	assert(current_directory == kernel_directory);
-	switch_page_directory(task->page_directory);
+	switch_page_directory(task->mm->page_directory);
 	task->reent = (struct _reent *)task->mm->brk;
 	_REENT_INIT_PTR(task->reent);
 	switch_page_directory(kernel_directory);

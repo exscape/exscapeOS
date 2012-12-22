@@ -201,18 +201,17 @@ static void kernel_test(void *data, uint32 length) {
 }
 
 static void user_stress_elf(void *data, uint32 length) {
-	panic("TODO: fix user_stress_elf with the new VFS");
-#if 0
     uint32 start = gettickcount();
+	panic("TODO: fix ATA + FAT multitasking safety and re-enable user_stress_elf");
+#if 0
+	char *path = strdup("/initrd/ls");
     for (int i=0; i < 2500; i++) {
-		fs_node_t *node = finddir_fs(initrd_root, "helloworld");
-		assert(node != NULL);
-		create_task_elf(node, (console_t *)data, NULL, 0);
-
+		create_task_elf(path, (console_t *)data, path, strlen(path));
         YIELD;
     }
-    printk("ran for %u ticks\n", gettickcount() - start);
+	kfree(path);
 #endif
+    printk("ran for %u ticks\n", gettickcount() - start);
 }
 
 static void test_write(void *data, uint32 length) {
@@ -557,7 +556,7 @@ void kshell(void *data, uint32 length) {
 						break;
 				}
 
-				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->page_directory, state_str, cur_task->name);
+				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
 
 				cur_task_node = cur_task_node->next;
 			}

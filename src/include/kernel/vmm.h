@@ -79,6 +79,7 @@ struct task_mm {
 	uint32 text_end;
 	uint32 brk_start;
 	uint32 brk;
+	page_directory_t *page_directory;
 };
 
 /* Describes a memory area, starting at addr start, ending at start + num_pages*PAGE_SIZE (excluding
@@ -92,7 +93,7 @@ typedef struct {
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
 
 // Allocate memory for user mode, with any physical addresses, to the specified virtual addresses in the specified page directory
-void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable);
+void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable);
 
 // Map a virtual address to a physical address, with no allocotion (e.g. for MMIO), with the page set te kernel mode
 void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable);

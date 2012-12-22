@@ -45,7 +45,7 @@ task_t kernel_task = {
 	.esp = 0,
 	.ss = 0x10,
 	.stack = 0, /* set later */
-	.page_directory = 0,
+	.mm = 0, /* set later */
 	.state = TASK_RUNNING,
 	.wakeup_time = 0,
 	.console = &kernel_console,
@@ -122,7 +122,7 @@ void destroy_task(task_t *task) {
 		for (node_t *it = task->mm->pages->head; it != NULL; it = it->next) {
 			addr_entry_t *entry = (addr_entry_t *)it->data;
 			for (uint32 addr = (uint32)entry->start; addr < (uint32)entry->start + entry->num_pages * PAGE_SIZE; addr += PAGE_SIZE) {
-				vmm_free(addr, task->page_directory);
+				vmm_free(addr, task->mm->page_directory);
 			}
 			kfree(entry);
 		}
@@ -134,10 +134,10 @@ void destroy_task(task_t *task) {
 		}
 
 		assert(task->heap != NULL);
-		heap_destroy(task->heap, task->page_directory);
+		heap_destroy(task->heap, task->mm->page_directory);
 
-		list_remove(pagedirs, list_find_first(pagedirs, task->page_directory));
-		destroy_user_page_dir(task->page_directory);
+		list_remove(pagedirs, list_find_first(pagedirs, task->mm->page_directory));
+		destroy_user_page_dir(task->mm->page_directory);
 
 		list_destroy(task->mm->pages);
 		kfree(task->mm);
@@ -198,7 +198,9 @@ void idle_task_func(void *data, uint32 length) {
 void init_tasking(uint32 kerntask_esp0) {
 	disable_interrupts();
 
-	kernel_task.page_directory = kernel_directory;
+	kernel_task.mm = kmalloc(sizeof(struct task_mm));
+	memset(kernel_task.mm, 0, sizeof(struct task_mm));
+	kernel_task.mm->page_directory = kernel_directory;
 	kernel_task.stack = (void *)kerntask_esp0;
 	strlcpy(kernel_task.name, "[kernel_task]", TASK_NAME_LEN);
 
@@ -380,21 +382,19 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	else
 		strlcpy(task->name, name, TASK_NAME_LEN);
 
-	if (task->privilege == 3) {
-		task->page_directory = create_user_page_dir(); /* clones the kernel structures */
+	// Set up the memory map struct for this task
+	task->mm = kmalloc(sizeof(struct task_mm));
+	memset(task->mm, 0, sizeof(struct task_mm));
 
-		// Set up the memory map struct for this task
-		task->mm = kmalloc(sizeof(struct task_mm));
-		memset(task->mm, 0, sizeof(struct task_mm));
-		task->mm->brk_start = 0;
-		task->mm->brk = 0;
+	if (task->privilege == 3) {
 		task->mm->pages = list_create();
+		task->mm->page_directory = create_user_page_dir();
 
 		/* Set up a usermode stack for this task */
-		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->page_directory, PAGE_RW);
+		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->mm, PAGE_RW);
 
 		/* Set a guard page */
-		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->page_directory);
+		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
 
 		// Write down the above
 		addr_entry_t *entry = kmalloc(sizeof(addr_entry_t));
@@ -404,10 +404,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		// Pass command line arguments to the task
 		assert(current_directory == kernel_directory);
-		switch_page_directory(task->page_directory);
+		switch_page_directory(task->mm->page_directory);
 		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
 
-		task->heap = heap_create(USER_HEAP_START, USER_HEAP_INITIAL_SIZE, USER_HEAP_MAX_ADDR, 0, 0, task->page_directory); // not supervisor, not read-only
+		task->heap = heap_create(USER_HEAP_START, USER_HEAP_INITIAL_SIZE, USER_HEAP_MAX_ADDR, 0, 0, task->mm); // not supervisor, not read-only
 
 		// Parse the data into argv/argc
 		uint32 argc = 0;
@@ -441,8 +441,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		memcpy(&task->fdtable[2], f, sizeof(struct open_file));
 	}
 	else if (task->privilege == 0) {
-		task->page_directory = current_directory;
-		task->mm = NULL;
+		task->mm->page_directory = current_directory;
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");
@@ -590,8 +589,8 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	//disable_interrupts();
 	//task_switching = false;
 
-	if (new_task->page_directory != current_task->page_directory)
-		switch_page_directory(new_task->page_directory);
+	if (new_task->mm->page_directory != current_task->mm->page_directory)
+		switch_page_directory(new_task->mm->page_directory);
 
 	/* Store the current ESP */
 	current_task->esp = esp;

@@ -63,19 +63,20 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 }
 
 // Allocate physical memory for user space and map it to the selected virtual address range
-void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, page_directory_t *dir, bool writable) {
+void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable) {
 	assert(end_virtual > start_virtual);
 	assert((start_virtual & 0xfff) == 0);
 	assert((end_virtual & 0xfff) == 0);
 	assert(((end_virtual - start_virtual) & 0xfff) == 0);
 	assert(writable == !!writable);
+	assert(mm != NULL);
 
 	// No interrupt "locking" is necessary since all called functions take care of that,
 	// and frame allocation + page mapping don't need to be atomic
 
 	for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE) {
 		uint32 phys = pmm_alloc();
-		_vmm_map(addr, phys, dir, false /* user mode */, writable);
+		_vmm_map(addr, phys, mm->page_directory, false /* user mode */, writable);
 	}
 }
 
@@ -248,7 +249,7 @@ void *sbrk(sint32 incr) {
 
 		assert(new_end < 0xb0000000); // TODO: use the actual user stack location here
 
-		vmm_alloc_user(mm->brk, new_end, current_task->page_directory, PAGE_RW);
+		vmm_alloc_user(mm->brk, new_end, current_task->mm, PAGE_RW);
 
 		// TODO: this should REALLY be in a separate function, or taken care of by vmm_alloc_user
 		addr_entry_t *entry = NULL;
@@ -403,7 +404,7 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	enable_paging();
 
 	/* Initialize the kernel heap */
-	kheap = heap_create(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0, kernel_directory); /* supervisor, not read-only */
+	kheap = heap_create(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0, NULL); /* supervisor, not read-only; mm arg is NULL for the kernel */
 
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");

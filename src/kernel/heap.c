@@ -265,7 +265,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 	if (heap == kheap)
 		vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, PAGE_ANY_PHYS, (heap->readonly ? false : true) /* writable */);
 	else
-		vmm_alloc_user(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, current_task->page_directory, (heap->readonly ? false : true));
+		vmm_alloc_user(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, current_task->mm, (heap->readonly ? false : true));
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
@@ -676,7 +676,7 @@ void heap_free(void *p, heap_t *heap) {
 	INTERRUPT_UNLOCK;
 }
 
-heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly, page_directory_t *dir) {
+heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly, struct task_mm *mm) {
 	heap_t *heap = (heap_t *)kmalloc_a(sizeof(heap_t));
 	assert (heap != NULL);
 
@@ -690,7 +690,7 @@ heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addres
 		vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
 	}
 	else {
-		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, dir, true);
+		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, mm, true);
 	}
 
 	// Remember the first address used by the heap. Actual storage will start later,
