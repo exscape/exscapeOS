@@ -5,16 +5,6 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wuninitialized -Wstrict-prototypes \
 				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function # TODO: re-add unused-function
 
-# TODO: fix this with the new toolchain
-#ifeq ($(TARGET),SIMICS)
-	#CC = i586-elf-gcc
-	#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -march=i586 $(WARNINGS) -gstabs+
-#else
-	#CC = clang
-	#CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -std=gnu99 -ccc-host-triple i586-pc-linux-gnu -march=i586 $(WARNINGS) -Wno-self-assign -ggdb3
-#endif
-
-
 GCCINC = /usr/local/cross/lib/gcc/i586-pc-exscapeos/4.7.2/include
 TOOLCHAININC = /usr/local/cross/i586-pc-exscapeos/include
 
