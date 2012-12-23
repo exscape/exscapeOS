@@ -83,7 +83,7 @@ typedef struct open_file {
 } open_file_t;
 
 struct open_file *get_filp(int fd);
-int get_free_fd(void);
+struct open_file *new_filp(int *fd);
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);

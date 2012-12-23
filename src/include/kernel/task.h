@@ -21,7 +21,7 @@ typedef struct task {
 	uint8 privilege; /* this task's privilege level (i.e. 0 or 3) */
 	console_t *console;
 	struct task_mm *mm; /* memory info, including the page directory pointer */
-	struct open_file fdtable[MAX_OPEN_FILES];
+	struct open_file **fdtable;
 	char *pwd;
 	struct _reent *reent; // Used by Newlib
 } task_t;

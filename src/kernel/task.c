@@ -114,13 +114,15 @@ void destroy_task(task_t *task) {
 		//console_destroy(task->console);
 	}
 
-	if (task->privilege == 3) {
-		// Free stuff in the file descriptor table (the table itself is in struct task)
-		for (int i=0; i < MAX_OPEN_FILES; i++) {
-			if (task->fdtable[i].path)
-				kfree(task->fdtable[i].path);
-		}
+	// Free stuff in the file descriptor table (the table itself is in struct task)
+	for (int i=0; i < MAX_OPEN_FILES; i++) {
+		if (task->fdtable[i] && task->fdtable[i]->path)
+			kfree(task->fdtable[i]->path);
+		kfree(task->fdtable[i]);
+	}
+	kfree(task->fdtable);
 
+	if (task->privilege == 3) {
 		list_remove(pagedirs, list_find_first(pagedirs, task->mm->page_directory));
 		destroy_user_page_dir(task->mm->page_directory);
 
@@ -367,6 +369,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	task->mm = kmalloc(sizeof(struct task_mm));
 	memset(task->mm, 0, sizeof(struct task_mm));
 
+	// Set up the task's file descriptor table
+	task->fdtable = kmalloc(sizeof(struct open_file) * MAX_OPEN_FILES); // TODO: smaller size + dynamic resizing
+	memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
+
 	if (task->privilege == 3) {
 		task->mm->areas = list_create();
 		task->mm->page_directory = create_user_page_dir();
@@ -377,23 +383,27 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		/* Set a guard page */
 		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
 
-		// Clear the task's file descriptor table
-		memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
-
 		// Set up stdin, stdout and stderr for this task
 		// Note: The entire table was just zeroed (above)
-		struct open_file *f = (struct open_file *)&task->fdtable[0];
-		f->dev = (dev_t)-1;
-		f->count = 1;
-		f->fops.read  = stdio_read;
-		f->fops.write = stdio_write;
-		f->fops.close = stdio_close;
-		f->fops.fstat = stdio_fstat;
+		struct open_file *stdin = kmalloc(sizeof(struct open_file));
+		memset(stdin, 0, sizeof(struct open_file));
+		stdin->dev = (dev_t)-1;
+		stdin->count = 1;
+		stdin->fops.read  = stdio_read;
+		stdin->fops.write = stdio_write;
+		stdin->fops.close = stdio_close;
+		stdin->fops.fstat = stdio_fstat;
+
+		task->fdtable[0] = stdin;
 
 		// Copy this info for stdout and stderr
 		// Differences are handled in the IO functions
-		memcpy(&task->fdtable[1], f, sizeof(struct open_file));
-		memcpy(&task->fdtable[2], f, sizeof(struct open_file));
+		struct open_file *stdout = kmalloc(sizeof(struct open_file));
+		struct open_file *stderr = kmalloc(sizeof(struct open_file));
+		memcpy(stdout, stdin, sizeof(struct open_file));
+		memcpy(stderr, stdin, sizeof(struct open_file));
+		task->fdtable[1] = stdout;
+		task->fdtable[2] = stderr;
 	}
 	else if (task->privilege == 0) {
 		task->mm->page_directory = current_directory;

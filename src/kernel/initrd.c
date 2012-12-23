@@ -187,12 +187,10 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 	else
 		p = path;
 
-	int fd = get_free_fd();
-	if (fd < 0) {
+	int fd;
+	struct open_file *file = new_filp(&fd);
+	if (!file || fd < 0)
 		return -EMFILE;
-	}
-
-	struct open_file *file = get_filp(fd);
 
 	if (strcmp(path, "/.") == 0 || strcmp(path, "/") == 0) {
 		// Special case for the root directory

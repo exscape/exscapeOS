@@ -15,19 +15,37 @@ uint32 next_dev = 0;
 list_t *mountpoints = NULL;
 
 struct open_file *get_filp(int fd) {
-	return (struct open_file *)&current_task->fdtable[fd];
+	return (struct open_file *)current_task->fdtable[fd];
 }
 
+/*
 int get_free_fd(void) {
 	// TODO: optimize this
 	struct open_file *f;
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		f = get_filp(i);
-		if (f->count == 0)
+		if (current_task->fdtable[i] == NULL) {
 			return i;
+		}
 	}
 
 	return -1;
+}
+*/
+
+struct open_file *new_filp(int *fd) {
+	assert(fd != NULL);
+	size_t i = 0;
+	do {
+		if (current_task->fdtable[i] == NULL) {
+			current_task->fdtable[i] = kmalloc(sizeof(struct open_file));
+			memset(current_task->fdtable[i], 0, sizeof(struct open_file));
+			*fd = i;
+			return current_task->fdtable[i];
+		}
+	} while (++i <= MAX_OPEN_FILES);
+
+	panic("new_filp: no free files! TODO: create more dynamically");
+	return NULL;
 }
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {

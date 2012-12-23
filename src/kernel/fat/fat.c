@@ -209,11 +209,10 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	assert(path != NULL);
 	mode=mode; // still unused
 
-	int fd = get_free_fd();
-	if (fd < 0)
+	int fd;
+	struct open_file *file = new_filp(&fd);
+	if (!file || fd < 0)
 		return -EMFILE;
-
-	struct open_file *file = get_filp(fd);
 
 	fat32_partition_t *part = (fat32_partition_t *)devtable[dev];
 	assert(part != NULL);
