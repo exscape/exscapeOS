@@ -69,8 +69,10 @@ extern page_directory_t *current_directory;
 size_t user_strlen(const char *);
 #define IS_USER_SPACE(addr) ( (((uint32)addr) >= 0x10000000 && ((uint32)addr) < 0xc0000000) )
 #define IS_KERNEL_SPACE(addr) ( !IS_USER_SPACE(addr) )
-#define CHECK_ACCESS(addr, len) ( IS_USER_SPACE(addr) && IS_USER_SPACE((uint32)addr + (uint32)len) )
-#define CHECK_ACCESS_STR(s) ( CHECK_ACCESS(s, user_strlen(s) + 1) )
+#define CHECK_ACCESS_READ(addr, len) ( IS_USER_SPACE(addr) && IS_USER_SPACE((uint32)addr + (uint32)len) )
+bool vmm_check_access_write(uint32, uint32);
+#define CHECK_ACCESS_WRITE(addr, len) ( CHECK_ACCESS_READ(addr, len) && vmm_check_access_write((uint32)addr, (uint32)len) )
+#define CHECK_ACCESS_STR(s) ( CHECK_ACCESS_READ(s, user_strlen(s) + 1) )
 
 // Describes the memory areas of a task; user mode only
 struct task_mm {

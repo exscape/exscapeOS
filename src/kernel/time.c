@@ -306,7 +306,7 @@ int gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute__((
 }
 
 int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute__((unused))) {
-	if (!CHECK_ACCESS(tp, sizeof(struct timeval)))
+	if (!CHECK_ACCESS_WRITE(tp, sizeof(struct timeval)))
 		return -EFAULT;
 	return gettimeofday(tp, tzp); // TODO: check tzp
 }

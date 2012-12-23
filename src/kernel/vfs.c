@@ -110,7 +110,7 @@ int stat(const char *path, struct stat *buf) {
 }
 
 int sys_stat(const char *path, struct stat *buf) {
-	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS(buf, sizeof(struct stat)))
+	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS_WRITE(buf, sizeof(struct stat)))
 		return -EFAULT;
 	return stat(path, buf);
 }
@@ -129,7 +129,7 @@ int read(int fd, void *buf, int length) {
 }
 
 int sys_read(int fd, void *buf, int length) {
-	if (!CHECK_ACCESS(buf, length))
+	if (!CHECK_ACCESS_WRITE(buf, length))
 		return -EFAULT;
 	return read(fd, buf, length);
 }
@@ -156,7 +156,7 @@ int write(int fd, const void *buf, int length) {
 }
 
 int sys_write(int fd, const void *buf, int length) {
-	if (!CHECK_ACCESS(buf, length))
+	if (!CHECK_ACCESS_READ(buf, length))
 		return -EFAULT;
 	return write(fd, buf, length);
 }
@@ -176,7 +176,7 @@ int fstat(int fd, struct stat *buf) {
 }
 
 int sys_fstat(int fd, struct stat *buf) {
-	if (!CHECK_ACCESS(buf, sizeof(struct stat)))
+	if (!CHECK_ACCESS_WRITE(buf, sizeof(struct stat)))
 		return -EFAULT;
 	return fstat(fd, buf);
 }
@@ -195,7 +195,7 @@ int getdents(int fd, void *dp, int count) {
 }
 
 int sys_getdents(int fd, void *dp, int count) {
-	if (!CHECK_ACCESS(dp, count))
+	if (!CHECK_ACCESS_WRITE(dp, count))
 		return -EFAULT;
 	return getdents(fd, dp, count);
 }

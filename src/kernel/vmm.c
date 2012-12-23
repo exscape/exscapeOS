@@ -142,6 +142,34 @@ void vmm_destroy_task_mm(struct task_mm *mm) {
 	INTERRUPT_UNLOCK;
 }
 
+bool vmm_check_access_write(uint32 addr, uint32 len) {
+	// Checks whether the current userspace process has write access to the memory range of
+	// [addr, addr + len)
+	// Previous checks should have figured out that this is in userspace.
+	assert(current_task->privilege == 3);
+	struct task_mm *mm = current_task->mm;
+	assert(mm != NULL);
+
+	INTERRUPT_LOCK;
+	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+		vm_area_t *a = (vm_area_t *)it->data;
+		if (a->writable == false)
+			continue;
+
+		if (addr >= (uint32)a->start && addr < (uint32)a->end) {
+			// The beginning of this area is valid; is all of it valid?
+			if (addr + len < (uint32)a->end) {
+				// Yes!
+				INTERRUPT_UNLOCK;
+				return true;
+			}
+		}
+	}
+	INTERRUPT_UNLOCK;
+
+	return false;
+}
+
 // Unmap a virtual address. Does NOT free the associated physical memory (see vmm_free for that)
 void vmm_unmap(uint32 virtual, page_directory_t *dir) {
 	assert(dir != NULL);
