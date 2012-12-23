@@ -74,7 +74,7 @@ size_t user_strlen(const char *);
 
 // Describes the memory areas of a task; user mode only
 struct task_mm {
-	list_t *pages; // A list of addresses to unmap when the task exits
+	list_t *areas;
 	uint32 text_start;
 	uint32 text_end;
 	uint32 brk_start;
@@ -85,6 +85,7 @@ struct task_mm {
 typedef struct vm_area {
 	void *start;
 	void *end; // exclusive; a 1-page area starting at address 0x1000 has end == 0x2000
+	bool writable;
 } vm_area_t;
 
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
@@ -92,6 +93,9 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 
 // Allocate memory for user mode, with any physical addresses, to the specified virtual addresses in the specified page directory
 void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable);
+
+// Free all memory allocated to a userspace task
+void vmm_destroy_task_mm(struct task_mm *mm);
 
 // Map a virtual address to a physical address, with no allocotion (e.g. for MMIO), with the page set te kernel mode
 void vmm_map_kernel(uint32 virtual, uint32 physical, bool writable);

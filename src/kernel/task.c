@@ -115,18 +115,6 @@ void destroy_task(task_t *task) {
 	}
 
 	if (task->privilege == 3) {
-		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
-		assert(task->mm != NULL);
-		assert(task->mm->pages != NULL);
-
-		for (node_t *it = task->mm->pages->head; it != NULL; it = it->next) {
-			vm_area_t *area = (vm_area_t *)it->data;
-			for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
-				vmm_free(addr, task->mm->page_directory);
-			}
-			kfree(area);
-		}
-
 		// Free stuff in the file descriptor table (the table itself is in struct task)
 		for (int i=0; i < MAX_OPEN_FILES; i++) {
 			if (task->fdtable[i].path)
@@ -134,13 +122,12 @@ void destroy_task(task_t *task) {
 		}
 
 		assert(task->heap != NULL);
-		heap_destroy(task->heap, task->mm->page_directory);
-
 		list_remove(pagedirs, list_find_first(pagedirs, task->mm->page_directory));
 		destroy_user_page_dir(task->mm->page_directory);
 
-		list_destroy(task->mm->pages);
-		kfree(task->mm);
+		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
+		vmm_destroy_task_mm(task->mm);
+		kfree(task->heap); // We don't call heap_destroy since that frees the memory, which vmm_destroy_task_mm has done already
 		task->mm = NULL;
 	}
 
@@ -387,7 +374,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	memset(task->mm, 0, sizeof(struct task_mm));
 
 	if (task->privilege == 3) {
-		task->mm->pages = list_create();
+		task->mm->areas = list_create();
 		task->mm->page_directory = create_user_page_dir();
 
 		/* Set up a usermode stack for this task */
@@ -395,12 +382,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		/* Set a guard page */
 		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
-
-		// Write down the above
-		vm_area_t *area = kmalloc(sizeof(vm_area_t));
-		area->start = (void *)(USER_STACK_START - USER_STACK_SIZE - PAGE_SIZE);
-		area->end = (void *)(USER_STACK_START + PAGE_SIZE);
-		list_append(task->mm->pages, area);
 
 		// Pass command line arguments to the task
 		assert(current_directory == kernel_directory);

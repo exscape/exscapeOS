@@ -103,16 +103,6 @@ bool elf_load(const char *path, task_t *task) {
 			// Allocate memory for this address in the task's address space, set for user mode
 			vmm_alloc_user(start_addr_aligned, end_addr, mm, writable);
 
-			// Keep track of the allocated frames, so that we can free them when the task exits
-			vm_area_t *area = kmalloc(sizeof(vm_area_t));
-			area->start = (void *)start_addr_aligned;
-			area->end = (void *)end_addr;
-
-			assert(task->mm != NULL);
-			assert(task->mm->pages != NULL);
-
-			list_append(task->mm->pages, area);
-
 			// Switch to the new page directory, so that we can copy the data there
 			assert(current_directory == kernel_directory);
 			switch_page_directory(mm->page_directory);

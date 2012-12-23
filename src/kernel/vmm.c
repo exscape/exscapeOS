@@ -62,6 +62,48 @@ uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuou
 	}
 }
 
+static void _vmm_store_area(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable) {
+	assert(mm != NULL);
+	assert(mm->areas != NULL);
+
+	INTERRUPT_LOCK;
+
+	// Check to see if this is an extension to an existing area, with the same
+	// access rights
+	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+		assert(interrupts_enabled() == false);
+		vm_area_t *a = (vm_area_t *)it->data;
+
+		if (a->start == (void *)end_virtual && a->writable == writable) {
+			// Yes, this allocation is just before the previous area; extend it
+			a->start = (void *)start_virtual;
+			goto done;
+		}
+		else if (a->end == (void *)start_virtual && a->writable == writable) {
+			// Yes, this allocation is just after the previous area; extend it
+			a->end = (void *)end_virtual;
+			goto done;
+		}
+		else if ( (start_virtual >= (uint32)a->start && start_virtual < (uint32)a->end) || /* new area starts inside old area */ \
+				  (end_virtual > (uint32)a->start && end_virtual < (uint32)a->end))       /* new area ends inside old area */
+		{
+			panic("VM areas overlap! Old area: %p-%p, new area: %p-%p\n", a->start, a->end, (void *)start_virtual, (void *)end_virtual);
+		}
+	}
+
+	// If we are still here, this is NOT an extension, but a new area. Store it.
+	vm_area_t *area = kmalloc(sizeof(vm_area_t));
+	memset(area, 0, sizeof(vm_area_t));
+	area->start = (void *)start_virtual;
+	area->end   = (void *)end_virtual;
+	area->writable = writable;
+	list_append(mm->areas, area);
+
+done:
+	INTERRUPT_UNLOCK;
+	return;
+}
+
 // Allocate physical memory for user space and map it to the selected virtual address range
 void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable) {
 	assert(end_virtual > start_virtual);
@@ -78,6 +120,26 @@ void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm
 		uint32 phys = pmm_alloc();
 		_vmm_map(addr, phys, mm->page_directory, false /* user mode */, writable);
 	}
+
+	// Store information about this allocation
+	_vmm_store_area(start_virtual, end_virtual, mm, writable);
+}
+
+void vmm_destroy_task_mm(struct task_mm *mm) {
+	assert(mm != NULL);
+	assert(mm->areas != NULL);
+
+	INTERRUPT_LOCK;
+	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+		vm_area_t *area = (vm_area_t *)it->data;
+		for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
+			vmm_free(addr, mm->page_directory);
+		}
+		kfree(area);
+	}
+	list_destroy(mm->areas);
+	kfree(mm);
+	INTERRUPT_UNLOCK;
 }
 
 // Unmap a virtual address. Does NOT free the associated physical memory (see vmm_free for that)
@@ -250,33 +312,6 @@ void *sbrk(sint32 incr) {
 		assert(new_end < 0xb0000000); // TODO: use the actual user stack location here
 
 		vmm_alloc_user(mm->brk, new_end, current_task->mm, PAGE_RW);
-
-		// TODO: this should REALLY be in a separate function, or taken care of by vmm_alloc_user
-		vm_area_t *area = NULL;
-		INTERRUPT_LOCK;
-		for (node_t *it = mm->pages->head; it != NULL; it = it->next) {
-			vm_area_t *a = (vm_area_t *)it->data;
-			if ((uint32)a->start == mm->brk_start) {
-				area = a;
-				break;
-			}
-		}
-		INTERRUPT_UNLOCK;
-
-		if (area == NULL) {
-			// This is the first call to sbrk
-			assert(mm->brk_start == mm->brk);
-			area = kmalloc(sizeof(vm_area_t));
-			area->start = (void *)mm->brk_start;
-			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
-			area->end = (void *)new_end;
-
-			list_append(mm->pages, area);
-		}
-		else {
-			assert(IS_PAGE_ALIGNED(new_end - mm->brk));
-			area->end = (void *)((uint32)area->end + (new_end - mm->brk));
-		}
 
 		mm->brk = new_end;
 
