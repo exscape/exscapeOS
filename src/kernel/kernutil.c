@@ -48,6 +48,7 @@ extern char _printk_buf[1024];
 void panic(const char *fmt, ...) {
 	asm volatile("cli");
 	console_switch(&kernel_console);
+	console_task = &kernel_task; // always has a console; this way, putchar() won't panic and cause a triple fault
 	scrollback_reset();
 
 	va_list args;
