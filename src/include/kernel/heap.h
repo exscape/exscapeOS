@@ -66,6 +66,13 @@ typedef struct {
 #define KHEAP_MIN_GROWTH 0x8000 /* 32 kiB */
 #define KHEAP_MAX_WASTE 0x120000 /* must be >1 MiB */
 
+#define USER_HEAP_INITIAL_SIZE 0x90000
+#define USER_HEAP_MIN_GROWTH 0x8000
+#define USER_HEAP_MAX_WASTE 0x120000
+
+#define USER_HEAP_START 0x20000000
+#define USER_HEAP_MAX_ADDR 0xbff00000
+
 heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_address, uint8 supervisor, uint8 readonly, struct task_mm *mm);
 void heap_destroy(heap_t *heap, page_directory_t *dir);
 void *heap_alloc(uint32 size, bool page_align, heap_t *heap);
