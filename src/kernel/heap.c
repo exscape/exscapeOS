@@ -860,17 +860,6 @@ void kfree(void *p) {
 	heap_free(p, kheap);
 }
 
-// Userspace malloc syscall - temporary until proper userspace heap (in libc)
-void *malloc(size_t size) {
-	return heap_alloc(size, false /* no page align */, current_task->heap);
-}
-
-// Userspace free syscall - temporary until proper userspace heap (in libc)
-void free(void *p) {
-	if (p != NULL)
-		heap_free(p, current_task->heap);
-}
-
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */
 void *kmalloc(uint32 size) {
 	return kmalloc_int(size, false, NULL);

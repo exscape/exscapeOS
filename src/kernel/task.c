@@ -121,13 +121,11 @@ void destroy_task(task_t *task) {
 				kfree(task->fdtable[i].path);
 		}
 
-		assert(task->heap != NULL);
 		list_remove(pagedirs, list_find_first(pagedirs, task->mm->page_directory));
 		destroy_user_page_dir(task->mm->page_directory);
 
 		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
 		vmm_destroy_task_mm(task->mm);
-		kfree(task->heap); // We don't call heap_destroy since that frees the memory, which vmm_destroy_task_mm has done already
 		task->mm = NULL;
 	}
 
@@ -141,7 +139,6 @@ void destroy_task(task_t *task) {
 
 	kfree(task);
 }
-
 
 bool kill_pid(int pid) {
 	/* Kills the task with a certain PID */
@@ -198,7 +195,7 @@ void init_tasking(uint32 kerntask_esp0) {
 	enable_interrupts();
 }
 
-static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task) {
+char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task) {
 	// Count the worst-case number of arguments. There may be fewer due to quoting
 	uint32 max_args = 1; // the command name is always there
 	size_t len = strlen(cmdline);
@@ -209,10 +206,7 @@ static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task
 		}
 	}
 
-	// We use heap_alloc here to specify the heap, since malloc() uses current_task->heap;
-	// current_task is still set to the parent task
-
-	char **argv = heap_alloc((max_args + 1) * sizeof(char *), false, task->heap);
+	char **argv = kmalloc((max_args + 1) * sizeof(char *));
 	memset(argv, 0, (max_args + 1) * sizeof(char *));
 
 	const char *c = cmdline;
@@ -243,7 +237,7 @@ static char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task
 		if ((*c == ' ' && !quote) || *c == 0) {
 			// Allocate memory, save this argument, increase argc
 			arg[ai++] = 0;
-			argv[*argc] = heap_alloc(ai, false, task->heap);
+			argv[*argc] = kmalloc(ai);
 			assert(max_args > *argc);
 			strlcpy(argv[*argc], arg, ai);
 			(*argc)++;
@@ -283,9 +277,9 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 
 	task_t *task = create_task_user((void *)0 /* set up later on */, buf /* task name */, con, data, data_len);
 	task->state = TASK_IDLE; // Ensure the task doesn't start until the image is fully loaded
-	assert (task != NULL);
+	assert(task != NULL);
 
-	if (!elf_load(path, task)) {
+	if (!elf_load(path, task, data)) {
 		// Abort!
 		task->state = TASK_EXITING;
 		destroy_task(task);
@@ -382,26 +376,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 		/* Set a guard page */
 		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
-
-		// Pass command line arguments to the task
-		assert(current_directory == kernel_directory);
-		switch_page_directory(task->mm->page_directory);
-		//*((uint32 *)(USER_STACK_START - 4)) = (uint32)&user_exit;
-
-		task->heap = heap_create(USER_HEAP_START, USER_HEAP_INITIAL_SIZE, USER_HEAP_MAX_ADDR, 0, 0, task->mm); // not supervisor, not read-only
-
-		// Parse the data into argv/argc
-		uint32 argc = 0;
-		char **argv = NULL;
-		argv = parse_command_line(data, &argc, task);
-		assert(argv != NULL);
-		assert(argv[0] != NULL);
-		assert(strlen(argv[0]) > 0);
-
-		*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
-		*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
-
-		switch_page_directory(kernel_directory);
 
 		// Clear the task's file descriptor table
 		memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);

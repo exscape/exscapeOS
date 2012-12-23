@@ -35,8 +35,8 @@ struct syscall_entry syscalls[] = {
 	{ &sys_open, 32 },   /* 5 */
 	{ &sys_read, 32 },
 	{ &close, 32 },
-	{ &malloc, 32 },
-	{ &free, 32 },
+	{ NULL, 32 }, // old malloc
+	{ NULL, 32 }, // old free
 	{ &sys_stat, 32 },   /* 10 */
 	{ &sys_chdir, 32 },
 	{ &sys_write, 32 },

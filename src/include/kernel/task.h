@@ -22,7 +22,6 @@ typedef struct task {
 	console_t *console;
 	struct task_mm *mm; /* memory info, including the page directory pointer */
 	struct open_file fdtable[MAX_OPEN_FILES];
-	heap_t *heap;
 	char *pwd;
 	struct _reent *reent; // Used by Newlib
 } task_t;
@@ -43,6 +42,7 @@ void user_exit(void); // called from user mode
 #define USER_STACK_START 0xbffff000
 #define USER_STACK_SIZE 16384 /* overkill? */
 
+char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task);
 void set_entry_point(task_t *task, uint32 addr);
 void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);

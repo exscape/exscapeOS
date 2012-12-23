@@ -9,7 +9,59 @@
 
 #define ELF_DEBUG 0
 
-bool elf_load(const char *path, task_t *task) {
+void copy_argv_to_task(char ***argv, uint32 argc, task_t *task) {
+	assert(argv != NULL);
+	assert(task != NULL);
+
+	char **tmp_argv = *argv;
+
+	size_t len = 0;
+	for (size_t i = 0; tmp_argv[i] != NULL; i++) {
+		len += sizeof(char *); // the argv pointer
+		if (tmp_argv[i])
+			len += strlen(tmp_argv[i]) + 1;
+	}
+	len += sizeof(char *); // the last NULL
+
+	struct task_mm *mm = task->mm;
+	assert(mm != NULL);
+	assert(mm->brk_start != 0);
+
+	size_t size = len;
+	if (size & 0xfff) {
+		size &= 0xfffff000;
+		size += PAGE_SIZE;
+	}
+
+	vmm_alloc_user(mm->brk_start, mm->brk_start + size, mm, false /* read-only */);
+	char *addr = (char *)mm->brk_start;
+	mm->brk += size;
+	mm->brk_start += size;
+
+	memset(addr, 0, size);
+
+	char **new_argv = (char **)addr;
+	addr += (argc + 1) * sizeof(char *);
+
+	// OK, we now have the space we need, time to actually start working.
+	size_t i = 0;
+	for (; tmp_argv[i] != NULL; i++) {
+		size_t tlen = strlen(tmp_argv[i]) + 1;
+		memcpy(addr, tmp_argv[i], tlen);
+		new_argv[i] = addr;
+		addr += tlen;
+	}
+
+	i = 0;
+	do {
+		kfree(tmp_argv[i++]);
+	} while (tmp_argv[i]);
+	kfree(tmp_argv);
+
+	*argv = new_argv;
+}
+
+bool elf_load(const char *path, task_t *task, void *cmdline) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
@@ -135,17 +187,37 @@ bool elf_load(const char *path, task_t *task) {
 		size &= 0xfffff000;
 		size += 0x1000;
 	}
+
 	vmm_alloc_user(task->mm->brk, task->mm->brk + size, mm, true);
+
 	assert(current_directory == kernel_directory);
 	switch_page_directory(task->mm->page_directory);
+
 	task->reent = (struct _reent *)task->mm->brk;
 	_REENT_INIT_PTR(task->reent);
-	switch_page_directory(kernel_directory);
 	task->mm->brk += size;
 	task->mm->brk_start += size;
 
 	assert(IS_PAGE_ALIGNED(task->mm->brk));
 	assert(task->mm->brk == task->mm->brk_start);
+
+	// Pass command line arguments to the task
+	// Parse the data into argv/argc
+	uint32 argc = 0;
+	char **argv = NULL;
+	argv = parse_command_line(cmdline, &argc, task);
+	assert(argv != NULL);
+	assert(argv[0] != NULL);
+	assert(strlen(argv[0]) > 0);
+
+	// Copy the argv data from the kernel heap to the task's address space
+	// This function updates argv to point to the new location.
+	copy_argv_to_task(&argv, argc, task);
+
+	*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
+	*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
+
+	switch_page_directory(kernel_directory);
 
 #if ELF_DEBUG
 
