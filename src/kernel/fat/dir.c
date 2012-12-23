@@ -235,7 +235,7 @@ int fat_getdents(int fd, void *dp, int count) {
 		return -EINVAL;
 	}
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.

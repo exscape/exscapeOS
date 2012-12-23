@@ -14,10 +14,16 @@ uint32 next_dev = 0;
 
 list_t *mountpoints = NULL;
 
+struct open_file *get_filp(int fd) {
+	return (struct open_file *)&current_task->fdtable[fd];
+}
+
 int get_free_fd(void) {
 	// TODO: optimize this
+	struct open_file *f;
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		if (current_task->fdtable[i].count == 0)
+		f = get_filp(i);
+		if (f->count == 0)
 			return i;
 	}
 
@@ -119,7 +125,7 @@ int read(int fd, void *buf, int length) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -138,7 +144,7 @@ int write(int fd, const void *buf, int length) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -165,7 +171,7 @@ int fstat(int fd, struct stat *buf) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -185,7 +191,7 @@ int getdents(int fd, void *dp, int count) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -204,7 +210,7 @@ int close(int fd) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -303,7 +309,7 @@ off_t lseek(int fd, off_t offset, int whence) {
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	if (file->fops.lseek == NULL)
 		return -EBADF;

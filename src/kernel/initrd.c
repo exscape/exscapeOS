@@ -112,7 +112,7 @@ bool fs_mount(void) {
 int initrd_getdents(int fd, void *dp, int count);
 int initrd_read(int fd, void *buf, size_t length) {
 	assert(fd <= MAX_OPEN_FILES);
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	assert(devtable[file->dev] == (void *)0xffffffff);
 	initrd_file_header_t header = file_headers[file->ino];
 
@@ -139,7 +139,7 @@ int initrd_close(int fd);
 
 off_t initrd_lseek(int fd, off_t offset, int whence) {
 	assert(fd <= MAX_OPEN_FILES);
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	assert(file->ino < initrd_header->nfiles);
 	uint32 file_size = file_headers[file->ino].length;
@@ -192,7 +192,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 		return -EMFILE;
 	}
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	if (strcmp(path, "/.") == 0 || strcmp(path, "/") == 0) {
 		// Special case for the root directory
@@ -247,7 +247,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 
 int initrd_close(int fd) {
 	assert(fd <= MAX_OPEN_FILES);
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	assert(file->dev <= MAX_DEVS);
 	assert(devtable[file->dev] == (void *)0xffffffff);
 
@@ -353,7 +353,7 @@ int initrd_closedir(DIR *dir) {
 int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st);
 
 int initrd_fstat(int fd, struct stat *st) {
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	char relpath[PATH_MAX+1] = {0};
 	find_relpath(file->path, relpath, NULL);
@@ -430,7 +430,7 @@ int initrd_getdents(int fd, void *dp, int count) {
 		return -EINVAL;
 	}
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.

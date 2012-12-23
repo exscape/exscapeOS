@@ -139,7 +139,7 @@ inline static uint32 fat_lba_from_cluster(fat32_partition_t *part, uint32 cluste
 }
 
 off_t fat_lseek(int fd, off_t offset, int whence) {
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	assert(file->ino >= 2);
 	assert(file->count > 0);
@@ -213,7 +213,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	if (fd < 0)
 		return -EMFILE;
 
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	fat32_partition_t *part = (fat32_partition_t *)devtable[dev];
 	assert(part != NULL);
@@ -255,7 +255,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 }
 
 int fat_read(int fd, void *buf, size_t length) {
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	if (file->ino == 0 && file->count != 0) {
 		// This file appears to be empty (FAT cluster 0 means a size-0 file). Let's verify.
@@ -364,7 +364,7 @@ done:
 }
 
 int fat_close(int fd) {
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 	assert(file->count != 0);
 
 	kfree(file->path);
@@ -543,7 +543,7 @@ error:
 
 int fat_fstat(int fd, struct stat *buf) {
 	// Ugh, this feels like a huge hack.
-	struct open_file *file = (struct open_file *)&current_task->fdtable[fd];
+	struct open_file *file = get_filp(fd);
 
 	char relpath[PATH_MAX+1] = {0};
 	find_relpath(file->path, relpath, NULL);

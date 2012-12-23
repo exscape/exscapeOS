@@ -82,6 +82,7 @@ typedef struct open_file {
 	void *data; // implementation specific data
 } open_file_t;
 
+struct open_file *get_filp(int fd);
 int get_free_fd(void);
 
 int open(const char *path, int mode);
