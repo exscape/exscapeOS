@@ -45,8 +45,9 @@ bool fs_mount(void) {
 	}
 
 	initrd_file_header_t header = file_headers[ino];
-	char *buf = kmalloc(header.length);
+	char *buf = kmalloc(header.length + 1);
 	memcpy(buf, (void *)header.offset, header.length);
+	buf[header.length] = 0;
 
 	char *p = buf;
 	while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
