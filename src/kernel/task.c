@@ -116,9 +116,15 @@ void destroy_task(task_t *task) {
 
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
-		if (task->fdtable[i] && task->fdtable[i]->path)
-			kfree(task->fdtable[i]->path);
-		kfree(task->fdtable[i]);
+		if (task->fdtable[i]) {
+			if (task->fdtable[i]->path)
+				kfree(task->fdtable[i]->path);
+			task->fdtable[i]->count--;
+			if (task->fdtable[i]->count == 0)
+				kfree(task->fdtable[i]);
+			else
+				panic("count != 0");
+		}
 	}
 	kfree(task->fdtable);
 

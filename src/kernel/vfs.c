@@ -235,7 +235,12 @@ int close(int fd) {
 	assert(file->fops.close != NULL);
 
 	int r = file->fops.close(fd);
-	memset(file, 0, sizeof(struct open_file));
+	file->count--;
+	assert(file->count == 0);
+	if (file->count == 0) {
+		kfree(file);
+		current_task->fdtable[fd] = NULL;
+	}
 
 	return r;
 }
