@@ -10,6 +10,7 @@
 #include <kernel/heap.h>
 #include <kernel/list.h>
 #include <kernel/interrupts.h>
+#include <string.h>
 
 #define LIST_DEBUG 1
 
@@ -127,6 +128,36 @@ list_t *list_create(void) {
 #endif
 
 	return new;
+}
+
+list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) ) {
+	assert(orig != NULL);
+	list_t *copy = kmalloc(sizeof(list_t));
+	memset(copy, 0, sizeof(list_t));
+
+	INTERRUPT_LOCK;
+	node_t *prev = NULL;
+	for (node_t *it = orig->head; it != NULL; it = it->next) {
+		node_t *new_node = kmalloc(sizeof(node_t));
+		if (prev != NULL)
+			prev->next = new_node;
+		new_node->prev = prev;
+		new_node->data = _copy_data(it->data);
+		new_node->list = copy;
+		copy->count++;
+		copy->tail = new_node;
+
+		prev = new_node;
+		if (copy->head == NULL)
+			copy->head = new_node;
+	}
+	INTERRUPT_UNLOCK;
+
+#if LIST_DEBUG > 0
+	list_validate(copy);
+#endif
+
+	return copy;
 }
 
 node_t *list_append(list_t *list, void *data) {

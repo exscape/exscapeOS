@@ -24,6 +24,7 @@ typedef struct list {
 
 uint32 list_size(list_t *list);
 list_t *list_create(void);
+list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) );
 node_t *list_prepend(list_t *list, void *data);
 node_t *list_append(list_t *list, void *data);
 node_t *list_node_insert_before(node_t *node, void *data);
