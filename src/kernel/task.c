@@ -120,10 +120,11 @@ void destroy_task(task_t *task) {
 			if (task->fdtable[i]->path)
 				kfree(task->fdtable[i]->path);
 			task->fdtable[i]->count--;
-			if (task->fdtable[i]->count == 0)
-				kfree(task->fdtable[i]);
-			else
-				panic("count != 0");
+			// TODO: free files properly - in a way that leaves no freed pointers in other tasks, etc.!
+			//if (task->fdtable[i]->count <= 0)
+			//kfree(task->fdtable[i]);
+			//else
+			//panic("count != 0");
 		}
 	}
 	kfree(task->fdtable);
@@ -554,6 +555,7 @@ int fork(void) {
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
 		if (child->fdtable[i] != NULL) {
 			// Since we only copied the pointers, this increases for the parent as well, of course
+			assert(parent->fdtable[i]->count > 0);
 			child->fdtable[i]->count++;
 		}
 	}
@@ -578,7 +580,7 @@ int fork(void) {
 	*(--kernelStack) = (uint32)&_exit;
 
 	*(--kernelStack) = 0x23; /* SS */
-	*(--kernelStack) = (USER_STACK_START - 12); /* ESP */
+	*(--kernelStack) = regs->useresp;
 	uint32 code_segment = 0x1b; /* 0x18 | 3 */
 
 	*(--kernelStack) = 0x0202;				/* EFLAGS: IF = 1, IOPL = 0 */

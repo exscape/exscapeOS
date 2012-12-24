@@ -150,6 +150,7 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 
 	uint32 new_dir_phys;
 	page_directory_t *child_dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
+	memset(child_dir, 0, sizeof(page_directory_t));
 
 	INTERRUPT_LOCK;
 	for (int i = 0; i < 1024; i++) {
@@ -158,8 +159,8 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 			// all other tasks, as the kernel space is the same in all of them
 			child_dir->tables_physical[i] = parent_dir->tables_physical[i];
 			child_dir->tables[i] = parent_dir->tables[i];
-			if (child_dir->tables[i] != NULL)
-				printk("linking kernel space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
+			//if (child_dir->tables[i] != NULL)
+				//printk("linking kernel space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
 		}
 		else {
 			// This page table and all of its contents should be copied -- if there's anything here
@@ -167,7 +168,7 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 				continue;
 
 			_vmm_create_page_table(i, child_dir);
-			printk("copying user space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
+			//printk("copying user space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
 			for (int j = 0; j < 1024; j++) {
 				page_t *page_orig = &parent_dir->tables[i]->pages[j];
 				if (page_orig->frame != 0) {
