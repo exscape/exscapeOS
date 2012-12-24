@@ -90,6 +90,9 @@ typedef struct vm_area {
 	bool writable;
 } vm_area_t;
 
+// Clones a userspace task's memory structures etc.
+struct task_mm *vmm_clone_mm(struct task_mm *parent_mm);
+
 // Allocate memory for kernel mode, with continuous or 'any' physical addresses, to the specified virtual addresses
 uint32 vmm_alloc_kernel(uint32 start_virtual, uint32 end_virtual, bool continuous_physical, bool writable);
 

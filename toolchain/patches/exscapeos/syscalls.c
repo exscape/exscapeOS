@@ -92,6 +92,7 @@ DECL_SYSCALL1(sbrk, void *, sint32); // TODO: return type caddr_t
 DECL_SYSCALL0(__getreent, struct _reent *);
 DECL_SYSCALL3(getdents, int, int, void *, int);
 DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
+DECL_SYSCALL0(fork, int);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -117,6 +118,7 @@ DEFN_SYSCALL1(sbrk, void *, 16, sint32);
 DEFN_SYSCALL0(__getreent, struct _reent *, 17);
 DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
 DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
+DEFN_SYSCALL0(fork, int, 20);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -160,12 +162,6 @@ int close(int file) {
 int execve(char *name, char **argv, char **env) {
 	// TODO: execve!
 	errno = ENOMEM;
-	return -1;
-}
-
-int fork(void) {
-	// TODO: fork!
-	errno = EAGAIN;
 	return -1;
 }
 
@@ -321,6 +317,16 @@ int getdents(int fd, void *dp, int count) {
 	if ((ret = sys_getdents(fd, dp, count)) >= 0) {
 		return ret;
 	}
+	else {
+		errno = -ret;
+		return -1;
+	}
+}
+
+int fork(void) {
+	int ret;
+	if ((ret = sys_fork()) >= 0)
+		return ret;
 	else {
 		errno = -ret;
 		return -1;

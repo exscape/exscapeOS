@@ -46,7 +46,8 @@ struct syscall_entry syscalls[] = {
 	{ &sbrk, 32 },
 	{ &__getreent, 32 },
 	{ &sys_getdents, 32 },
-	{ &sys_gettimeofday, 32 }
+	{ &sys_gettimeofday, 32 },
+	{ &fork, 32}
 };
 
 uint32 num_syscalls = 0;

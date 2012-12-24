@@ -141,6 +141,9 @@ void vmm_destroy_task_mm(struct task_mm *mm) {
 	kfree(mm);
 	INTERRUPT_UNLOCK;
 }
+struct task_mm *vmm_clone_mm(struct task_mm *parent_mm) {
+	return parent_mm;
+}
 
 bool vmm_check_access_write(uint32 addr, uint32 len) {
 	// Checks whether the current userspace process has write access to the memory range of

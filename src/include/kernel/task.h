@@ -57,6 +57,7 @@ bool kill_pid(int pid); /* calls kill on the correct task */
 void kill(task_t *task); /* sets a task to TASK_EXITING so that it never runs */
 void destroy_task(task_t *task); /* actually kills the task for good */
 void sleep(uint32 milliseconds);
+int fork(void);
 
 /* Used in the ATA driver, to make tasks sleep while waiting for the disk to read data */
 void scheduler_set_iowait(void);

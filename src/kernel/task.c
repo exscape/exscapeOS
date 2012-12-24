@@ -137,6 +137,9 @@ void destroy_task(task_t *task) {
 		task->mm = NULL;
 	}
 
+	if (task->pwd)
+		kfree(task->pwd);
+
 	/* Delete this task from the queue */
 	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
 
@@ -488,6 +491,128 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		//console_switch(task->console);
 
 	return task;
+}
+
+int fork(void) {
+	assert(current_task->privilege == 3);
+
+	uint32 esp;
+	asm volatile("mov %%esp, %[esp]" : [esp]"=a"(esp) : : "cc", "memory");
+
+	registers_t *regs = (registers_t *)((uint32)current_task->stack - sizeof(registers_t));
+
+	task_t *parent = (task_t *)current_task;
+	task_t *child = kmalloc(sizeof(task_t));
+	memset(child, 0, sizeof(task_t));
+
+	child->id = next_pid++;
+	child->esp = 0;
+
+	/*
+	 * Use guard pages around the stack
+	 * This wastes a "lot" of memory (16 kB total, per task of course), to keep the code simple...
+	 * The heap adds a header and a footer around the allocated memory,
+	 * so to get page-aligned storage with guard pages around, we need
+	 * to allocate a bunch of memory extra for those full pages, AND to store
+	 * the heap stuff before and after them.
+	 */
+
+	// tmp: the entire memory area, including guard pages
+	uint32 tmp = (uint32)kmalloc_a(KERNEL_STACK_SIZE + 4*4096);
+	// start_guard: address to the guard page BEFORE the memory (protects against OVERflow)
+	uint32 start_guard = (uint32)(tmp + 4096);
+	child->stack = (void*) (tmp + 2*4096 + KERNEL_STACK_SIZE);
+	// end_guard: address to the guard page AFTER the memory (protects against UNDERflow)
+	uint32 end_guard = (uint32)child->stack;
+
+	assert(tmp + KERNEL_STACK_SIZE + 2*4096 == (uint32)child->stack);
+	assert((uint32)child->stack + 2*4096 == tmp + KERNEL_STACK_SIZE + 4*4096);
+
+	/* Zero the stack, so user applications can't peer in to what may have been on the kernel heap */
+	memset((void *)tmp, 0, KERNEL_STACK_SIZE + 4*4096);
+
+	/* Set the guard pages */
+	// TODO: why kernel_directory? Was that on purpose?
+	vmm_set_guard(start_guard, kernel_directory);
+	vmm_set_guard(end_guard,   kernel_directory);
+
+	child->privilege = 3;
+
+	assert(current_task->pwd != NULL);
+	assert(current_task->pwd[0] != 0);
+	child->pwd = strdup(current_task->pwd);
+
+	strlcpy(child->name, parent->name, TASK_NAME_LEN);
+
+	// Set up the memory map struct for this task
+	child->mm = vmm_clone_mm(parent->mm);
+
+	// Set up the task's file descriptor table
+	child->fdtable = kmalloc(sizeof(struct open_file) * MAX_OPEN_FILES);
+	memcpy(child->fdtable, parent->fdtable, sizeof(struct open_file) * MAX_OPEN_FILES);
+	for (int i = 0; i < MAX_OPEN_FILES; i++) {
+		if (child->fdtable[i] != NULL) {
+			// Since we only copied the pointers, this increases for the parent as well, of course
+			child->fdtable[i]->count++;
+		}
+	}
+
+	child->state = TASK_IDLE;
+	child->wakeup_time = 0;
+
+	/* Set up a console for the new task */
+	child->console = parent->console;
+	if (child->console) {
+		list_append(child->console->tasks, child);
+	}
+
+	/* Set up the kernel stack of the new process */
+	uint32 *kernelStack = child->stack;
+
+	/* data and data length parameters (in opposite order) */
+	*(--kernelStack) = 0; //data_len;
+	*(--kernelStack) = 0; // (uint32)data;
+
+	/* Functions will call this automatically when they attempt to return */
+	*(--kernelStack) = (uint32)&_exit;
+
+	*(--kernelStack) = 0x23; /* SS */
+	*(--kernelStack) = (USER_STACK_START - 12); /* ESP */
+	uint32 code_segment = 0x1b; /* 0x18 | 3 */
+
+	*(--kernelStack) = 0x0202;				/* EFLAGS: IF = 1, IOPL = 0 */
+	*(--kernelStack) = code_segment;        /* CS */
+	*(--kernelStack) = (uint32)regs->eip;
+	*(--kernelStack) = 0;                   /* Error code */
+	*(--kernelStack) = 0;                   /* Interrupt number */
+
+	/* GPRs, except ESP */
+	*(--kernelStack) = regs->eax;
+	*(--kernelStack) = regs->ecx;
+	*(--kernelStack) = regs->edx;
+	*(--kernelStack) = regs->ebx;
+	*(--kernelStack) = regs->ebp;
+	*(--kernelStack) = regs->esi;
+	*(--kernelStack) = regs->edi;
+
+	uint32 data_segment = 0x23;
+
+	/* Data segments (DS, ES, FS, GS) */
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+
+	/* Now that we're done on the stack, set the stack pointers in the task structure */
+	child->esp = (uint32)kernelStack;
+	child->ss = data_segment;
+
+	/* Add the new task in the ready queue; we'll insert it so it runs next */
+	list_node_insert_after(list_find_first((list_t *)&ready_queue, (void *)current_task), (void *)child);
+
+	child->state = TASK_RUNNING;
+
+	return 0;
 }
 
 void set_entry_point(task_t *task, uint32 addr) {
