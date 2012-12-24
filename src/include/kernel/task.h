@@ -24,6 +24,9 @@ typedef struct task {
 	struct open_file **fdtable;
 	char *pwd;
 	struct _reent *reent; // Used by Newlib
+
+	struct task *parent;
+	list_t *children;
 } task_t;
 
 extern volatile task_t *current_task;

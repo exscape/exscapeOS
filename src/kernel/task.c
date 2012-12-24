@@ -116,6 +116,12 @@ void destroy_task(task_t *task) {
 		//console_destroy(task->console);
 	}
 
+	INTERRUPT_LOCK;
+	if (task->parent != NULL) {
+		list_remove(task->parent->children, list_find_first(task->parent->children, (task_t *)task));
+	}
+	INTERRUPT_UNLOCK;
+
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
 		if (task->fdtable[i]) {
@@ -385,6 +391,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	task->fdtable = kmalloc(sizeof(struct open_file) * MAX_OPEN_FILES); // TODO: smaller size + dynamic resizing
 	memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
 
+	task->parent = NULL;
+
 	if (task->privilege == 3) {
 		task->mm->areas = list_create();
 		task->mm->page_directory = create_user_page_dir();
@@ -416,9 +424,12 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		memcpy(stderr, stdin, sizeof(struct open_file));
 		task->fdtable[1] = stdout;
 		task->fdtable[2] = stderr;
+
+		task->children = list_create();
 	}
 	else if (task->privilege == 0) {
 		task->mm->page_directory = current_directory;
+		task->children = NULL;
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");
@@ -561,6 +572,12 @@ int fork(void) {
 			child->fdtable[i]->count++;
 		}
 	}
+
+	// Keep track of the tasks
+	assert(parent->children != NULL);
+	list_append(parent->children, child);
+	child->parent = parent;
+	child->children = list_create();
 
 	child->state = TASK_IDLE;
 	child->wakeup_time = 0;
