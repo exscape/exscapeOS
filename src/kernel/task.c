@@ -121,7 +121,7 @@ void destroy_task(task_t *task) {
 		if (task->fdtable[i]) {
 			if (task->fdtable[i]->path)
 				kfree(task->fdtable[i]->path);
-			task->fdtable[i]->count--;
+			//task->fdtable[i]->count--;
 			// TODO: free files properly - in a way that leaves no freed pointers in other tasks, etc.!
 			//if (task->fdtable[i]->count <= 0)
 			//kfree(task->fdtable[i]);
