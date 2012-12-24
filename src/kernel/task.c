@@ -587,7 +587,7 @@ int fork(void) {
 	*(--kernelStack) = 0;                   /* Interrupt number */
 
 	/* GPRs, except ESP */
-	*(--kernelStack) = regs->eax;
+	*(--kernelStack) = 0; //regs->eax; -- return value should be 0 for the child
 	*(--kernelStack) = regs->ecx;
 	*(--kernelStack) = regs->edx;
 	*(--kernelStack) = regs->ebx;
@@ -612,7 +612,7 @@ int fork(void) {
 
 	child->state = TASK_RUNNING;
 
-	return 0;
+	return child->id;
 }
 
 void set_entry_point(task_t *task, uint32 addr) {
