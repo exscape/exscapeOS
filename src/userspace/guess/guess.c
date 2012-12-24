@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define MAX_GUESSES 10
 
 int main(int argc, char **argv) {
-	srand(848214); // TODO: time()
+	srand(time(NULL));
 	int num = 1 + (rand() % 100);
 	int guess = -1;
 	int num_guesses = 0;
