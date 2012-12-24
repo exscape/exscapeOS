@@ -144,6 +144,7 @@ list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) ) {
 		new_node->prev = prev;
 		new_node->data = _copy_data(it->data);
 		new_node->list = copy;
+		new_node->next = NULL;
 		copy->count++;
 		copy->tail = new_node;
 
