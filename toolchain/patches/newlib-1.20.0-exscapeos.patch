@@ -19,7 +19,7 @@ diff -Naur newlib-1.20.0/newlib/configure.host newlib-1.20.0-exscapeos/newlib/co
  	;;
 +  i[3-7]86-*-exscapeos*)
 +	sys_dir=exscapeos
-+	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -D__DYNAMIC_REENT__ -O0 -gstabs+" # -DREENTRANT_SYSCALLS_PROVIDED
++	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -D__DYNAMIC_REENT__ -DHAVE_NANOSLEEP -O0 -gstabs+"
 +	posix_dir=posix
 +	;;
    i[34567]86-*-rdos*)

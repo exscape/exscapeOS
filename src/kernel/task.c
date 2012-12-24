@@ -14,6 +14,8 @@
 #include <path.h>
 #include <kernel/stdio.h>
 #include <reent.h>
+#include <sys/time.h> /* struct timespec */
+#include <sys/errno.h>
 
 /*
  * Here's a overview of how the multitasking works in exscapeOS.
@@ -838,4 +840,14 @@ void sleep(uint32 milliseconds) {
 
 	/* Force a task switch */
 	YIELD;
+}
+
+int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp __attribute__((unused))) {
+	if (rqtp == NULL || !CHECK_ACCESS_READ(rqtp, sizeof(struct timespec)))
+		return -EFAULT;
+
+	uint32 ms = (rqtp->tv_sec) * 1000 + ((rqtp->tv_nsec) / 1000000);
+	sleep(ms);
+
+	return 0;
 }

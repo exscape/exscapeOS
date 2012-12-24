@@ -93,6 +93,7 @@ DECL_SYSCALL0(__getreent, struct _reent *);
 DECL_SYSCALL3(getdents, int, int, void *, int);
 DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
 DECL_SYSCALL0(fork, int);
+DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -119,6 +120,7 @@ DEFN_SYSCALL0(__getreent, struct _reent *, 17);
 DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
 DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
 DEFN_SYSCALL0(fork, int, 20);
+DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -331,6 +333,16 @@ int fork(void) {
 		errno = -ret;
 		return -1;
 	}
+}
+
+int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
+	int ret;
+	if ((ret = sys_nanosleep(rqtp, rmtp)) != 0) {
+		errno = -ret;
+		return -1;
+	}
+	else
+		return 0;
 }
 
 char *__env[1] = { 0 };

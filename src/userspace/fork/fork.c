@@ -13,9 +13,11 @@ int main(int argc, char **argv) {
 	}
 	else if (ret == 0) {
 		printf("fork(): in child! pid = %d\n", getpid());
+		sleep(1);
 	}
 	else {
 		printf("fork(): in parent; child has pid %d\n", ret);
+		sleep(2);
 	}
 
 	printf("Exiting from %s\n", ret == 0 ? "child" : "parent");
