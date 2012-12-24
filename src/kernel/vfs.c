@@ -236,7 +236,7 @@ int close(int fd) {
 
 	int r = file->fops.close(fd);
 	file->count--;
-	assert(file->count == 0);
+	assert(file->count >= 0);
 	if (file->count == 0) {
 		kfree(file);
 		current_task->fdtable[fd] = NULL;
