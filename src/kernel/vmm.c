@@ -141,8 +141,78 @@ void vmm_destroy_task_mm(struct task_mm *mm) {
 	kfree(mm);
 	INTERRUPT_UNLOCK;
 }
+
+void copy_page_physical(uint32 src, uint32 dst);
+
+page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct task_mm *child_mm) {
+	assert(parent_dir != NULL);
+	assert(child_mm != NULL);
+
+	uint32 new_dir_phys;
+	page_directory_t *child_dir = kmalloc_ap(sizeof(page_directory_t), &new_dir_phys);
+
+	INTERRUPT_LOCK;
+	for (int i = 0; i < 1024; i++) {
+		if (IS_KERNEL_SPACE(i * 1024 * 4096)) {
+			// The page table for this region should be linked to the same table as for
+			// all other tasks, as the kernel space is the same in all of them
+			child_dir->tables_physical[i] = parent_dir->tables_physical[i];
+			child_dir->tables[i] = parent_dir->tables[i];
+			if (child_dir->tables[i] != NULL)
+				printk("linking kernel space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
+		}
+		else {
+			// This page table and all of its contents should be copied -- if there's anything here
+			if (parent_dir->tables[i] == NULL)
+				continue;
+
+			_vmm_create_page_table(i, child_dir);
+			printk("copying user space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
+			for (int j = 0; j < 1024; j++) {
+				page_t *page_orig = &parent_dir->tables[i]->pages[j];
+				if (page_orig->frame != 0) {
+					page_t *page_copy = &child_dir->tables[i]->pages[j];
+					uint32 phys = pmm_alloc();
+					copy_page_physical(page_orig->frame * 4096, phys); // copy the actual data for this page
+					*(uint32 *)page_copy = *(uint32 *)page_orig; // copy the page flags etc (could be done with memcpy, too)
+					page_copy->frame = phys / 4096;
+				}
+			}
+		}
+	}
+	list_append(pagedirs, child_dir);
+	INTERRUPT_UNLOCK;
+
+	/*
+	 * We need the physical address of the /tables_physical/ struct member. /dir/ points to the beginning of the structure, of course.
+	 * Since the physical address is (obviously!) in another address space, we can't use the & operator, but must instead calculate
+	 * its offset into the structure, then add that to the physical address.
+	 */
+	uint32 offset = (uint32)child_dir->tables_physical - (uint32)child_dir;
+	child_dir->physical_address = new_dir_phys + offset;
+
+	return child_dir;
+}
+
+void *copy_area(void *_area) {
+	vm_area_t *area = (vm_area_t *)_area;
+	vm_area_t *area_copy = kmalloc(sizeof(vm_area_t));
+	memcpy(area_copy, area, sizeof(vm_area_t));
+
+	return area_copy;
+}
+
 struct task_mm *vmm_clone_mm(struct task_mm *parent_mm) {
-	return parent_mm;
+	assert(parent_mm != NULL);
+	assert(parent_mm->areas != NULL);
+
+	struct task_mm *child_mm = kmalloc(sizeof(struct task_mm));
+	memset(child_mm, 0, sizeof(struct task_mm));
+
+	child_mm->areas = list_copy(parent_mm->areas, copy_area);
+	child_mm->page_directory = clone_user_page_directory(parent_mm->page_directory, child_mm);
+
+	return child_mm;
 }
 
 bool vmm_check_access_write(uint32 addr, uint32 len) {

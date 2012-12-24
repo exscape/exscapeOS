@@ -8,7 +8,7 @@ copy_page_physical:
 	cli
 
 	mov ebx, [esp+12] ; source address
-	mov ebx, [esp+16] ; dest address
+	mov ecx, [esp+16] ; dest address
 
 	; Disable paging
 	mov edx, cr0

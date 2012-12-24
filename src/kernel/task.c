@@ -545,6 +545,7 @@ int fork(void) {
 	strlcpy(child->name, parent->name, TASK_NAME_LEN);
 
 	// Set up the memory map struct for this task
+	// This is arguably the main step fork performs.
 	child->mm = vmm_clone_mm(parent->mm);
 
 	// Set up the task's file descriptor table
