@@ -638,7 +638,7 @@ int fork(void) {
 }
 
 int sys_wait(int *status) {
-	if (!CHECK_ACCESS_WRITE(status, sizeof(int)))
+	if (status != NULL && !CHECK_ACCESS_WRITE(status, sizeof(int)))
 		return -EFAULT;
 	if (current_task->children == NULL || current_task->children->count <= 0)
 		return -ECHILD;
@@ -648,7 +648,9 @@ int sys_wait(int *status) {
 		sleep(10); // TODO: sys_wait: don't actively poll!
 	}
 
-	*status = 0;
+	if (status != NULL) {
+		*status = 0;
+	}
 
 	return 0;
 }
