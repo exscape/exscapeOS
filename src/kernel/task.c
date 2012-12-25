@@ -637,6 +637,22 @@ int fork(void) {
 	return child->id;
 }
 
+int sys_wait(int *status) {
+	if (!CHECK_ACCESS_WRITE(status, sizeof(int)))
+		return -EFAULT;
+	if (current_task->children == NULL || current_task->children->count <= 0)
+		return -ECHILD;
+
+	uint32 cur_count = current_task->children->count;
+	while (current_task->children->count >= cur_count ) {
+		sleep(10); // TODO: sys_wait: don't actively poll!
+	}
+
+	*status = 0;
+
+	return 0;
+}
+
 void set_entry_point(task_t *task, uint32 addr) {
 	assert(task != NULL);
 	assert(task->privilege == 3);

@@ -25,6 +25,7 @@ int sys_fstat(int fd, struct stat *buf);
 int sys_getdents(int fd, void *dp, int count);
 int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp);
 int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp __attribute__((unused)));
+int sys_wait(int *status);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
@@ -49,7 +50,8 @@ struct syscall_entry syscalls[] = {
 	{ &sys_getdents, 32 },
 	{ &sys_gettimeofday, 32 },
 	{ &fork, 32},
-	{ &sys_nanosleep, 32}
+	{ &sys_nanosleep, 32},
+	{ &sys_wait, 32 }
 };
 
 uint32 num_syscalls = 0;

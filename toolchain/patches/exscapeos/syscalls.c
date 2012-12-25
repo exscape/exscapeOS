@@ -94,6 +94,7 @@ DECL_SYSCALL3(getdents, int, int, void *, int);
 DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
 DECL_SYSCALL0(fork, int);
 DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
+DECL_SYSCALL1(wait, int, int *);
 
 //DEFN_SYSCALL0(_exit, void, 0);
 void sys__exit(void) {
@@ -121,6 +122,7 @@ DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
 DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
 DEFN_SYSCALL0(fork, int, 20);
 DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
+DEFN_SYSCALL1(wait, int, 22, int *);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -285,9 +287,15 @@ int unlink(char *name) {
 }
 
 int wait(int *status) {
-	// TODO: wait!
-	errno = ECHILD;
-	return -1;
+	int ret;
+	if ((ret = sys_wait(status)) >= 0) {
+		return ret;
+	}
+	else {
+		errno = -ret;
+		return -1;
+	}
+
 }
 
 int write(int file, char *ptr, int len) {
