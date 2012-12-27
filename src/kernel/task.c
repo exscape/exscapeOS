@@ -183,14 +183,14 @@ void kill(task_t *task) {
 	task->state = TASK_EXITING;
 }
 
-void _exit(void) {
+void _exit(int status) {
 	kill((task_t *)current_task);
 	YIELD;
 	panic("this should never be reached (in _exit after switching tasks)");
 }
 
 void user_exit(void) {
-	asm volatile("int $0x80" : : "a"(0 /* _exit syscall number */));
+	asm volatile("int $0x80" : : "a"(0 /* _exit syscall number */), "b"(0));
 }
 
 void idle_task_func(void *data, uint32 length) {

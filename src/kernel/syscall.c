@@ -8,7 +8,7 @@
 
 static uint32 syscall_handler(uint32);
 
-void _exit(void); // task.c
+void _exit(int); // task.c
 
 struct syscall_entry {
 	void *func;

@@ -73,7 +73,7 @@ ret sys_##fn(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) \
   return a; \
 }
 
-DECL_SYSCALL0(_exit, void);
+DECL_SYSCALL1(exit, void, int);
 DECL_SYSCALL1(puts, int, const char *);
 DECL_SYSCALL1(sleep, int, uint32);
 DECL_SYSCALL0(getchar, int);
@@ -97,9 +97,14 @@ DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
 
 //DEFN_SYSCALL0(_exit, void, 0);
-void sys__exit(void) {
-	asm volatile("int $0x80" : : "a" (0 /* syscall number */));
+//void sys__exit(int status) {
+//asm volatile("int $0x80" : : "a" (0 /* syscall number */));
+//}
+
+void sys__exit(int status) {
+	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
 }
+
 
 DEFN_SYSCALL1(puts, int, 1, const char *);
 DEFN_SYSCALL1(sleep, int, 2,uint32);
@@ -151,8 +156,8 @@ off_t lseek(int fd, off_t offset, int whence) {
 	}
 }
 
-void _exit(void) {
-	sys__exit();
+void _exit(int status) {
+	sys__exit(status);
 }
 
 int close(int file) {
