@@ -96,24 +96,9 @@ void destroy_task(task_t *task) {
 	assert(task != current_task);
 	assert(task->state == TASK_EXITING);
 
-	//task_switching = false;
-
 	if (task->console != NULL) {
 		/* Remove this task from the console chain */
 		list_remove(task->console->tasks, list_find_first(task->console->tasks, (void *)task));
-
-		/*
-		console_t *prev = task->console->prev_console;
-		while (prev != NULL) {
-			node_t *task_ptr = list_find_first(prev->tasks, (void *)task);
-			if (task_ptr != NULL)
-				list_remove(prev->tasks, task_ptr);
-			prev = prev->prev_console;
-		}
-		*/
-
-		/* Switch from (if necessary) and destroy this task's console */
-		//console_destroy(task->console);
 	}
 
 	INTERRUPT_LOCK;

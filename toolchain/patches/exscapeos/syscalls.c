@@ -96,15 +96,9 @@ DECL_SYSCALL0(fork, int);
 DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
 
-//DEFN_SYSCALL0(_exit, void, 0);
-//void sys__exit(int status) {
-//asm volatile("int $0x80" : : "a" (0 /* syscall number */));
-//}
-
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
 }
-
 
 DEFN_SYSCALL1(puts, int, 1, const char *);
 DEFN_SYSCALL1(sleep, int, 2,uint32);
