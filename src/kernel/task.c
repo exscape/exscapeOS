@@ -98,7 +98,7 @@ void destroy_task(task_t *task) {
 
 	if (task->console != NULL) {
 		/* Remove this task from the console chain */
-		list_remove(task->console->tasks, list_find_first(task->console->tasks, (void *)task));
+		list_remove_first(task->console->tasks, task);
 	}
 
 	if (task->children && task->children->count > 0) {
@@ -122,7 +122,7 @@ void destroy_task(task_t *task) {
 	kfree(task->fdtable);
 
 	if (task->privilege == 3) {
-		list_remove(pagedirs, list_find_first(pagedirs, task->mm->page_directory));
+		list_remove_first(pagedirs, task->mm->page_directory);
 		destroy_user_page_dir(task->mm->page_directory);
 
 		// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)
@@ -134,7 +134,7 @@ void destroy_task(task_t *task) {
 		kfree(task->pwd);
 
 	/* Delete this task from the queue */
-	list_remove((list_t *)&ready_queue, list_find_first((list_t *)&ready_queue, (void *)task));
+	list_remove_first((list_t *)&ready_queue, task);
 
 	/* Free the kernel stack, after re-mapping the guard pages again */
 	vmm_clear_guard((uint32)task->stack - KERNEL_STACK_SIZE - 4096, kernel_directory);
@@ -652,7 +652,7 @@ static int do_wait_one(task_t *parent, task_t *child, int *status) {
 
 	int child_pid = child->id;
 	int a = parent->children->count;
-	list_remove(parent->children, list_find_first(parent->children, child));
+	list_remove_first(parent->children, child);
 	memset(child, 0, sizeof(task_t));
 	kfree(child);
 	assert(parent->children->count == (uint32)(a - 1));

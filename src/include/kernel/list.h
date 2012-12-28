@@ -29,10 +29,13 @@ node_t *list_prepend(list_t *list, void *data);
 node_t *list_append(list_t *list, void *data);
 node_t *list_node_insert_before(node_t *node, void *data);
 node_t *list_node_insert_after(node_t *node, void *data);
-void list_remove(list_t *list, node_t *elem);
+void list_remove_node(list_t *list, node_t *elem);
 void list_destroy(list_t *list);
 node_t *list_find_first(list_t *list, void *data);
 node_t *list_find_last(list_t *list, void *data);
+
+bool list_remove_first(list_t *list, void *data);
+bool list_remove_last(list_t *list, void *data);
 
 /* I'm not overly proud about this one. It finds the next node that the predicate function returns true for.
  * The name, despite its length, doesn't point out that it "loops back" to the beginning of the list

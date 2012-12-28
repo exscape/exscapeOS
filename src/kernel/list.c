@@ -313,7 +313,7 @@ node_t *list_node_insert_after(node_t *node, void *data) {
 	}
 }
 
-void list_remove(list_t *list, node_t *elem) {
+void list_remove_node(list_t *list, node_t *elem) {
 	/* Find /elem/ and remove it from the list */
 	assert(list != NULL);
 	INTERRUPT_LOCK;
@@ -410,6 +410,40 @@ node_t *list_find_last(list_t *list, void *data) {
 
 	INTERRUPT_UNLOCK;
 	return NULL;
+}
+
+bool list_remove_first(list_t *list, void *data) {
+	assert(list != NULL);
+
+	INTERRUPT_LOCK;
+	node_t *n = list_find_first(list, data);
+
+	if (n) {
+		list_remove_node(list, n);
+		INTERRUPT_UNLOCK;
+		return true;
+	}
+	else {
+		INTERRUPT_UNLOCK;
+		return false;
+	}
+}
+
+bool list_remove_last(list_t *list, void *data) {
+	assert(list != NULL);
+
+	INTERRUPT_LOCK;
+	node_t *n = list_find_last(list, data);
+
+	if (n) {
+		list_remove_node(list, n);
+		INTERRUPT_UNLOCK;
+		return true;
+	}
+	else {
+		INTERRUPT_UNLOCK;
+		return false;
+	}
 }
 
 node_t *list_node_find_next_predicate(node_t *node, bool (*predicate_func)(node_t *) ) {

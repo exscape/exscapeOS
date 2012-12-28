@@ -134,7 +134,7 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 			// Found it!
 			if ((gettickcount() - entry->timestamp) * (1000/TIMER_HZ) >= ARP_CACHE_TIME) {
 				// This entry is too old! Let's dump it. Sorry, requester, you're out of luck.
-				list_remove(arp_cache, it);
+				list_remove_node(arp_cache, it);
 				kfree(entry);
 				INTERRUPT_UNLOCK;
 				return false;
