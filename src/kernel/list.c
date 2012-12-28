@@ -142,7 +142,10 @@ list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) ) {
 		if (prev != NULL)
 			prev->next = new_node;
 		new_node->prev = prev;
-		new_node->data = _copy_data(it->data);
+		if (_copy_data != NULL)
+			new_node->data = _copy_data(it->data);
+		else
+			new_node->data = it->data;
 		new_node->list = copy;
 		new_node->next = NULL;
 		copy->count++;
