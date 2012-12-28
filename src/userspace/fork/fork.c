@@ -29,11 +29,12 @@ int main(int argc, char **argv) {
 		printf("parent: val = %d after increment by 20\n", val);
 		int st;
 		//sleep(1);
+		printf("parent: waiting...\n");
 		int p = wait(&st);
 		printf("parent: wait returned (child %d exited): status = %d (%04x)\n", p, st, st);
 	}
 
 	printf("Exiting from %s\n", ret == 0 ? "child" : "parent");
 
-	return 0;
+	return (ret == 0 ? 8 : 0); // child returns nonzero for testing
 }

@@ -27,6 +27,7 @@ typedef struct task {
 
 	struct task *parent;
 	list_t *children;
+	int exit_code;
 } task_t;
 
 extern volatile task_t *current_task;
@@ -39,6 +40,8 @@ extern task_t kernel_task;
 #define TASK_IOWAIT (1 << 2)
 #define TASK_EXITING (1 << 3)
 #define TASK_IDLE (1 << 4) // used for the idle_task process
+#define TASK_DEAD (1 << 5) // task has _exit()'ed, but has not been wait()ed on
+#define TASK_WAITING (1 << 6) // wait()ing for a child
 
 void user_exit(void); // called from user mode
 

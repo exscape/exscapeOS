@@ -101,11 +101,10 @@ void destroy_task(task_t *task) {
 		list_remove(task->console->tasks, list_find_first(task->console->tasks, (void *)task));
 	}
 
-	INTERRUPT_LOCK;
-	if (task->parent != NULL) {
-		list_remove(task->parent->children, list_find_first(task->parent->children, (task_t *)task));
+	if (task->children && task->children->count > 0) {
+		// Take care of orphaned tasks
+		panic("destroy_task() on task with children! TODO: move children to init");
 	}
-	INTERRUPT_UNLOCK;
 
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
@@ -142,7 +141,27 @@ void destroy_task(task_t *task) {
 	vmm_clear_guard((uint32)task->stack, kernel_directory);
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 
-	kfree(task);
+	if (task->children != NULL) {
+		assert(task->children->count == 0);
+		list_destroy(task->children);
+		task->children = NULL;
+	}
+
+	if (task->parent != NULL) {
+		assert(task->parent->state != TASK_DEAD);
+		// The parent might be wait()ing on this task, either right now or later on.
+		// We can't free this task just yet. Set the state and notify the scheduler,
+		// in case the parent is wait()ing.
+		task->state = TASK_DEAD;
+		if (task->parent->state == TASK_WAITING) {
+			set_next_task(task->parent);
+			YIELD;
+		}
+	}
+	else {
+		memset(task, 0, sizeof(task_t));
+		kfree(task);
+	}
 }
 
 bool kill_pid(int pid) {
@@ -166,10 +185,12 @@ bool kill_pid(int pid) {
 
 void kill(task_t *task) {
 	task->state = TASK_EXITING;
+	current_task->exit_code = (1 << 8); // TODO: store signal (SIGKILL?) number + status; this is a normal exit with status 1!
 }
 
 void _exit(int status) {
 	kill((task_t *)current_task);
+	current_task->exit_code = ((status & 0xff) << 8);
 	YIELD;
 	panic("this should never be reached (in _exit after switching tasks)");
 }
@@ -622,22 +643,62 @@ int fork(void) {
 	return child->id;
 }
 
+static int do_wait_one(task_t *parent, task_t *child, int *status) {
+	assert(parent != NULL);
+	assert(child != NULL);
+
+	if (status != NULL)
+		*status = child->exit_code;
+
+	int child_pid = child->id;
+	int a = parent->children->count;
+	list_remove(parent->children, list_find_first(parent->children, child));
+	memset(child, 0, sizeof(task_t));
+	kfree(child);
+	assert(parent->children->count == (uint32)(a - 1));
+
+	return child_pid;
+}
+
 int sys_wait(int *status) {
 	if (status != NULL && !CHECK_ACCESS_WRITE(status, sizeof(int)))
 		return -EFAULT;
 	if (current_task->children == NULL || current_task->children->count <= 0)
 		return -ECHILD;
 
-	uint32 cur_count = current_task->children->count;
-	while (current_task->children->count >= cur_count ) {
-		sleep(10); // TODO: sys_wait: don't actively poll!
+	// Check if we have any unwaited-for (dead) children already
+	{
+	INTERRUPT_LOCK;
+	assert(current_task->children->count > 0);
+	for (node_t *it = current_task->children->head; it != NULL; it = it->next) {
+		task_t *child = (task_t *)it->data;
+		if (child->state == TASK_DEAD) {
+			// Yup, found one! Handle it.
+			return do_wait_one((task_t *)current_task, child, status);
+		}
+	}
+	INTERRUPT_UNLOCK;
 	}
 
-	if (status != NULL) {
-		*status = 0;
-	}
+	// No, but we do have a child that is still alive. Wait for it.
+	current_task->state = TASK_WAITING;
+	YIELD;
 
-	return 0;
+	// We should ONLY get here when _exit() has finished on at least one child.
+	{
+	INTERRUPT_LOCK;
+	assert(current_task->children->count > 0);
+	for (node_t *it = current_task->children->head; it != NULL; it = it->next) {
+		task_t *child = (task_t *)it->data;
+		if (child->state == TASK_DEAD) {
+			// Yup, found one! Handle it.
+			return do_wait_one((task_t *)current_task, child, status);
+		}
+	}
+	INTERRUPT_UNLOCK;
+	}
+	panic("wait(): task was scheduled with no dead child!");
+	return 0; // To silence the compiler
 }
 
 void set_entry_point(task_t *task, uint32 addr) {
