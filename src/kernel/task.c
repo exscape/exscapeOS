@@ -155,8 +155,8 @@ void destroy_task(task_t *task) {
 		task->state = TASK_DEAD;
 		if (task->parent->state == TASK_WAITING) {
 			set_next_task(task->parent);
-			YIELD;
 		}
+		YIELD;
 	}
 	else {
 		memset(task, 0, sizeof(task_t));

@@ -10,7 +10,6 @@ int main(int argc, char **argv) {
 	int val = 1;
 	int ret = 0;
 
-	//refork:
 	ret = fork();
 	if (ret == -1) {
 		printf("fork failed with error %d: %s\n", errno, strerror(errno));
@@ -21,7 +20,6 @@ int main(int argc, char **argv) {
 		val += 10;
 		printf("child: val = %d after increment by 10\n", val);
 		sleep(3);
-		//goto refork;
 	}
 	else {
 		printf("fork(): in parent; child has pid %d, val = %d\n", ret, val);

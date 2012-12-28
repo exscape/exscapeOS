@@ -18,6 +18,7 @@ call _init_signal
 # clean the parameters off the stack
 	addl $0x8, %esp
 
+# call exit() with the main() return value as a parameter
 	pushl %eax
 	call exit
 
