@@ -38,12 +38,6 @@ extern list_t *fat32_partitions;
 extern nethandler_t *nethandler_arp;
 extern nethandler_t *nethandler_icmp;
 
-//void idle_task(void) {
-	//for (;;) {
-		//asm volatile("hlt");
-	//}
-//}
-
 extern volatile list_t ready_queue;
 
 //char *kernel_cmdline = NULL;
@@ -63,8 +57,7 @@ void cleanup_tasks(void *data, uint32 length) {
 			}
 		}
 		INTERRUPT_UNLOCK;
-		sleep(10);
-		//YIELD;
+		sleep(10); // TODO: TASKS ONLY EXIT when this has been run: fix this! (consoles feel laggy, etc.!)
 	}
 }
 
