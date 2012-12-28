@@ -96,10 +96,10 @@ void destroy_task(task_t *task) {
 	assert(task != current_task);
 	assert(task->state == TASK_EXITING);
 
-	if (task->console != NULL) {
-		/* Remove this task from the console chain */
-		list_remove_first(task->console->tasks, task);
-	}
+	task->state = TASK_DEAD;
+
+	// Freed earlier on
+	assert(task->console == NULL);
 
 	if (task->children && task->children->count > 0) {
 		// Take care of orphaned tasks
@@ -152,7 +152,6 @@ void destroy_task(task_t *task) {
 		// The parent might be wait()ing on this task, either right now or later on.
 		// We can't free this task just yet. Set the state and notify the scheduler,
 		// in case the parent is wait()ing.
-		task->state = TASK_DEAD;
 		if (task->parent->state == TASK_WAITING) {
 			set_next_task(task->parent);
 		}
@@ -173,7 +172,7 @@ bool kill_pid(int pid) {
 	list_foreach_dot(ready_queue, it) {
 		task_t *t = (task_t *)it->data;
 		if (t->id == pid) {
-			t->state = TASK_EXITING;
+			kill(t);
 			INTERRUPT_UNLOCK;
 			return true;
 		}
@@ -186,6 +185,12 @@ bool kill_pid(int pid) {
 void kill(task_t *task) {
 	task->state = TASK_EXITING;
 	current_task->exit_code = (1 << 8); // TODO: store signal (SIGKILL?) number + status; this is a normal exit with status 1!
+
+	if (task->console != NULL) {
+		/* Remove this task from the console chain */
+		list_remove_first(task->console->tasks, task);
+		task->console = NULL;
+	}
 }
 
 void _exit(int status) {

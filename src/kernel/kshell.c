@@ -349,17 +349,13 @@ void kshell(void *data, uint32 length) {
 	assert(strlen((char *)current_task->name) >= 8 && strncmp((char *)current_task->name, "[kshell]", 8) == 0);
 
 	while (true) {
-
-		/* Don't "return" to a new shell prompt until the current task in finished.
-		 * Due to how the scheduler works and the lack of a HLT task (that doesn't use 1/num_processes CPU *constantly*),
-		 * this will use 100% CPU if no tasks use the CPU.
-		 */
+		// Wait until the "child" task is still running
 		while (task != NULL) {
-			if (does_task_exist(task) == false) {
+			if (does_task_exist(task) == false || task->state == TASK_EXITING || task->state == TASK_DEAD) {
 				task = NULL;
 				break;
 			}
-			sleep(10);
+			sleep(30);
 		}
 
 		printc(BLACK, GREEN, "kshell ");

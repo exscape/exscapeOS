@@ -57,7 +57,7 @@ void cleanup_tasks(void *data, uint32 length) {
 			}
 		}
 		INTERRUPT_UNLOCK;
-		sleep(10); // TODO: TASKS ONLY EXIT when this has been run: fix this! (consoles feel laggy, etc.!)
+		sleep(1000);
 	}
 }
 
