@@ -54,7 +54,7 @@ extern heap_t *kheap;
 void cleanup_tasks(void *data, uint32 length) {
 	while(true) {
 		INTERRUPT_LOCK;
-		for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+		list_foreach_dot(ready_queue, it) {
 			assert((uint32)it < (uint32)kheap->end_address);
 			task_t *p = (task_t *)it->data;
 			assert((uint32)p < (uint32)kheap->end_address);

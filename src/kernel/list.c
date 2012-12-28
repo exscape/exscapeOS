@@ -35,7 +35,7 @@ static void list_validate(list_t *list) {
 	uint32 actual_count = 0;
 	/* Test the links */
 	/* Also test whether the count is correct or not */
-	for (node_t *it = list->head; it != NULL; it = it->next) {
+	list_foreach(list, it) {
 		actual_count++;
 		assert(it->list == list);
 		if (it->next != NULL)
@@ -137,7 +137,7 @@ list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) ) {
 
 	INTERRUPT_LOCK;
 	node_t *prev = NULL;
-	for (node_t *it = orig->head; it != NULL; it = it->next) {
+	list_foreach(orig, it) {
 		node_t *new_node = kmalloc(sizeof(node_t));
 		if (prev != NULL)
 			prev->next = new_node;
@@ -380,7 +380,7 @@ node_t *list_find_first(list_t *list, void *data) {
 		list_validate(list);
 #endif
 
-	for (node_t *it = list->head; it != NULL; it = it->next) {
+	list_foreach(list, it) {
 		if (it->data == data) {
 			INTERRUPT_UNLOCK;
 			return it;
@@ -481,7 +481,7 @@ node_t *RAND_ELEMENT(list_t *list) {
 	int num = RAND_RANGE(0, list->count - 1);
 
 	int i=0;
-	for (node_t *it = list->head; it != NULL; it = it->next) {
+	list_foreach(list, it) {
 		if (i == num)
 			return it;
 		i++;

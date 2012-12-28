@@ -352,7 +352,7 @@ mountpoint_t *find_mountpoint_for_path(const char *path) {
 	mountpoint_t *best_match = NULL;
 	size_t best_match_len = 0;
 
-	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+	list_foreach(mountpoints, it) {
 		mountpoint_t *mp = (mountpoint_t *)it->data;
 		size_t len = strlen(mp->path);
 		if (strlen(path) < len)

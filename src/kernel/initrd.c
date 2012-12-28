@@ -69,7 +69,7 @@ bool fs_mount(void) {
 		path[ap] = 0;
 		while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
 
-		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+		list_foreach(mountpoints, it) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (strcmp(mount, "fat") == 0) {
 				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {

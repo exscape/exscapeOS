@@ -170,7 +170,7 @@ bool kill_pid(int pid) {
 
 	INTERRUPT_LOCK;
 
-	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+	list_foreach_dot(ready_queue, it) {
 		task_t *t = (task_t *)it->data;
 		if (t->id == pid) {
 			t->state = TASK_EXITING;
@@ -670,7 +670,7 @@ int sys_wait(int *status) {
 	{
 	INTERRUPT_LOCK;
 	assert(current_task->children->count > 0);
-	for (node_t *it = current_task->children->head; it != NULL; it = it->next) {
+	list_foreach(current_task->children, it) {
 		task_t *child = (task_t *)it->data;
 		if (child->state == TASK_DEAD) {
 			// Yup, found one! Handle it.
@@ -688,7 +688,7 @@ int sys_wait(int *status) {
 	{
 	INTERRUPT_LOCK;
 	assert(current_task->children->count > 0);
-	for (node_t *it = current_task->children->head; it != NULL; it = it->next) {
+	list_foreach(current_task->children, it) {
 		task_t *child = (task_t *)it->data;
 		if (child->state == TASK_DEAD) {
 			// Yup, found one! Handle it.
@@ -836,7 +836,7 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 	 * any are found, check whether they should be woken up now.
 	 */
 	const uint32 ticks = gettickcount(); /* fetch just the once; interrupts are disabled, so the tick count can't change */
-	for (node_t *it = ready_queue.head; it != NULL; it = it->next) {
+	list_foreach_dot(ready_queue, it) {
 		task_t *p = (task_t *)it->data;
 		if (p->state == TASK_SLEEPING && p->wakeup_time <= ticks) {
 			/* Wake this task! */

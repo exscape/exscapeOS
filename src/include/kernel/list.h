@@ -22,6 +22,9 @@ typedef struct list {
 	struct _mutex *mutex;
 } list_t;
 
+#define list_foreach(list, iterator) for (node_t *iterator = list->head; iterator != NULL; iterator = iterator->next)
+#define list_foreach_dot(list, iterator) for (node_t *iterator = list.head; iterator != NULL; iterator = iterator->next)
+
 uint32 list_size(list_t *list);
 list_t *list_create(void);
 list_t *list_copy(list_t *orig, void *(*_copy_data)(void *) );

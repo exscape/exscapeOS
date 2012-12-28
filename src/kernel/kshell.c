@@ -56,7 +56,7 @@ static void lspci(void *data, uint32 length) {
 	assert(pci_devices != NULL);
 
 	printk("VENDOR DEVICE IRQ BAR0     BAR1     BAR2     BAR3     BAR4     BAR5\n");
-	for (node_t *it = pci_devices->head; it != NULL; it = it->next) {
+	list_foreach(pci_devices, it) {
 		pci_device_t *dev = (pci_device_t *)it->data;
 		printk("0x%04x 0x%04x %02d  %08x %08x %08x %08x %08x %08x\n",
 				dev->vendor_id, dev->device_id, dev->irq,
@@ -298,7 +298,7 @@ static void initrd_test(void) {
 	}
 	assert(deventry != 0xffffffff);
 	DIR *dir = NULL;
-	for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+	list_foreach(mountpoints, it) {
 		mountpoint_t *mp = (mountpoint_t *)it->data;
 		if (mp->dev == deventry) {
 			dir = initrd_opendir(mp, "/");

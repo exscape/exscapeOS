@@ -233,7 +233,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		file->fops.lseek = fat_lseek;
 		file->fops.fstat = fat_fstat;
 		file->fops.getdents = fat_getdents;
-		for (node_t *it = mountpoints->head; it != NULL; it = it->next) {
+		list_foreach(mountpoints, it) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
 			if (mp->dev == dev) {
 				file->mp = mp;

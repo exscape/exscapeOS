@@ -53,7 +53,7 @@ void send_arp_reply(const uint8 *packet) {
 void arp_cache_add(uint8 *ip, uint8 *mac) {
 	// Is this IP in the ARP cache?
 	INTERRUPT_LOCK;
-	for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
+	list_foreach(arp_cache, it) {
 		arpentry_t *entry = (arpentry_t *)it->data;
 		if (memcmp(entry->ip, ip, 4) == 0) {
 			// Yes - update this entry
@@ -128,7 +128,7 @@ bool arp_cache_lookup(uint8 *ip, uint8 *mac_buffer) {
 	// Perhaps not the best-suited data structure, but it works,
 	// and with few hosts it's certainly fast enough.
 	INTERRUPT_LOCK;
-	for (node_t *it = arp_cache->head; it != NULL; it = it->next) {
+	list_foreach(arp_cache, it) {
 		arpentry_t *entry = (arpentry_t *)it->data;
 		if (memcmp(entry->ip, ip, 4) == 0) {
 			// Found it!

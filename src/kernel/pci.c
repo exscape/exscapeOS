@@ -17,7 +17,7 @@ list_t *pci_devices = NULL;
 pci_device_t *find_pci_device(uint32 vendor_id, uint32 device_id) {
 	// list_node_find_next_predicate can't accept additional parameters (d'oh!),
 	// so we'll have to do this ourselves.
-	for (node_t *it = pci_devices->head; it != NULL; it = it->next) {
+	list_foreach(pci_devices, it) {
 		pci_device_t *cur = (pci_device_t *)it->data;
 		if (cur->vendor_id == vendor_id && cur->device_id == device_id)
 			return cur;

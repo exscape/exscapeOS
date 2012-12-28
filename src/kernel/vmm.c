@@ -70,7 +70,7 @@ static void _vmm_store_area(uint32 start_virtual, uint32 end_virtual, struct tas
 
 	// Check to see if this is an extension to an existing area, with the same
 	// access rights
-	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+	list_foreach(mm->areas, it) {
 		assert(interrupts_enabled() == false);
 		vm_area_t *a = (vm_area_t *)it->data;
 
@@ -130,7 +130,7 @@ void vmm_destroy_task_mm(struct task_mm *mm) {
 	assert(mm->areas != NULL);
 
 	INTERRUPT_LOCK;
-	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+	list_foreach(mm->areas, it) {
 		vm_area_t *area = (vm_area_t *)it->data;
 		for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
 			vmm_free(addr, mm->page_directory);
@@ -225,7 +225,7 @@ bool vmm_check_access_write(uint32 addr, uint32 len) {
 	assert(mm != NULL);
 
 	INTERRUPT_LOCK;
-	for (node_t *it = mm->areas->head; it != NULL; it = it->next) {
+	list_foreach(mm->areas, it) {
 		vm_area_t *a = (vm_area_t *)it->data;
 		if (a->writable == false)
 			continue;
@@ -374,7 +374,7 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 		assert(dir == kernel_directory);
 		  // This belongs to kernel space, and needs to be in sync across
 			// *ALL* user mode tasks as well
-			for (node_t *it = pagedirs->head; it != NULL; it = it->next) {
+			list_foreach(pagedirs, it) {
 				page_directory_t *d = (page_directory_t *)it->data;
 				if (d != kernel_directory && d != 0 && d != dir) {
 					d->tables[pt_index] = dir->tables[pt_index];
