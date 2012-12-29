@@ -202,9 +202,9 @@ static void kernel_test(void *data, uint32 length) {
 
 static void user_stress_elf(void *data, uint32 length) {
     uint32 start = gettickcount();
-	panic("TODO: fix ATA + FAT multitasking safety and re-enable user_stress_elf");
-#if 0
-	char *path = strdup("/initrd/ls");
+	//panic("TODO: fix ATA + FAT multitasking safety and re-enable user_stress_elf");
+#if 1
+	char *path = strdup("/test");
     for (int i=0; i < 2500; i++) {
 		create_task_elf(path, (console_t *)data, path, strlen(path));
         YIELD;
