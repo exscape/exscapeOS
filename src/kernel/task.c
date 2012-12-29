@@ -108,6 +108,9 @@ static int do_wait_one(task_t *parent, task_t *child, int *status) {
 	kfree(child);
 	assert(parent->children->count == (uint32)(a - 1));
 
+	// Delete this task from the queue
+	list_remove_first((list_t *)&ready_queue, child);
+
 	return child_pid;
 }
 
@@ -219,8 +222,6 @@ void reaper_func(void *data, uint32 length) {
 				uint32 o = current_task->children->count;
 				do_wait_one((task_t *)current_task, p, NULL);
 				assert(current_task->children->count == o - 1);
-				// Delete this task from the queue
-				list_remove_first((list_t *)&ready_queue, p);
 				break; // TODO: the list has been modified, so we need to restart. Fix this, such that it's safe to modify the list!
 			}
 		}
