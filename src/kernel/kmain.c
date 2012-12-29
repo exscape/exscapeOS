@@ -186,7 +186,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		printc(BLACK, RED, "failed!\n");
 
-
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
 	ata_init();

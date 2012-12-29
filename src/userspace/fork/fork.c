@@ -25,11 +25,13 @@ int main(int argc, char **argv) {
 		printf("fork(): in parent; child has pid %d, val = %d\n", ret, val);
 		val += 20;
 		printf("parent: val = %d after increment by 20\n", val);
-		int st;
+		//int st;
 		//sleep(1);
-		printf("parent: waiting...\n");
-		int p = wait(&st);
-		printf("parent: wait returned (child %d exited): status = %d (%04x)\n", p, st, st);
+		printf("parent: exiting without waiting!\n");
+		exit(0);
+		//printf("parent: waiting...\n");
+		//int p = wait(&st);
+		//printf("parent: wait returned (child %d exited): status = %d (%04x)\n", p, st, st);
 	}
 
 	printf("Exiting from %s\n", ret == 0 ? "child" : "parent");
