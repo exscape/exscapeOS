@@ -519,18 +519,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	/* Set up a console for the new task */
 	task->console = console;
-	if (console) {
+	if (console)
 		list_append(task->console->tasks, task);
-
-		/* TODO: this is not a great solution. Adds this task to the previous console's task list */
-		/*
-		console_t *prev = task->console->prev_console;
-		while (prev != NULL) {
-			list_append(prev->tasks, task);
-			prev = prev->prev_console;
-		}
-		*/
-	}
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = task->stack;
@@ -541,7 +531,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	*(--kernelStack) = (uint32)data;
 
 	/* Functions will call this automatically when they attempt to return */
-	*(--kernelStack) = (uint32)&_exit;
+	*(--kernelStack) = (uint32)&_exit; // TODO: what will the argument be here? Something that causes stack corruption?
 
 	if (task->privilege == 3) {
 		*(--kernelStack) = 0x23; /* SS */
