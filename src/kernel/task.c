@@ -250,6 +250,7 @@ bool kill_pid(int pid) {
 }
 
 void kill(task_t *task) {
+	INTERRUPT_LOCK;
 	task->state = TASK_EXITING;
 	current_task->exit_code = (1 << 8); // TODO: store signal (SIGKILL?) number + status; this is a normal exit with status 1!
 
@@ -258,6 +259,7 @@ void kill(task_t *task) {
 		list_remove_first(task->console->tasks, task);
 		task->console = NULL;
 	}
+	INTERRUPT_UNLOCK;
 }
 
 void _exit(int status) {
