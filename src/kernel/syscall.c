@@ -26,6 +26,7 @@ int sys_getdents(int fd, void *dp, int count);
 int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp);
 int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp __attribute__((unused)));
 int sys_wait(int *status);
+int sys_waitpid(int pid, int *status, int options);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
@@ -52,7 +53,8 @@ struct syscall_entry syscalls[] = {
 	{ &fork, 32},
 	{ &sys_nanosleep, 32},
 	{ &sys_wait, 32 },
-	{ &getppid, 32 }
+	{ &getppid, 32 },
+	{ &sys_waitpid, 32 }
 };
 
 uint32 num_syscalls = 0;
@@ -72,6 +74,10 @@ uint32 syscall_handler(uint32 esp) {
 
 	/* Get the function */
 	void *func = syscalls[regs->eax].func;
+
+	// Old, removed syscalls could cause this to happen, which would point to
+	// a Newlib syscalls.c bug that needs fixing.0
+	assert(func != NULL);
 
 	enable_interrupts();
 	in_isr = false;

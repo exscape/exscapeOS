@@ -96,6 +96,7 @@ DECL_SYSCALL0(fork, int);
 DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
 DECL_SYSCALL0(getppid, int);
+DECL_SYSCALL3(waitpid, int, int, int *, int);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -124,6 +125,7 @@ DEFN_SYSCALL0(fork, int, 20);
 DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
 DEFN_SYSCALL1(wait, int, 22, int *);
 DEFN_SYSCALL0(getppid, int, 23);
+DEFN_SYSCALL3(waitpid, int, 24, int, int *, int);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -300,7 +302,17 @@ int wait(int *status) {
 		errno = -ret;
 		return -1;
 	}
+}
 
+int waitpid(int pid, int *status, int options) {
+	int ret;
+	if ((ret = sys_waitpid(pid, status, options)) >= 0) {
+		return ret;
+	}
+	else {
+		errno = -ret;
+		return -1;
+	}
 }
 
 int write(int file, char *ptr, int len) {

@@ -15,6 +15,7 @@
 #include <kernel/stdio.h>
 #include <reent.h>
 #include <sys/time.h> /* struct timespec */
+#include <sys/wait.h>
 #include <sys/errno.h>
 
 /*
@@ -743,6 +744,73 @@ int sys_wait(int *status) {
 	INTERRUPT_UNLOCK;
 	}
 	panic("wait(): task was scheduled with no dead child!");
+	return 0; // To silence the compiler
+}
+
+pid_t sys_waitpid(pid_t pid, int *status, int options) {
+	if (status != NULL && !CHECK_ACCESS_WRITE(status, sizeof(int)))
+		return -EFAULT;
+	if (current_task->children == NULL || current_task->children->count <= 0)
+		return -ECHILD;
+	if (options != 0 && options != WNOHANG && options != (WNOHANG | WUNTRACED))
+		return -EINVAL;
+
+	if (pid == -1 && options == 0)
+		return sys_wait(status);
+	else if (pid < -1 || pid == 0) {
+		panic("waitpid() with pid < -1, or pid == 0: process groups are not implemented!");
+		return -ENOSYS;
+	}
+	assert(pid > 0 || pid == -1);
+
+	// Check if we have any unwaited-for (dead) children already
+	{
+		bool child_found = false;
+		INTERRUPT_LOCK;
+		assert(current_task->children->count > 0);
+		list_foreach(current_task->children, it) {
+			task_t *child = (task_t *)it->data;
+			if (pid == -1 || child->id == pid) {
+				child_found = true;
+				if (child->state == TASK_DEAD) {
+					return do_wait_one((task_t *)current_task, child, status);
+				}
+			}
+		}
+		INTERRUPT_UNLOCK;
+
+		if (!child_found) {
+			// The child the caller wants to wait for doesn't exist / isn't a child of this task!
+			return -ECHILD;
+		}
+	}
+
+	// No, but we do have a child that is still alive.
+	// Should we wait for it?
+	if (options & WNOHANG) {
+		// No!
+		return 0;
+	}
+
+	// Otherwise, yes: wait for it.
+	while (true) {
+		current_task->state = TASK_WAITING;
+		YIELD;
+
+		// We should ONLY get here when _exit() has finished on at least one child.
+		INTERRUPT_LOCK;
+		assert(current_task->children->count > 0);
+		list_foreach(current_task->children, it) {
+			task_t *child = (task_t *)it->data;
+			if (child->state == TASK_DEAD && (child->id == pid || pid == -1)) {
+				// Yup, found it! Handle this one.
+				return do_wait_one((task_t *)current_task, child, status);
+			}
+		}
+		INTERRUPT_UNLOCK;
+	}
+	assert(false); // This should never be reached
+
 	return 0; // To silence the compiler
 }
 
