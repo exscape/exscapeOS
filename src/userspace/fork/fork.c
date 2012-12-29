@@ -19,14 +19,16 @@ int main(int argc, char **argv) {
 		printf("fork(): in child! pid = %d, val = %d\n", getpid(), val);
 		val += 10;
 		printf("child: val = %d after increment by 10\n", val);
+		printf("child: getppid = %d\n", getppid());
 		sleep(3);
+		printf("child: getppid = %d\n", getppid());
 	}
 	else {
 		printf("fork(): in parent; child has pid %d, val = %d\n", ret, val);
 		val += 20;
 		printf("parent: val = %d after increment by 20\n", val);
 		//int st;
-		//sleep(1);
+		sleep(1);
 		printf("parent: exiting without waiting!\n");
 		exit(0);
 		//printf("parent: waiting...\n");

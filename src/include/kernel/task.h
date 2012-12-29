@@ -54,6 +54,7 @@ void set_next_task(task_t *task);
 bool does_task_exist(task_t *task);
 void init_tasking(uint32 kerntask_esp0);
 int getpid(void);
+int getppid(void);
 task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 length);
 task_t *create_task( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length);
 task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length);

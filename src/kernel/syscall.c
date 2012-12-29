@@ -51,7 +51,8 @@ struct syscall_entry syscalls[] = {
 	{ &sys_gettimeofday, 32 },
 	{ &fork, 32},
 	{ &sys_nanosleep, 32},
-	{ &sys_wait, 32 }
+	{ &sys_wait, 32 },
+	{ &getppid, 32 }
 };
 
 uint32 num_syscalls = 0;

@@ -945,6 +945,12 @@ int getpid(void) {
 	return current_task->id;
 }
 
+int getppid(void) {
+	assert(current_task->privilege == 3);
+	assert(current_task->parent != NULL);
+	return current_task->parent->id;
+}
+
 /* Takes a task off the run queue until enough time has passed */
 void sleep(uint32 milliseconds) {
 	if (milliseconds == 0)

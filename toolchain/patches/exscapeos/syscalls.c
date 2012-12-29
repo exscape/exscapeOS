@@ -95,6 +95,7 @@ DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
 DECL_SYSCALL0(fork, int);
 DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
+DECL_SYSCALL0(getppid, int);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -122,6 +123,7 @@ DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
 DEFN_SYSCALL0(fork, int, 20);
 DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
 DEFN_SYSCALL1(wait, int, 22, int *);
+DEFN_SYSCALL0(getppid, int, 23);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -136,6 +138,10 @@ sint64 sys_lseek(int fd, sint64 offset, int whence) {
 /****************
  *** WRAPPERS ***
  ****************/
+
+int getppid(void) {
+	return sys_getppid();
+}
 
 off_t lseek(int fd, off_t offset, int whence) {
 	sint64 ret;
