@@ -556,10 +556,15 @@ void kshell(void *data, uint32 length) {
 						break;
 				}
 
-				if (cur_task->state != TASK_DEAD)
+				if (cur_task->state != TASK_DEAD) {
+					assert(cur_task != NULL);
+					assert(cur_task->mm != NULL);
 					printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
-				else
+				}
+				else {
+					assert(cur_task != NULL);
 					printk("% 5d 0x%08x NO DIR     %06s %s\n", cur_task->id, cur_task->stack, state_str, cur_task->name);
+				}
 
 				cur_task_node = cur_task_node->next;
 			}
