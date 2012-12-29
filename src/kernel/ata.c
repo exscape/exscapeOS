@@ -4,11 +4,14 @@
 #include <kernel/ata.h>
 #include <kernel/interrupts.h>
 #include <string.h>
+#include <kernel/mutex.h>
 
 /* TODO:
  * TODO: error handling
  * TODO: timeouts
  */
+
+mutex_t *ata_mutex = NULL;
 
 /* 
  * This is the exscapeOS ATA driver. It's written based on the ATA/ATAPI-6
@@ -177,6 +180,8 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 void ata_init(void) {
 
 	INTERRUPT_LOCK;
+
+	ata_mutex = mutex_create();
 
 	/* make sure there's no nonsense in the structures we use */
 	memset(&channels, 0, sizeof(channels));
@@ -538,6 +543,8 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
 	assert(dev->size - 1 >= lba + (sectors_total - 1));
 	assert(buffer != NULL);
 
+	mutex_lock(ata_mutex);
+
 	int sectors_read = 0;
 
 	/*
@@ -557,11 +564,14 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
 			sectors_to_read /= 2;
 		assert(sectors_to_read > 0);
 
-		if (!ata_read_int(dev, lba + sectors_read, buffer + sectors_read*512, sectors_to_read))
+		if (!ata_read_int(dev, lba + sectors_read, buffer + sectors_read*512, sectors_to_read)) {
+			mutex_unlock(ata_mutex);
 			return false;
+		}
 		sectors_read += sectors_to_read;
 	}
 
+	mutex_unlock(ata_mutex);
 	return true;
 }
 
@@ -657,6 +667,8 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) 
 	assert(dev->size - 1 >= lba + (sectors_total - 1));
 	assert(buffer != NULL);
 
+	mutex_lock(ata_mutex);
+
 	int sectors_written = 0;
 
 	/*
@@ -676,11 +688,14 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) 
 			sectors_to_write /= 2;
 		assert(sectors_to_write > 0);
 
-		if (!ata_write_int(dev, lba + sectors_written, buffer + sectors_written*512, sectors_to_write))
+		if (!ata_write_int(dev, lba + sectors_written, buffer + sectors_written*512, sectors_to_write)) {
+			mutex_unlock(ata_mutex);
 			return false;
+		}
 		sectors_written += sectors_to_write;
 	}
 
+	mutex_unlock(ata_mutex);
 	return true;
 }
 
