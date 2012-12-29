@@ -40,10 +40,10 @@ task_t *idle_task = NULL;
 /* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
 #define KERNEL_STACK_SIZE 8192
 
-uint32 next_pid = 2; /* kernel_task has PID 1 */
+uint32 next_pid = 1; /* kernel_task has PID 1 */
 
 task_t kernel_task = {
-	.id = 1,
+	.id = 0,
 	.esp = 0,
 	.ss = 0x10,
 	.stack = 0, /* set later */
@@ -287,6 +287,9 @@ void init_tasking(uint32 kerntask_esp0) {
 	kernel_task.mm->page_directory = kernel_directory;
 	kernel_task.stack = (void *)kerntask_esp0;
 	strlcpy(kernel_task.name, "[kernel_task]", TASK_NAME_LEN);
+
+	reaper_task = create_task(reaper_func, "reaper", false, NULL, 0);
+	assert(reaper_task->id == 1);
 
 	idle_task = create_task(&idle_task_func, "idle_task", NULL, NULL, 0);
 	idle_task->state = TASK_IDLE; /* TODO(?): should really be ->priority, but there is no such thing yet */

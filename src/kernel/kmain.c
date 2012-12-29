@@ -186,7 +186,6 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		printc(BLACK, RED, "failed!\n");
 
-	reaper_task = create_task(reaper_func, "reaper", false, NULL, 0);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
