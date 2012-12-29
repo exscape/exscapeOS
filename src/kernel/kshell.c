@@ -523,6 +523,7 @@ void kshell(void *data, uint32 length) {
 			reset();
 		}
 		else if (strcmp(p, "ps") == 0) {
+			INTERRUPT_LOCK;
 			node_t *cur_task_node = ready_queue.head;
 			int n = 0;
 			printk("%5s %10s %10s %6s %s\n", "PID", "STACK_BTM", "PAGEDIR", "STATE", "NAME");
@@ -547,16 +548,23 @@ void kshell(void *data, uint32 length) {
 					case TASK_IDLE:
 						state_str = "IDLE";
 						break;
+					case TASK_DEAD:
+						state_str = "ZOMB";
+						break;
 					default:
 						state_str = "UNKN.";
 						break;
 				}
 
-				printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
+				if (cur_task->state != TASK_DEAD)
+					printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
+				else
+					printk("% 5d 0x%08x NO DIR     %06s %s\n", cur_task->id, cur_task->stack, state_str, cur_task->name);
 
 				cur_task_node = cur_task_node->next;
 			}
 			printk("%d tasks running\n", n);
+			INTERRUPT_UNLOCK;
 		}
 		else if (strcmp(p, "divzero") == 0) {
 			divzero(NULL, 0);
