@@ -91,6 +91,25 @@ struct _reent *__getreent(void) {
 	return current_task->reent;
 }
 
+extern task_t *reaper_task;
+
+static int do_wait_one(task_t *parent, task_t *child, int *status) {
+	assert(parent != NULL);
+	assert(child != NULL);
+
+	if (status != NULL)
+		*status = child->exit_code;
+
+	int child_pid = child->id;
+	int a = parent->children->count;
+	list_remove_first(parent->children, child);
+	memset(child, 0, sizeof(task_t));
+	kfree(child);
+	assert(parent->children->count == (uint32)(a - 1));
+
+	return child_pid;
+}
+
 void destroy_task(task_t *task) {
 	assert(task != &kernel_task);
 	assert(task != current_task);
@@ -103,7 +122,38 @@ void destroy_task(task_t *task) {
 
 	if (task->children && task->children->count > 0) {
 		// Take care of orphaned tasks
-		panic("destroy_task() on task with children! TODO: move children to init");
+
+		assert(reaper_task != NULL);
+		assert(reaper_task->children != NULL);
+
+		INTERRUPT_LOCK;
+		list_foreach(task->children, it) {
+			task_t *child = (task_t *)it->data;
+			// There ase two possibilities here, for each child that we encounter:
+			// 1) It might be dead: in that case, we free the memory associated with it, and be done with it.
+			// 2) It might be alive: in that case, we move it to a new parent process.
+			if (child->state == TASK_DEAD) {
+				list_remove_first((list_t *)&ready_queue, task);
+				memset(child, 0, sizeof(task_t));
+				kfree(child);
+			}
+			else {
+				// Task is alive; move it.
+				// And by move, I really mean "add it to another task": we don't want to
+				// modify this list while iterating over it. Since we need to act on ALL
+				// members either way, there's no point in modifying it. We'll destroy it
+				// when this loop has exited.
+				list_append(reaper_task->children, child);
+				child->parent = reaper_task;
+			}
+		}
+		INTERRUPT_UNLOCK;
+
+	}
+
+	if (task->children != NULL) {
+		list_destroy(task->children);
+		task->children = NULL;
 	}
 
 	// Free stuff in the file descriptor table (the table itself is in struct task)
@@ -133,19 +183,12 @@ void destroy_task(task_t *task) {
 	if (task->pwd)
 		kfree(task->pwd);
 
-	/* Delete this task from the queue */
-	list_remove_first((list_t *)&ready_queue, task);
-
 	/* Free the kernel stack, after re-mapping the guard pages again */
 	vmm_clear_guard((uint32)task->stack - KERNEL_STACK_SIZE - 4096, kernel_directory);
 	vmm_clear_guard((uint32)task->stack, kernel_directory);
 	kfree((void *)( (uint32)task->stack - KERNEL_STACK_SIZE - 2*4096 ));
 
-	if (task->children != NULL) {
-		assert(task->children->count == 0);
-		list_destroy(task->children);
-		task->children = NULL;
-	}
+	assert(task->children == NULL);
 
 	if (task->parent != NULL) {
 		assert(task->parent->state != TASK_DEAD);
@@ -158,8 +201,34 @@ void destroy_task(task_t *task) {
 		YIELD;
 	}
 	else {
+		/* Delete this task from the queue */
+		list_remove_first((list_t *)&ready_queue, task);
 		memset(task, 0, sizeof(task_t));
 		kfree(task);
+	}
+}
+
+task_t *reaper_task = NULL;
+
+void reaper_func(void *data, uint32 length) {
+	while(true) {
+		INTERRUPT_LOCK;
+		list_foreach_dot(ready_queue, it) {
+			task_t *p = (task_t *)it->data;
+			if (p->state == TASK_EXITING) {
+				destroy_task(p);
+			}
+			else if (p->state == TASK_DEAD) {
+				uint32 o = current_task->children->count;
+				do_wait_one((task_t *)current_task, p, NULL);
+				assert(current_task->children->count == o - 1);
+				// Delete this task from the queue
+				list_remove_first((list_t *)&ready_queue, p);
+				break; // TODO: the list has been modified, so we need to restart. Fix this, such that it's safe to modify the list!
+			}
+		}
+		INTERRUPT_UNLOCK;
+		sleep(1000);
 	}
 }
 
@@ -435,15 +504,14 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		memcpy(stderr, stdin, sizeof(struct open_file));
 		task->fdtable[1] = stdout;
 		task->fdtable[2] = stderr;
-
-		task->children = list_create();
 	}
 	else if (task->privilege == 0) {
 		task->mm->page_directory = current_directory;
-		task->children = NULL;
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");
+
+	task->children = list_create();
 
 	/* All tasks are running by default */
 	task->state = TASK_RUNNING;
@@ -646,23 +714,6 @@ int fork(void) {
 	child->state = TASK_RUNNING;
 
 	return child->id;
-}
-
-static int do_wait_one(task_t *parent, task_t *child, int *status) {
-	assert(parent != NULL);
-	assert(child != NULL);
-
-	if (status != NULL)
-		*status = child->exit_code;
-
-	int child_pid = child->id;
-	int a = parent->children->count;
-	list_remove_first(parent->children, child);
-	memset(child, 0, sizeof(task_t));
-	kfree(child);
-	assert(parent->children->count == (uint32)(a - 1));
-
-	return child_pid;
 }
 
 int sys_wait(int *status) {

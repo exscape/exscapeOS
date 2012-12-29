@@ -44,24 +44,11 @@ extern volatile list_t ready_queue;
 //char *rootdev = NULL;
 
 extern heap_t *kheap;
-
-void cleanup_tasks(void *data, uint32 length) {
-	while(true) {
-		INTERRUPT_LOCK;
-		list_foreach_dot(ready_queue, it) {
-			assert((uint32)it < (uint32)kheap->end_address);
-			task_t *p = (task_t *)it->data;
-			assert((uint32)p < (uint32)kheap->end_address);
-			if (p->state == TASK_EXITING) {
-				destroy_task(p);
-			}
-		}
-		INTERRUPT_UNLOCK;
-		sleep(1000);
-	}
-}
+extern task_t *reaper_task;
 
 extern uint32 end; // defined in linker.ld
+
+void reaper_func(void *data, uint32 length);
 
 void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 
@@ -199,7 +186,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		printc(BLACK, RED, "failed!\n");
 
-	create_task(cleanup_tasks, "cleanup_tasks", false, NULL, 0);
+	reaper_task = create_task(reaper_func, "reaper", false, NULL, 0);
 
 #if 1
 	printk("Detecting ATA devices and initializing them... ");
