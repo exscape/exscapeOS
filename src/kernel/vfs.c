@@ -14,8 +14,12 @@ uint32 next_dev = 0;
 
 list_t *mountpoints = NULL;
 
+struct open_file *do_get_filp(int fd, task_t *task) {
+	return (struct open_file *)task->fdtable[fd];
+}
+
 struct open_file *get_filp(int fd) {
-	return (struct open_file *)current_task->fdtable[fd];
+	return do_get_filp(fd, (task_t *)current_task);
 }
 
 /*
@@ -46,6 +50,15 @@ struct open_file *new_filp(int *fd) {
 
 	panic("new_filp: no free files! TODO: create more dynamically");
 	return NULL;
+}
+
+void destroy_filp(int fd) {
+	assert(fd >= 0);
+	assert(fd < MAX_OPEN_FILES);
+	assert(current_task->fdtable[fd] != NULL);
+
+	kfree(current_task->fdtable[fd]);
+	current_task->fdtable[fd] = NULL;
 }
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
@@ -224,11 +237,12 @@ int sys_getdents(int fd, void *dp, int count) {
 	return getdents(fd, dp, count);
 }
 
-int close(int fd) {
+int do_close(int fd, task_t *task) {
+	assert(task != NULL);
 	if (fd < 0 || fd >= MAX_OPEN_FILES)
 		return -EBADF;
 
-	struct open_file *file = get_filp(fd);
+	struct open_file *file = do_get_filp(fd, task);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -236,13 +250,18 @@ int close(int fd) {
 
 	int r = file->fops.close(fd);
 	file->count--;
+	task->fdtable[fd] = NULL;
 	assert(file->count >= 0);
 	if (file->count == 0) {
+		memset(file, 0, sizeof(struct open_file));
 		kfree(file);
-		current_task->fdtable[fd] = NULL;
 	}
 
 	return r;
+}
+
+int close(int fd) {
+	return do_close(fd, (task_t *)current_task);
 }
 
 int closedir(DIR *dir) {

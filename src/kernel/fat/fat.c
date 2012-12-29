@@ -363,11 +363,7 @@ done:
 }
 
 int fat_close(int fd) {
-	struct open_file *file = get_filp(fd);
-	assert(file->count != 0);
-
-	kfree(file->path);
-	file->path = NULL;
+	// close() does everything required by itself.
 
 	return 0;
 }

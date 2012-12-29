@@ -14,6 +14,7 @@ struct fat32_partition;
 struct mountpoint;
 struct dir_ops;
 struct dir;
+struct task;
 
 typedef struct dir_ops {
 	struct dirent *(*readdir)(struct dir *);
@@ -84,6 +85,10 @@ typedef struct open_file {
 
 struct open_file *get_filp(int fd);
 struct open_file *new_filp(int *fd);
+void destroy_filp(int fd);
+
+struct open_file *do_get_filp(int fd, struct task *task);
+int do_close(int fd, struct task *task);
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);

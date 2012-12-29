@@ -234,7 +234,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 
 	if (file->ino == 0xffffffff) {
 		// We didn't find it
-		// TODO: errno
+		destroy_filp(fd);
 		return -ENOENT;
 	}
 
@@ -244,13 +244,7 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 }
 
 int initrd_close(int fd) {
-	assert(fd <= MAX_OPEN_FILES);
-	struct open_file *file = get_filp(fd);
-	assert(file->dev <= MAX_DEVS);
-	assert(devtable[file->dev] == (void *)0xffffffff);
-
-	if (file->path)
-		kfree(file->path);
+	// close() does everything required by itself
 
 	return 0;
 }

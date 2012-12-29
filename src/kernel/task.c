@@ -159,17 +159,13 @@ void destroy_task(task_t *task) {
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
 		if (task->fdtable[i]) {
-			if (task->fdtable[i]->path)
-				kfree(task->fdtable[i]->path);
-			//task->fdtable[i]->count--;
-			// TODO: free files properly - in a way that leaves no freed pointers in other tasks, etc.!
-			//if (task->fdtable[i]->count <= 0)
-			//kfree(task->fdtable[i]);
-			//else
-			//panic("count != 0");
+			assert(do_close(i, task) == 0); // only fails if there's a bug somewhere, since we only call it on non-NULL fds
 		}
 	}
+
+	// Free the table itself
 	kfree(task->fdtable);
+	task->fdtable = 0;
 
 	if (task->privilege == 3) {
 		list_remove_first(pagedirs, task->mm->page_directory);
