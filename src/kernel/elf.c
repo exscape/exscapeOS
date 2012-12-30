@@ -6,10 +6,11 @@
 #include <kernel/task.h>
 #include <string.h>
 #include <kernel/vmm.h>
+#include <sys/errno.h>
 
 #define ELF_DEBUG 0
 
-void copy_argv_to_task(char ***argv, uint32 argc, task_t *task) {
+void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 	assert(argv != NULL);
 	assert(task != NULL);
 
@@ -61,7 +62,22 @@ void copy_argv_to_task(char ***argv, uint32 argc, task_t *task) {
 	*argv = new_argv;
 }
 
+static bool elf_load_int(const char *path, task_t *task, char **argv, char **envp);
+
 bool elf_load(const char *path, task_t *task, void *cmdline) {
+	// Pass command line arguments to the task
+	// Parse the data into argv/argc
+	uint32 argc = 0;
+	char **argv = NULL;
+	argv = parse_command_line(cmdline, &argc, task);
+	assert(argv != NULL);
+	assert(argv[0] != NULL);
+	assert(strlen(argv[0]) > 0);
+
+	return elf_load_int(path, task, argv, NULL /* envp */);
+}
+
+static bool elf_load_int(const char *path, task_t *task, char **argv, char **envp) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
@@ -201,18 +217,17 @@ bool elf_load(const char *path, task_t *task, void *cmdline) {
 	assert(IS_PAGE_ALIGNED(task->mm->brk));
 	assert(task->mm->brk == task->mm->brk_start);
 
-	// Pass command line arguments to the task
-	// Parse the data into argv/argc
-	uint32 argc = 0;
-	char **argv = NULL;
-	argv = parse_command_line(cmdline, &argc, task);
-	assert(argv != NULL);
-	assert(argv[0] != NULL);
-	assert(strlen(argv[0]) > 0);
-
 	// Copy the argv data from the kernel heap to the task's address space
 	// This function updates argv to point to the new location.
-	copy_argv_to_task(&argv, argc, task);
+	uint32 argc = 0;
+	for (; argv[argc] != NULL; argc++) { } // TODO: OBOE? FIXME
+	copy_argv_env_to_task(&argv, argc, task);
+
+	uint32 envc = 0;
+	if (envp) {
+		for (; envp[envc] != NULL; envc++) { } // TODO: OBOE? FIXME
+		copy_argv_env_to_task(&envp, envc, task);
+	}
 
 	*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 	*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
@@ -270,4 +285,75 @@ bool elf_load(const char *path, task_t *task, void *cmdline) {
 
 	kfree(data);
 	return true;
+}
+
+int execve(const char *path, char * const argv[], char *const envp[]) {
+	return -ENOSYS;
+}
+
+int sys_execve(const char *path, char * const argv[], char *const envp[]) {
+	if (!CHECK_ACCESS_STR(path))
+		return -EFAULT;
+	if (argv == NULL || !CHECK_ACCESS_READ(argv, sizeof(char *)))
+		return -EFAULT;
+	if (envp != NULL && !CHECK_ACCESS_READ(envp, sizeof(char *)))
+		return -EFAULT;
+
+	// Unfortunately for us, all the arguments are stored in userspace.
+	// That would be fine, if not for the fact that we are about to free
+	// all that memory, in preparation for replacing this task!
+	// We copy it to the kernel heap temporarily, and if that works out,
+	// call execve() which requires kernelspace arguments.
+	uint32 argc = 0, envc = 0;
+
+	// First, check that all memory is valid; both the pointers themselves,
+	// and the actual string data they point to.
+	for (;; argc++) {
+		if (!CHECK_ACCESS_READ(&argv[argc], sizeof(char *)))
+			return -EFAULT;
+		if (argv[argc] != NULL && !CHECK_ACCESS_STR(argv[argc]))
+			return -EFAULT;
+		else if (argv[argc] == NULL)
+			break;
+	}
+
+	if (envp != NULL) {
+		for (;; envc++) {
+			if (!CHECK_ACCESS_READ(&envp[envc], sizeof(char *)))
+				return -EFAULT;
+			if (envp[envc] != NULL && !CHECK_ACCESS_STR(envp[envc]))
+				return -EFAULT;
+			else if (envp[envc] == NULL)
+				break;
+		}
+	}
+
+	// OK, it all seems valid. Nice. We now also know the number of entries
+	// in each array, which makes the copying process easier: we can allocate
+	// memory up-front without any risk of wasting memory or needing to realloc().
+	char **kargv = kmalloc(sizeof(char *) * (argc + 1));
+	memset(kargv, 0, sizeof(char *) * (argc + 1));
+
+	for (uint32 i = 0; i < argc; i++) {
+		uint32 len = user_strlen(argv[i]) + 1;
+		kargv[i] = kmalloc(len);
+		strlcpy(kargv[i], argv[i], len);
+	}
+	assert(kargv[argc] == NULL);
+
+	// Do the same for the environment, if there is one
+	char **kenvp = NULL;
+	if (envp) {
+		kenvp = kmalloc(sizeof(char *) * (envc + 1));
+		memset(kenvp, 0, sizeof(char *) * (envc + 1));
+
+		for (uint32 i = 0; i < envc; i++) {
+			uint32 len = user_strlen(envp[i]) + 1;
+			kenvp[i] = kmalloc(len);
+			strlcpy(kenvp[i], envp[i], len);
+		}
+		assert(kenvp[envc] == NULL);
+	}
+
+	return execve(path, kargv, kenvp);
 }
