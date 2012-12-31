@@ -158,17 +158,20 @@ void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm
 
 void vmm_destroy_task_mm(struct task_mm *mm) {
 	assert(mm != NULL);
-	assert(mm->areas != NULL);
 
 	INTERRUPT_LOCK;
-	list_foreach(mm->areas, it) {
-		vm_area_t *area = (vm_area_t *)it->data;
-		for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
-			vmm_free(addr, mm->page_directory);
+	if (mm->areas != NULL) {
+		// Only userspace tasks use this member
+		list_foreach(mm->areas, it) {
+			vm_area_t *area = (vm_area_t *)it->data;
+			for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
+				vmm_free(addr, mm->page_directory);
+			}
+			kfree(area);
 		}
-		kfree(area);
+		list_destroy(mm->areas);
 	}
-	list_destroy(mm->areas);
+
 	kfree(mm);
 	INTERRUPT_UNLOCK;
 }
