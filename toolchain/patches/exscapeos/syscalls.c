@@ -161,6 +161,16 @@ off_t lseek(int fd, off_t offset, int whence) {
 	}
 }
 
+int chdir(const char *path) {
+	int r = sys_chdir(path);
+	if (r == 0)
+		return 0;
+	else {
+		errno = -r;
+		return -1;
+	}
+}
+
 void _exit(int status) {
 	sys__exit(status);
 	for(;;) { } // silence noreturn warning
