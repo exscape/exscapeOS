@@ -10,6 +10,111 @@
 
 #define ELF_DEBUG 0
 
+struct symbol *syms = NULL;
+
+// Translate a kernel EIP (e.g. 0x104e3c) to a function name
+struct symbol *addr_to_func(uint32 addr) {
+	if (addr <= 0x100000 || addr >= 0x130000)
+		return NULL;
+	struct symbol *symp = syms;
+	struct symbol tmp = { .eip = 0xffffffff, .name = NULL };
+	struct symbol *best_match = &tmp;
+
+	uint32 min_diff = 0xffffffff;
+	while (symp->eip) {
+		if (symp->eip <= addr && (addr - symp->eip) < min_diff) {
+			best_match = symp;
+			min_diff = addr - symp->eip;
+		}
+		symp++;
+	}
+
+	if (best_match->eip == 0xffffffff || best_match->name == NULL || *(best_match->name) == 0)
+		return NULL;
+
+	return best_match;
+}
+
+void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
+	// Find the string table
+	Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)(addr + size * shndx);
+	char *sym_string_table = NULL;
+
+#if ELF_DEBUG
+	char *string_table = (char *)(string_table_hdr->sh_addr);
+	printk("Sections:\n");
+	printk("Idx         Name Size     VMA      LMA      File off Align\n");
+#endif
+
+	Elf32_Sym *symhdr = NULL;
+	uint32 num_syms = 0;
+
+	for (uint32 i=1; i < num; i++) { // skip #0, which is always empty
+		Elf32_Shdr *shdr = (Elf32_Shdr *)(addr + (size * i));
+
+		if (shdr->sh_type == SHT_SYMTAB) {
+			symhdr = (Elf32_Sym *)shdr->sh_addr;
+			num_syms = shdr->sh_size / shdr->sh_entsize;
+			string_table_hdr = (Elf32_Shdr *)(addr + shdr->sh_link * size);
+			sym_string_table = (char *)(string_table_hdr->sh_addr);
+			if (symhdr == NULL) {
+				panic("Empty symbol table for kernel!");
+			}
+#if ELF_DEBUG == 0
+			break;
+#endif
+		}
+
+#if ELF_DEBUG
+		char *name = (char *)&string_table[shdr->sh_name];
+
+		printk("%03d %12s %08x %08x %08x %08x %u\n", i, name, shdr->sh_size, shdr->sh_addr, shdr->sh_addr /* TODO: LMA */, shdr->sh_offset, shdr->sh_addralign);
+		unsigned int f = shdr->sh_flags;
+		printk("                 ");
+		if (shdr->sh_type != SHT_NOBITS)
+			printk("CONTENTS, ");
+		if ((f & SHF_ALLOC))
+			printk("ALLOC, ");
+		if ((f & SHF_WRITE) == 0)
+			printk("READONLY, ");
+		if ((f & SHF_EXECINSTR))
+			printk("CODE\n");
+		else
+			printk("DATA\n");
+#endif
+	}
+
+	if (symhdr == NULL)
+		panic("No symbol table for kernel found!");
+
+	syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
+	memset(syms, 0, sizeof(struct symbol) * (num_syms + 1));
+
+	struct symbol *symp = syms;
+
+	for (uint32 i = 1; i < num_syms; i++) {
+		symhdr++;
+
+		if (ELF32_ST_TYPE(symhdr->st_info) != STT_FUNC)
+			continue;
+
+		const char *name;
+		if (symhdr->st_name != 0)
+			name = (char *)&sym_string_table[symhdr->st_name];
+		else
+			name = "N/A";
+#if ELF_DEBUG
+		printk("%03d 0x%08x %s\n", i, (uint32)symhdr->st_value, name);
+#endif
+
+		symp->eip = symhdr->st_value;
+		symp->name = name;
+		symp++;
+	}
+	symp->eip = 0;
+	symp->name = 0;
+}
+
 // Takes an array of argument (argv or envp) and copies it *FROM THE KERNEL HEAP*
 // to userspace. Also frees them from the kernel heap, which is why that MUST be the source.
 void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {

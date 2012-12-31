@@ -25,6 +25,7 @@
 #include <kernel/net/arp.h>
 #include <kernel/net/ipicmp.h>
 #include <kernel/serial.h>
+#include <kernel/elf.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -151,6 +152,11 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Initialize the initrd */
 	/* (do this before paging, so that it doesn't end up in the kernel heap) */
 	init_initrd(initrd_location);
+
+	if (!(mbd->flags & (1 << 5)))
+		panic("No kernel symbols!\n");
+
+	init_symbols(mbd->u.elf_sec.num, mbd->u.elf_sec.size, mbd->u.elf_sec.addr, mbd->u.elf_sec.shndx);
 
 	/* Set up paging and the kernel heap */
 	printk("Initializing paging and setting up the kernel heap... ");
