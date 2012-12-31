@@ -410,7 +410,7 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 		}
 	}
 
-	return -1;
+	return -ENOENT;
 }
 
 int initrd_getdents(int fd, void *dp, int count) {

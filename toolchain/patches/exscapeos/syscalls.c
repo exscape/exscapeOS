@@ -183,6 +183,11 @@ int close(int file) {
 		return -1;
 	}
 }
+
+int _execve(const char *name, char * const *argv, char * const *env) {
+	return execve(name, argv, env);
+}
+
 int execve(const char *name, char * const *argv, char * const *env) {
 	int r = sys_execve(name, argv, env == NULL ? environ : env);
 	if (r != 0) {

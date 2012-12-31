@@ -30,6 +30,7 @@ struct stat_callback_data {
 	struct stat *st;
 	char *file;
 	bool success;
+	int _errno;
 };
 
 list_t *fat32_partitions = NULL;
@@ -533,7 +534,8 @@ error:
 	kfree(base);
 	if (dir)
 		fat_closedir(dir);
-	return -1;
+
+	return -ENOENT; // TODO: FIXME
 }
 
 int fat_fstat(int fd, struct stat *buf) {

@@ -96,7 +96,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 	int r;
 	if ((r = stat(path, &st)) != 0) {
-		printk("Unable to stat %s; halting execution\n", path);
+		assert(r < 0);
 		return r;
 	}
 
@@ -352,6 +352,7 @@ int execve(const char *path, char *argv[], char *envp[]) {
 		// execve failed! Let's undo most of the work, and return.
 		struct task_mm *new_mm = current_task->mm;
 		current_task->mm = current_task->old_mm;
+		switch_page_directory(current_task->mm->page_directory);
 		vmm_destroy_task_mm(new_mm);
 
 		INTERRUPT_UNLOCK;
@@ -444,6 +445,6 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 	current_task->mm = vmm_create_user_mm();
 
 	int r = execve(kpath, kargv, kenvp);
-	panic("execve failed with return value %d; handle this!\n", r);
+	printk("WARNING: execve failed with return value %d\n", r);
 	return r;
 }
