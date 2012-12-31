@@ -30,6 +30,10 @@ int main(int argc, char **argv) {
 		do {
 			memset(buf, 0, BUFSIZE + 1);
 			r = read(fd, buf, BUFSIZE);
+			if (r == -1) {
+				fprintf(stderr, "%s: %s: %s\n", argv[0], argv[i], strerror(errno));
+				break;
+			}
 			tot += r;
 			fputs(buf, stdout);
 		} while (r > 0);
