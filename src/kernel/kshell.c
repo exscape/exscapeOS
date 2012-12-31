@@ -344,6 +344,8 @@ void kshell(void *data, uint32 length) {
 
 	task_t *task = NULL;
 
+	bool tracing = false;
+
 	/* Make sure the current code spawns a new task for the kernel shell */
 	assert(current_task != &kernel_task);
 	assert(strlen((char *)current_task->name) >= 8 && strncmp((char *)current_task->name, "[kshell]", 8) == 0);
@@ -352,11 +354,22 @@ void kshell(void *data, uint32 length) {
 		// Wait until the "child" task is still running
 		while (task != NULL) {
 			if (does_task_exist(task) == false || task->state == TASK_EXITING || task->state == TASK_DEAD) {
-				task = NULL;
+				//task = NULL;
 				break;
 			}
 			sleep(30);
 		}
+
+		if (tracing) {
+			// Wait until the task has been killed, or false positives will be reported
+			while (does_task_exist(task)) { sleep(30); }
+			task = NULL;
+
+			tracing = false;
+			stop_leak_trace();
+		}
+		else
+			task = NULL;
 
 		printc(BLACK, GREEN, "kshell ");
 		printc(BLACK, RED, "# ");
@@ -399,6 +412,9 @@ void kshell(void *data, uint32 length) {
 
 		if (*p == 0)
 			continue;
+
+		tracing = true;
+		start_leak_trace();
 
 		if (strcmp(p, "help") == 0 || strncmp(p, "help ", 5) == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
@@ -625,6 +641,8 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
+			//start_leak_trace();
+			//tracing = true;
 			static const char _PATH[] = "/:/bin:/initrd"; // TODO: store this on disk
 			char PATH[sizeof(_PATH)] = {0};
 
@@ -658,23 +676,7 @@ void kshell(void *data, uint32 length) {
 			}
 			printk("No such command: %s\n", p);
 exit_loop:
-		;
-#if 0
-
-			char cmd[256];
-			strlcpy(cmd, p, 256);
-			char *c = strchr(cmd, ' ');
-			if (c)
-				*c = 0;
-			fs_node_t *node = finddir_fs(initrd_root, cmd);
-			if (node != NULL) {
-				// This is a program that exists on the initrd
-
-				task = create_task_elf(node, con, p, strlen(p));
-			}
-			else
-				printk("Unknown command: \"%s\"\n", p);
-#endif
+			;
 		}
 
 		strlcpy(last_cmd, p, 1024);
