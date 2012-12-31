@@ -10,12 +10,12 @@
 /* 0: no debugging
  * 1: more checks, but rarely text printed unless an error occurs
  * 2: even more checks, still little or no text
- * 3: not used at the moment
+ * 3: print leak info even when no leaks are found
  * 4: same checks as 2, but more text printed
  */
 
 /* DON'T SET THIS TO ZERO, EVER! It should remain at 2 unless we're benchmarking or whatever (why would anyone benchmark this?). */
-#define HEAP_DEBUG 3
+#define HEAP_DEBUG 2
 #if HEAP_DEBUG == 0
 #error Seriously, HEAP_DEBUG == 0 is a bad idea
 #endif
@@ -64,14 +64,18 @@ void start_leak_trace(void) {
 	assert(leak_info == NULL);
 	leak_info = kmalloc(sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
 	memset(leak_info, 0, sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
+#if HEAP_DEBUG >= 3
 	printk("Leak trace started\n");
+#endif
 }
 
 void stop_leak_trace(void) {
 	assert(leak_info != NULL);
 
 	INTERRUPT_LOCK;
+#if HEAP_DEBUG >= 3
 	printk("Leak trace stopped\n");
+#endif
 
 	int leaks = 0;
 	uint32 leaked_bytes = 0;
@@ -87,8 +91,11 @@ void stop_leak_trace(void) {
 			printk("\n");
 		}
 	}
-	if (leaks == 0)
+	if (leaks == 0) {
+#if HEAP_DEBUG >= 3
 		printk("No leaks found!\n");
+#endif
+	}
 	else
 		printk("%d potential leaks found; potentially %u bytes\n", leaks, leaked_bytes);
 
