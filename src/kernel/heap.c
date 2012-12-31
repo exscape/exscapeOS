@@ -10,9 +10,12 @@
 /* 0: no debugging
  * 1: more checks, but rarely text printed unless an error occurs
  * 2: even more checks, still little or no text
- * 3: same checks as 2, but more text printed */
+ * 3: not used at the moment
+ * 4: same checks as 2, but more text printed
+ */
+
 /* DON'T SET THIS TO ZERO, EVER! It should remain at 2 unless we're benchmarking or whatever (why would anyone benchmark this?). */
-#define HEAP_DEBUG 2
+#define HEAP_DEBUG 3
 #if HEAP_DEBUG == 0
 #error Seriously, HEAP_DEBUG == 0 is a bad idea
 #endif
@@ -42,6 +45,54 @@ uint32 kheap_used_bytes(void) {
 	}
 
 	return used;
+}
+
+struct leak_info {
+	struct backtrace bt;
+	void *allocation;
+	task_t *allocator;
+	size_t size;
+};
+
+#define MAX_TRACED_ALLOCATIONS 1024
+struct leak_info *leak_info = NULL;
+
+void start_leak_trace(void) {
+	// We can use kmalloc since tracing hasn't started, and will have ended
+	// before we call kfree()
+	assert(leak_info == NULL);
+	leak_info = kmalloc(sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
+	memset(leak_info, 0, sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
+	printk("Leak trace started\n");
+}
+
+void stop_leak_trace(void) {
+	assert(leak_info != NULL);
+
+	INTERRUPT_LOCK;
+	printk("Leak trace stopped\n");
+
+	int leaks = 0;
+	uint32 leaked_bytes = 0;
+	for (int i = 0; i < MAX_TRACED_ALLOCATIONS; i++) {
+		if (leak_info[i].allocation == NULL)
+			continue;
+		else {
+			// Leak!
+			leaks++;
+			leaked_bytes += leak_info[i].size;
+			printk("LEAK FOUND! Allocation %p, %u bytes, allocated by pid %d (%s). Backtrace:\n", leak_info[i].allocation, leak_info[i].size, leak_info[i].allocator->id, leak_info[i].allocator->name);
+			print_backtrace_struct(&leak_info[i].bt);
+		}
+	}
+	if (leaks == 0)
+		printk("No leaks found!\n");
+	else
+		printk("%d potential leaks found; potentially %u bytes\n", leaks, leaked_bytes);
+
+	kfree(leak_info);
+	leak_info = NULL;
+	INTERRUPT_UNLOCK;
 }
 
 void validate_heap_index(bool print_areas) {
@@ -244,7 +295,7 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	uint32 new_end_address = heap->end_address + size_to_add;
 
-#if HEAP_DEBUG >= 3
+#if HEAP_DEBUG >= 4
 	printk("heap_expand, adding %d bytes\n", size_to_add);
 #endif
 
@@ -295,7 +346,7 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 		new_end_address += PAGE_SIZE;
 	}
 
-#if HEAP_DEBUG >= 3
+#if HEAP_DEBUG >= 4
 	printk("heap_contract, removing %d bytes\n", (old_size - new_size) );
 #endif
 
@@ -490,6 +541,25 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 		ret += 4;
 	}
 
+	// Trace this allocation
+	if (leak_info != NULL) {
+		for (int i = 0; i < MAX_TRACED_ALLOCATIONS; i++) {
+			if (leak_info[i].allocation == NULL) {
+				// Free entry
+				assert(leak_info[i].allocator == NULL);
+				leak_info[i].allocator = (task_t *)current_task;
+				leak_info[i].allocation = (void *)ret;
+				leak_info[i].size = size;
+				uint32 ebp;
+				asm volatile("mov %%ebp, %[ebp]" : [ebp]"=m"(ebp) : : "memory", "cc");
+				get_backtrace(ebp, &leak_info[i].bt);
+				goto _ret;
+			}
+		}
+		panic("More than MAX_TRACED_ALLOCATIONS used up!");
+	}
+_ret:
+
 	return (void *)ret;
 }
 
@@ -540,6 +610,19 @@ void heap_free(void *p, heap_t *heap) {
 		return;
 	}
 
+	// If we get here, there are (currently) no more returns, so we might as well do this here.
+	// Remove this allocation from the leak trace, since it didn't leak!
+	if (leak_info != NULL) {
+		for (int i = 0; i < MAX_TRACED_ALLOCATIONS; i++) {
+			if (leak_info[i].allocation == p) {
+				// Free this entry
+				assert(leak_info[i].allocator != NULL);
+				memset(&leak_info[i], 0, sizeof(struct leak_info));
+				break;
+			}
+		}
+	}
+
 	/* Remove this area from the used index. We'll wait a little before adding it as a free area, though. */
 	remove_ordered_array_item((void *)header, &heap->used_index);
 
@@ -559,7 +642,7 @@ void heap_free(void *p, heap_t *heap) {
 
 	/* Check if the area to our left is another free area; if so, merge with it, aka. unify left */
 	area_footer_t *left_area_footer = (area_footer_t *)( (uint32)header - sizeof(area_footer_t) );
-	if ((uint32)left_area_footer >= (uint32)heap->start_address && /* make sure to not make an invalid access */
+	if ((uint32)left_area_footer >= (uint32)heap->start_address && /* make sure to not make an invalid access */ \
 		left_area_footer->magic == HEAP_MAGIC) {
 		/* Looks like we found another area! 
 		 * Do some extra checks, and make sure it's a FREE area */
