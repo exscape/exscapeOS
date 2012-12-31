@@ -273,8 +273,6 @@ int fat_read(int fd, void *buf, size_t length) {
 	assert(part != NULL);
 	assert(part->magic == FAT32_MAGIC);
 
-	uint8 *cluster_buf = kmalloc(part->cluster_size * 32);
-
 	if (file->size == 0) {
 		// Size is not initialized; this should be the first read. Set it up.
 		struct stat st;
@@ -290,6 +288,8 @@ int fat_read(int fd, void *buf, size_t length) {
 	}
 
 	uint32 bytes_read = 0; // this call to read() only
+
+	uint8 *cluster_buf = kmalloc(part->cluster_size * 32);
 
 	if (file->offset >= file->size) {
 		goto done;
@@ -501,6 +501,8 @@ int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 		buf->st_blksize = 4096;
 		buf->st_blocks = 1;
 
+		kfree(path);
+		kfree(base);
 		return 0;
 	}
 
@@ -529,6 +531,7 @@ int fat_stat(mountpoint_t *mp, const char *in_path, struct stat *buf) {
 		// TODO: errno
 		goto error;
 	}
+
 error:
 	kfree(path);
 	kfree(base);
