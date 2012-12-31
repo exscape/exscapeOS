@@ -173,7 +173,7 @@ int close(int file) {
 }
 
 int execve(char *name, char **argv, char **env) {
-	int r = sys_execve(name, argv, env);
+	int r = sys_execve(name, argv, env == NULL ? environ : env);
 	if (r != 0) {
 		errno = -r;
 		return -1;
