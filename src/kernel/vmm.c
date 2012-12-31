@@ -28,10 +28,13 @@ uint32 mem_end_page = 0;
 
 list_t *pagedirs = NULL;
 
-void print_backtrace_ebp(uint32 _ebp) {
+void get_backtrace(uint32 _ebp, struct backtrace *bt) {
+	memset(bt, 0, sizeof(struct backtrace));
 	uint32 *ebp = (uint32 *)_ebp;
-
+	int i = 0;
 	while (ebp != NULL) {
+		if (i >= BACKTRACE_MAX)
+			break;
 		if (ebp == NULL || ebp > (uint32 *)0xcfff0000 || ebp < (uint32 *)0x100000) {
 			//printk("breaking; ebp = %p\n", ebp);
 			break;
@@ -39,16 +42,47 @@ void print_backtrace_ebp(uint32 _ebp) {
 
 		struct symbol *sym = addr_to_func(*(ebp + 1));
 		if (sym == NULL) {
-			printk("??? (0x%p) %s\n", *(ebp + 1), IS_USER_SPACE(*(ebp + 1)) ? "(userspace)" : "");
+			bt->eip[i] = 0xffffffff; // ???
 		}
 		else {
-			if (strcmp(sym->name, "_exit") == 0 && *(ebp + 1) - sym->eip == 0)
-				printk("[end of backtrace - task entry point was above]\n");
-			else
-				printk("%s+0x%x\n", sym->name, *(ebp + 1) - sym->eip);
+			if (strcmp(sym->name, "_exit") == 0 && *(ebp + 1) - sym->eip == 0) {
+				bt->eip[i] = 0;
+				//printk("[end of backtrace - task entry point was above]\n");
+			}
+			else {
+				bt->eip[i] = *(ebp + 1);
+				//printk("%s+0x%x\n", sym->name, *(ebp + 1) - sym->eip);
+			}
 		}
 		ebp = (uint32 *)*ebp;
+
+		i++;
 	}
+}
+
+void print_backtrace_struct(struct backtrace *bt) {
+	assert(bt != NULL);
+	for (int i = 0; i < BACKTRACE_MAX; i++) {
+		if (bt->eip[i] == 0)
+			break;
+
+		struct symbol *sym = addr_to_func(bt->eip[i]);
+		if (bt->eip[i] == 0xffffffff || sym == NULL)
+			printk("0x%08x in ??? %s\n", bt->eip[i], IS_USER_SPACE(bt->eip[i]) ? "(userspace)" : "");
+		else {
+			if (strcmp(sym->name, "_exit") == 0 && bt->eip[i] - sym->eip == 0)
+				printk("[end of backtrace - task entry point was above]\n");
+			else
+				printk("0x%08x in %s+0x%x\n", bt->eip[i], sym->name, bt->eip[i] - sym->eip);
+		}
+	}
+}
+
+void print_backtrace_ebp(uint32 _ebp) {
+	struct backtrace bt;
+	get_backtrace(_ebp, &bt);
+
+	print_backtrace_struct(&bt);
 }
 
 void print_backtrace(void) {
