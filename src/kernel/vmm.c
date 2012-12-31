@@ -42,7 +42,7 @@ void get_backtrace(uint32 _ebp, struct backtrace *bt) {
 
 		struct symbol *sym = addr_to_func(*(ebp + 1));
 		if (sym == NULL) {
-			bt->eip[i] = 0xffffffff; // ???
+			bt->eip[i] = *(ebp + 1);
 		}
 		else {
 			if (strcmp(sym->name, "_exit") == 0 && *(ebp + 1) - sym->eip == 0) {

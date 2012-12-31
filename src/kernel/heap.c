@@ -50,7 +50,8 @@ uint32 kheap_used_bytes(void) {
 struct leak_info {
 	struct backtrace bt;
 	void *allocation;
-	task_t *allocator;
+	int allocator_pid;
+	char allocator_name[32];
 	size_t size;
 };
 
@@ -81,8 +82,9 @@ void stop_leak_trace(void) {
 			// Leak!
 			leaks++;
 			leaked_bytes += leak_info[i].size;
-			printk("LEAK FOUND! Allocation %p, %u bytes, allocated by pid %d (%s). Backtrace:\n", leak_info[i].allocation, leak_info[i].size, leak_info[i].allocator->id, leak_info[i].allocator->name);
+			printk("LEAK: allocation %p, %u bytes, allocated by pid %d (%s). Backtrace:\n", leak_info[i].allocation, leak_info[i].size, leak_info[i].allocator_pid, leak_info[i].allocator_name);
 			print_backtrace_struct(&leak_info[i].bt);
+			printk("\n");
 		}
 	}
 	if (leaks == 0)
@@ -545,9 +547,10 @@ void *heap_alloc(uint32 size, bool page_align, heap_t *heap) {
 	if (leak_info != NULL) {
 		for (int i = 0; i < MAX_TRACED_ALLOCATIONS; i++) {
 			if (leak_info[i].allocation == NULL) {
-				// Free entry
-				assert(leak_info[i].allocator == NULL);
-				leak_info[i].allocator = (task_t *)current_task;
+				// This entry is unused; use it
+				assert(leak_info[i].allocator_pid == 0);
+				strlcpy(leak_info[i].allocator_name, (char *)current_task->name, 32);
+				leak_info[i].allocator_pid = current_task->id;
 				leak_info[i].allocation = (void *)ret;
 				leak_info[i].size = size;
 				uint32 ebp;
@@ -616,7 +619,7 @@ void heap_free(void *p, heap_t *heap) {
 		for (int i = 0; i < MAX_TRACED_ALLOCATIONS; i++) {
 			if (leak_info[i].allocation == p) {
 				// Free this entry
-				assert(leak_info[i].allocator != NULL);
+				assert(leak_info[i].allocator_pid != 0);
 				memset(&leak_info[i], 0, sizeof(struct leak_info));
 				break;
 			}
