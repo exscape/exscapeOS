@@ -33,7 +33,7 @@ void print_backtrace_ebp(uint32 _ebp) {
 
 	while (ebp != NULL) {
 		if (ebp == NULL || ebp > (uint32 *)0xcfff0000 || ebp < (uint32 *)0x100000) {
-			printk("breaking; ebp = %p *(ebp + 1) = %p\n", ebp, *(ebp + 1));
+			//printk("breaking; ebp = %p\n", ebp);
 			break;
 		}
 

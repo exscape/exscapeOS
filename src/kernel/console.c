@@ -414,36 +414,37 @@ static void redraw_screen(void) {
 
 // Scroll the screen, if necessary. If not, this will just return.
 void scroll(void) {
-	if (console_task->console == NULL)
-		panic("scroll() in task without a console!");
+	console_t *con = console_task->console;
+	if (con == NULL)
+		con = &kernel_console;
 
-	Point *cursor = &console_task->console->cursor;
+	Point *cursor = &con->cursor;
 	if (cursor->y <= 23)
 		return;
 
-	if (console_task->console->current_position != 0) {
+	if (con->current_position != 0) {
 		// We're in scrollback at the moment. Since a new line has shown up (or will, when this function is done),
 		// we are now one position further back.
-		console_task->console->current_position++;
-		if (console_task->console->current_position > MAX_SCROLLBACK) {
-			console_task->console->current_position = MAX_SCROLLBACK;
+		con->current_position++;
+		if (con->current_position > MAX_SCROLLBACK) {
+			con->current_position = MAX_SCROLLBACK;
 		}
 	}
 
 	// Move forward one line in the scrollback buffer, which causes the last line to "fall out"
 	// Also, handle wrapping (this is a ring buffer)
-	console_task->console->bufferptr += 80;
-	if (console_task->console->bufferptr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-		console_task->console->bufferptr = console_task->console->buffer;
+	con->bufferptr += 80;
+	if (con->bufferptr >= con->buffer + CONSOLE_BUFFER_SIZE) {
+		con->bufferptr = con->buffer;
 	}
 
 	// Blank the last line on screen, handling the wrapping of the buffer if necessary
-	if ((cur_screen(console_task->console) + 80*23 + 80 <= console_task->console->buffer + CONSOLE_BUFFER_SIZE)) {
-		memsetw(cur_screen(console_task->console) + 80*23, blank, 80); // no wrap trouble, one line always fits
+	if ((cur_screen(con) + 80*23 + 80 <= con->buffer + CONSOLE_BUFFER_SIZE)) {
+		memsetw(cur_screen(con) + 80*23, blank, 80); // no wrap trouble, one line always fits
 	}
 	else {
-		uint32 offset = (cur_screen(console_task->console) + 80*23 + 80) - (console_task->console->buffer + CONSOLE_BUFFER_SIZE);
-		memsetw(console_task->console->buffer + offset, blank, 80);
+		uint32 offset = (cur_screen(con) + 80*23 + 80) - (con->buffer + CONSOLE_BUFFER_SIZE);
+		memsetw(con->buffer + offset, blank, 80);
 	}
 
 	redraw_screen();
@@ -454,9 +455,11 @@ void scroll(void) {
 int putchar(int c) {
 	Point *cursor = NULL;
 
-	assert(console_task->console != NULL);
+	console_t *con = console_task->console;
+	if (con == NULL)
+		con = &kernel_console;
 
-	cursor = &console_task->console->cursor;
+	cursor = &con->cursor;
 	assert(cursor != NULL);
 
 	if (c == '\n') {
@@ -484,14 +487,14 @@ int putchar(int c) {
 		if (cursor->x > 79)
 			cursor->x = 79;
 		const unsigned int offset = cursor->y*80 + cursor->x;
-		uint16 color = (console_task->console->back_color << BGCOLOR) | (console_task->console->text_color << FGCOLOR);
+		uint16 color = (con->back_color << BGCOLOR) | (con->text_color << FGCOLOR);
 
-		if (console_task->console != NULL) {
+		if (con != NULL) {
 			// Find the MMIO address and take care of wrapping, as cur_screen() can point outside
 			// the actual buffer. Ugly, yes.
-			uint16 *addr = cur_screen(console_task->console) + offset;
-			if (addr >= console_task->console->buffer + CONSOLE_BUFFER_SIZE) {
-				addr = console_task->console->buffer + (addr - (console_task->console->buffer + CONSOLE_BUFFER_SIZE));
+			uint16 *addr = cur_screen(con) + offset;
+			if (addr >= con->buffer + CONSOLE_BUFFER_SIZE) {
+				addr = con->buffer + (addr - (con->buffer + CONSOLE_BUFFER_SIZE));
 			}
 
 			// Set it
@@ -500,10 +503,10 @@ int putchar(int c) {
 
 		if (list_find_first(current_console->tasks, (void *)console_task) != NULL) {
 			/* Also update the actual video ram if this console is currently displayed */
-			if (console_task->console->current_position < 24 && (24UL - console_task->console->current_position) > cursor->y) {
+			if (con->current_position < 24 && (24UL - con->current_position) > cursor->y) {
 				// In scrollback, but this line should still be on screen. < 24 because there's no chance it's on screen
 				// if we're scrolled back a full screen or more. The rest checks whether the line is still on screen.
-				uint32 sb_offset = 80*console_task->console->current_position;
+				uint32 sb_offset = 80*con->current_position;
 				videoram[offset + sb_offset] = ((unsigned char)c) | color;
 				vram_buffer[offset + sb_offset] = ((unsigned char)c) | color;
 			}
