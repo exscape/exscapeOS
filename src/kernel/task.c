@@ -680,7 +680,6 @@ int fork(void) {
 	*(--kernelStack) = data_segment;
 
 	/* Now that we're done on the stack, set the stack pointers in the task structure */
-	printk("fork: kernelStack %p, child->stack %p\n", kernelStack, child->stack);
 	child->esp = (uint32)kernelStack;
 	child->ss = data_segment;
 

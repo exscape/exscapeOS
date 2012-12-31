@@ -478,6 +478,15 @@ int execve(const char *path, char *argv[], char *envp[]) {
 int sys_execve(const char *path, char *argv[], char *envp[]) {
 	if (path == NULL || !CHECK_ACCESS_STR(path))
 		return -EFAULT;
+
+	// Newlib calls execve() with invalid paths while attempting to find
+	// the correct one from $PATH; check whether the path exists early on,
+	// so that we don't waste time copying arguments and allocating memory
+	// if we're going to fail anyway.
+	struct stat st;
+	if (stat(path, &st) != 0)
+		return -ENOENT;
+
 	if (argv == NULL || !CHECK_ACCESS_READ(argv, sizeof(char *)))
 		return -EFAULT;
 	if (envp != NULL && !CHECK_ACCESS_READ(envp, sizeof(char *)))
