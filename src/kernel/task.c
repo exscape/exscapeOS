@@ -164,12 +164,13 @@ void destroy_task(task_t *task) {
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
 		if (task->fdtable[i]) {
 			assert(do_close(i, task) == 0); // only fails if there's a bug somewhere, since we only call it on non-NULL fds
+			assert(task->fdtable[i] == NULL);
 		}
 	}
 
 	// Free the table itself
 	kfree(task->fdtable);
-	task->fdtable = 0;
+	task->fdtable = NULL;
 
 	if (task->privilege == 3) {
 		list_remove_first(pagedirs, task->mm->page_directory);
