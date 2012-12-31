@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <reent.h>
+#include <unistd.h>
 
 typedef signed   char  sint8;
 typedef unsigned char  uint8;
@@ -79,7 +80,7 @@ DECL_SYSCALL1(sleep, int, uint32);
 DECL_SYSCALL0(getchar, int);
 DECL_SYSCALL1(putchar, int, int);
 DECL_SYSCALL2(open, int, const char *, int);
-DECL_SYSCALL3(read, int, int, char *, int);
+DECL_SYSCALL3(read, int, int, void *, size_t);
 DECL_SYSCALL1(close, int, int);
 //DECL_SYSCALL1(malloc, void *, size_t);
 //DECL_SYSCALL1(free, int, void *);
@@ -88,7 +89,7 @@ DECL_SYSCALL1(chdir, int, const char *);
 DECL_SYSCALL3(write, int, int, const char *, int);
 DECL_SYSCALL2(fstat, int, int, struct stat *);
 DECL_SYSCALL0(getpid, int);
-DECL_SYSCALL1(sbrk, void *, sint32); // TODO: return type caddr_t
+DECL_SYSCALL1(sbrk, void *, ptrdiff_t); // TODO: return type caddr_t
 DECL_SYSCALL0(__getreent, struct _reent *);
 DECL_SYSCALL3(getdents, int, int, void *, int);
 DECL_SYSCALL2(gettimeofday, int, struct timeval *, void *);
@@ -97,7 +98,7 @@ DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
 DECL_SYSCALL0(getppid, int);
 DECL_SYSCALL3(waitpid, int, int, int *, int);
-DECL_SYSCALL3(execve, int, const char *, char **, char **);
+DECL_SYSCALL3(execve, int, const char *, char * const *, char * const *);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -108,7 +109,7 @@ DEFN_SYSCALL1(sleep, int, 2,uint32);
 DEFN_SYSCALL0(getchar, int, 3);
 DEFN_SYSCALL1(putchar, int, 4, int);
 DEFN_SYSCALL2(open, int, 5, const char *, int);
-DEFN_SYSCALL3(read, int, 6, int, char *, int);
+DEFN_SYSCALL3(read, int, 6, int, void *, size_t);
 DEFN_SYSCALL1(close, int, 7, int);
 //DEFN_SYSCALL1(malloc, void *, 8, size_t);
 //DEFN_SYSCALL1(free, int, 9, void *);
@@ -118,7 +119,7 @@ DEFN_SYSCALL3(write, int, 12, int, const char *, int);
 /* lseek is syscall 13! */
 DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 DEFN_SYSCALL0(getpid, int, 15);
-DEFN_SYSCALL1(sbrk, void *, 16, sint32);
+DEFN_SYSCALL1(sbrk, void *, 16, ptrdiff_t);
 DEFN_SYSCALL0(__getreent, struct _reent *, 17);
 DEFN_SYSCALL3(getdents, int, 18, int, void *, int);
 DEFN_SYSCALL2(gettimeofday, int, 19, struct timeval *, void *);
@@ -127,7 +128,7 @@ DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
 DEFN_SYSCALL1(wait, int, 22, int *);
 DEFN_SYSCALL0(getppid, int, 23);
 DEFN_SYSCALL3(waitpid, int, 24, int, int *, int);
-DEFN_SYSCALL3(execve, int, 25, const char *, char **, char **);
+DEFN_SYSCALL3(execve, int, 25, const char *, char * const *, char * const *);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -162,6 +163,7 @@ off_t lseek(int fd, off_t offset, int whence) {
 
 void _exit(int status) {
 	sys__exit(status);
+	for(;;) { } // silence noreturn warning
 }
 
 int close(int file) {
@@ -171,8 +173,7 @@ int close(int file) {
 		return -1;
 	}
 }
-
-int execve(char *name, char **argv, char **env) {
+int execve(const char *name, char * const *argv, char * const *env) {
 	int r = sys_execve(name, argv, env == NULL ? environ : env);
 	if (r != 0) {
 		errno = -r;
@@ -220,7 +221,7 @@ int kill(int pid, int sig) {
 	return -1;
 }
 
-int link(char *old, char *new) {
+int link(const char *old, const char *new) {
 	// TODO: link!
 	errno = EMLINK;
 	return -1;
@@ -241,9 +242,9 @@ int open(const char *name, int flags, ...) {
 		return ret;
 }
 
-int read(int file, char *ptr, int len) {
+int read(int file, void *ptr, size_t len) {
 	if (file < 0) {
-		errno = EBADF;
+		errno = -EBADF;
 		return -1;
 	}
 
@@ -259,12 +260,12 @@ int read(int file, char *ptr, int len) {
 		return ret;
 }
 
-caddr_t sbrk(int incr) {
+void *sbrk(ptrdiff_t incr) {
 	void *ret = (void *)sys_sbrk(incr);
 	if ((signed long)ret < 0 && (signed long)ret > -200) {
 		// TODO: hack! Assume this region is invalid, and use it for errno returns
 		errno = - ((int)ret);
-		return (caddr_t)(-1);
+		return (void *)(-1);
 	}
 	else {
 		return ret;
@@ -291,7 +292,7 @@ clock_t times(struct tms *buf) {
 	return -1;
 }
 
-int unlink(char *name) {
+int unlink(const char *name) {
 	// TODO: unlink!
 	errno = ENOENT;
 	return -1;
@@ -319,7 +320,7 @@ int waitpid(int pid, int *status, int options) {
 	}
 }
 
-int write(int file, char *ptr, int len) {
+int write(int file, const void *ptr, size_t len) {
 	if (file < 0) {
 		errno = EBADF;
 		return -1;
@@ -373,6 +374,3 @@ int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
 	else
 		return 0;
 }
-
-char *__env[1] = { 0 };
-char **environ = __env;

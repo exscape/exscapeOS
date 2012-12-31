@@ -76,7 +76,10 @@ bool elf_load(const char *path, task_t *task, void *cmdline) {
 	assert(argv[0] != NULL);
 	assert(strlen(argv[0]) > 0);
 
-	return elf_load_int(path, task, argv, NULL /* envp */) == 0;
+	char **envp = kmalloc(sizeof(char *));
+	*envp = NULL;
+
+	return elf_load_int(path, task, argv, envp) == 0;
 }
 
 static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp[]) {
@@ -241,11 +244,11 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	copy_argv_env_to_task(&argv, argc, task);
 
 	uint32 envc = 0;
-	if (envp) {
-		for (; envp[envc] != NULL; envc++) { }
-		copy_argv_env_to_task(&envp, envc, task);
-	}
+	assert(envp != NULL);
+	for (; envp[envc] != NULL; envc++) { }
+	copy_argv_env_to_task(&envp, envc, task);
 
+	*((uint32 *)(USER_STACK_START - 0)) = (uint32)envp;
 	*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 	*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
@@ -420,8 +423,7 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 	// 1) A Newlib bug exists, or
 	// 2) The user explicitly bypasses Newlib and uses the syscall,
 	//    in which case he'll have to take care of this.
-	printk("TODO: fix envp\n");
-	//assert(envp != NULL);
+	assert(envp != NULL);
 
 	kenvp = kmalloc(sizeof(char *) * (envc + 1));
 	memset(kenvp, 0, sizeof(char *) * (envc + 1));
