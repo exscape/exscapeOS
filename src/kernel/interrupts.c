@@ -4,6 +4,8 @@
 #include <kernel/console.h>
 #include <kernel/kernutil.h>
 #include <kernel/task.h>
+#include <kernel/vmm.h>
+#include <kernel/elf.h>
 
 /* task.c */
 extern bool task_switching;
@@ -112,6 +114,7 @@ void idt_set_gate(uint8 num, uint32 base, uint16 sel, uint8 flags) {
 static uint32 divzero_handler(uint32 esp) {
 	printk("In divzero handler, esp = %p\n", esp);
 	if (current_task != &kernel_task) {
+		printk("Division by zero in task %d (%s), killing!\n", current_task->id, current_task->name);
 		kill((task_t *)current_task);
 		YIELD;
 	}
@@ -267,7 +270,20 @@ uint32 isr_handler(uint32 esp) {
 		printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
 		printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
 		printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
-		printk("WARNING: esp value may be unreliable at the moment\n");
+		printk("\n");
+
+		printk("Backtrace:\n");
+
+		struct symbol *sym = addr_to_func(regs->eip);
+		if (sym) {
+			printk("%s+0x%x (function that crashed)\n", sym->name, regs->eip - sym->eip);
+		}
+		else
+			printk("EIP not in any known kernel function\n");
+
+		print_backtrace_ebp(regs->ebp);
+		printk("\n");
+		//printk("WARNING: esp value may be unreliable at the moment\n");
 	}
 
 	if (interrupt_handlers[regs->int_no] != 0) {
