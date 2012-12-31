@@ -102,20 +102,25 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 	uint32 file_size = st.st_size;
 	unsigned char *data = kmalloc(file_size);
+	int retval = 0;
 
 	int fd = open(path, O_RDONLY);
 	if (fd < 0) {
 		printk("elf_load(): unable to open %s\n", path);
-		return fd;
+		retval = fd;
+		goto err;
 	}
 
 	if ((r = read(fd, data, file_size)) != (int)file_size) {
 		printk("elf_load(): unable to read from %s; got %d bytes, requested %d\n", path, r, (int)file_size);
-		if (r < 0)
-			return r;
+		if (r < 0) {
+			retval = r;
+			goto err;
+		}
 		else {
 			panic("read() returned less than the expected file size, but not a negative value... why?");
-			return -EIO;
+			retval = -EIO;
+			goto err;
 		}
 	}
 
@@ -127,8 +132,8 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 	if (memcmp(header->e_ident.ei_mag, &ELF_IDENT, 4) != 0) {
 		printk("Warning: file %s is not an ELF file; aborting execution\n", path);
-		kfree(data);
-		return -ENOEXEC;
+		retval = -ENOEXEC;
+		goto err;
 	}
 
 	// TODO SECURITY: don't trust anything from the file - users can EASILY execute
@@ -137,17 +142,12 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	if (header->e_ident.ei_class != ELFCLASS32 || header->e_ident.ei_data != ELFDATA2LSB || \
 		header->e_ident.ei_version != 1 || header->e_machine != EM_386 || header->e_type != ET_EXEC) {
 		printk("Warning: file %s is not a valid ELF file (invalid ELFCLASS, ELFDATA, version, machine or not ET_EXEC\n");
-		kfree(data);
-		return -ENOEXEC;
+		retval = -ENOEXEC;
+		goto err;
 	}
 
 	assert(header->e_entry >= 0x10000000);
 	assert(header->e_entry <  0x11000000);
-
-//////////////////////////////////////////////////////////////////////////////////
-
-//assert(current_directory != kernel_directory);
-//switch_page_directory(kernel_directory);
 
 	if (task == current_task) {
 		// execve
@@ -315,14 +315,20 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	task->new_entry = (uint32)header->e_entry;
 	set_entry_point((task_t *)task, task->new_entry);
 
+	retval = 0;
+	/* fall through on success */
+
+err:
 	kfree(data);
-	return 0;
+	assert(retval <= 0);
+	return retval;
 }
 
 int execve(const char *path, char *argv[], char *envp[]) {
 	INTERRUPT_LOCK;
 	int r = elf_load_int(path, (task_t *)current_task, argv, envp);
 	kfree((void *)path);
+	// argv and envp are freed in elf_load_int
 
 	if (r == 0) {
 		assert(interrupts_enabled() == false);
@@ -353,6 +359,8 @@ int execve(const char *path, char *argv[], char *envp[]) {
 		struct task_mm *new_mm = current_task->mm;
 		current_task->mm = current_task->old_mm;
 		switch_page_directory(current_task->mm->page_directory);
+
+		destroy_user_page_dir(new_mm->page_directory);
 		vmm_destroy_task_mm(new_mm);
 
 		INTERRUPT_UNLOCK;
@@ -363,9 +371,6 @@ int execve(const char *path, char *argv[], char *envp[]) {
 }
 
 int sys_execve(const char *path, char *argv[], char *envp[]) {
-
-	//panic("BYT APPROACH: skapa ny task, kopiera ALL INFO (inkl. pid, fdtable) och byt ena mot den andro om allt funkat");
-
 	if (path == NULL || !CHECK_ACCESS_STR(path))
 		return -EFAULT;
 	if (argv == NULL || !CHECK_ACCESS_READ(argv, sizeof(char *)))
@@ -391,15 +396,20 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 			break;
 	}
 
-	if (envp != NULL) {
-		for (;; envc++) {
-			if (!CHECK_ACCESS_READ(&envp[envc], sizeof(char *)))
-				return -EFAULT;
-			if (envp[envc] != NULL && !CHECK_ACCESS_STR(envp[envc]))
-				return -EFAULT;
-			else if (envp[envc] == NULL)
-				break;
-		}
+	// If the caller (the user, prior to the Newlib glue) passes env == NULL,
+	// syscalls.c will provide us with "environ" to copy, instead.
+	// Thus, envp should never be NULL, unless:
+	// 1) A Newlib bug exists, or
+	// 2) The user explicitly bypasses Newlib and uses the syscall,
+	//    in which case he'll have to take care of this.
+	assert(envp != NULL);
+	for (;; envc++) {
+		if (!CHECK_ACCESS_READ(&envp[envc], sizeof(char *)))
+			return -EFAULT;
+		if (envp[envc] != NULL && !CHECK_ACCESS_STR(envp[envc]))
+			return -EFAULT;
+		else if (envp[envc] == NULL)
+			break;
 	}
 
 	// OK, it all seems valid. Nice. We now also know the number of entries
@@ -415,18 +425,7 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 	}
 	assert(kargv[argc] == NULL);
 
-	// Do the same for the environment, if there is one
-	char **kenvp = NULL;
-
-	// If the caller (the user, prior to the Newlib glue) passes env == NULL,
-	// syscalls.c will provide us with "environ" to copy, instead.
-	// Thus, envp should never be NULL, unless:
-	// 1) A Newlib bug exists, or
-	// 2) The user explicitly bypasses Newlib and uses the syscall,
-	//    in which case he'll have to take care of this.
-	assert(envp != NULL);
-
-	kenvp = kmalloc(sizeof(char *) * (envc + 1));
+	char **kenvp = kmalloc(sizeof(char *) * (envc + 1));
 	memset(kenvp, 0, sizeof(char *) * (envc + 1));
 
 	for (uint32 i = 0; i < envc; i++) {
