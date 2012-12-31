@@ -21,9 +21,14 @@ typedef struct task {
 	uint8 privilege; /* this task's privilege level (i.e. 0 or 3) */
 	console_t *console;
 	struct task_mm *mm; /* memory info, including the page directory pointer */
+	struct task_mm *old_mm; // used by execve, to ensure that we can return on failure
 	struct open_file **fdtable;
 	char *pwd;
 	struct _reent *reent; // Used by Newlib
+
+	// used by execve
+	bool did_execve;
+	uint32 new_entry;
 
 	struct task *parent;
 	list_t *children;
@@ -57,7 +62,6 @@ int getpid(void);
 int getppid(void);
 task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 length);
 task_t *create_task( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length);
-task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length);
 uint32 scheduler_taskSwitch(uint32 esp);
 uint32 switch_task(task_t *new_task, uint32 esp);
 bool kill_pid(int pid); /* calls kill on the correct task */
@@ -65,6 +69,7 @@ void kill(task_t *task); /* sets a task to TASK_EXITING so that it never runs */
 void destroy_task(task_t *task); /* actually kills the task for good */
 void sleep(uint32 milliseconds);
 int fork(void);
+uint32 *set_task_stack(task_t *task, void *data, uint32 data_len, uint32 entry_point);
 
 /* Used in the ATA driver, to make tasks sleep while waiting for the disk to read data */
 void scheduler_set_iowait(void);

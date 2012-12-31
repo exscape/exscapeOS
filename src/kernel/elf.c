@@ -10,6 +10,8 @@
 
 #define ELF_DEBUG 0
 
+// Takes an array of argument (argv or envp) and copies it *FROM THE KERNEL HEAP*
+// to userspace. Also frees them from the kernel heap, which is why that MUST be the source.
 void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 	assert(argv != NULL);
 	assert(task != NULL);
@@ -62,7 +64,7 @@ void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 	*argv = new_argv;
 }
 
-static bool elf_load_int(const char *path, task_t *task, char **argv, char **envp);
+static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp[]);
 
 bool elf_load(const char *path, task_t *task, void *cmdline) {
 	// Pass command line arguments to the task
@@ -74,10 +76,10 @@ bool elf_load(const char *path, task_t *task, void *cmdline) {
 	assert(argv[0] != NULL);
 	assert(strlen(argv[0]) > 0);
 
-	return elf_load_int(path, task, argv, NULL /* envp */);
+	return elf_load_int(path, task, argv, NULL /* envp */) == 0;
 }
 
-static bool elf_load_int(const char *path, task_t *task, char **argv, char **envp) {
+static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp[]) {
 	// Loads to a fixed address of 0x10000000 for now; not a HUGE deal
 	// since each (user mode) task has its own address space
 
@@ -89,23 +91,29 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 
 	struct stat st;
 
-	if (stat(path, &st) != 0) {
+	int r;
+	if ((r = stat(path, &st)) != 0) {
 		printk("Unable to stat %s; halting execution\n", path);
-		return false;
+		return r;
 	}
+
 	uint32 file_size = st.st_size;
 	unsigned char *data = kmalloc(file_size);
 
 	int fd = open(path, O_RDONLY);
 	if (fd < 0) {
 		printk("elf_load(): unable to open %s\n", path);
-		return false;
+		return fd;
 	}
 
-	int r;
 	if ((r = read(fd, data, file_size)) != (int)file_size) {
 		printk("elf_load(): unable to read from %s; got %d bytes, requested %d\n", path, r, (int)file_size);
-		return false;
+		if (r < 0)
+			return r;
+		else {
+			panic("read() returned less than the expected file size, but not a negative value... why?");
+			return -EIO;
+		}
 	}
 
 	close(fd);
@@ -117,20 +125,33 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 	if (memcmp(header->e_ident.ei_mag, &ELF_IDENT, 4) != 0) {
 		printk("Warning: file %s is not an ELF file; aborting execution\n", path);
 		kfree(data);
-		return false;
+		return -ENOEXEC;
 	}
 
 	// TODO SECURITY: don't trust anything from the file - users can EASILY execute
 	// "forged" ELF files!
 
-	assert(header->e_ident.ei_class == ELFCLASS32);
-	assert(header->e_ident.ei_data == ELFDATA2LSB);
-	assert(header->e_ident.ei_version == 1);
+	if (header->e_ident.ei_class != ELFCLASS32 || header->e_ident.ei_data != ELFDATA2LSB || \
+		header->e_ident.ei_version != 1 || header->e_machine != EM_386 || header->e_type != ET_EXEC) {
+		printk("Warning: file %s is not a valid ELF file (invalid ELFCLASS, ELFDATA, version, machine or not ET_EXEC\n");
+		kfree(data);
+		return -ENOEXEC;
+	}
 
-	assert(header->e_machine == EM_386);
 	assert(header->e_entry >= 0x10000000);
 	assert(header->e_entry <  0x11000000);
-	assert(header->e_type == ET_EXEC);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+//assert(current_directory != kernel_directory);
+//switch_page_directory(kernel_directory);
+
+	if (task == current_task) {
+		// execve
+		assert(current_task->mm != NULL);
+		assert(current_task->mm->areas != NULL);
+		assert(current_task->mm->page_directory != NULL);
+	}
 
 	for (int i=0; i < header->e_phnum; i++) {
 		Elf32_Phdr *phdr = (Elf32_Phdr *)(data + header->e_phoff + header->e_phentsize * i);
@@ -172,7 +193,7 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 			vmm_alloc_user(start_addr_aligned, end_addr, mm, writable);
 
 			// Switch to the new page directory, so that we can copy the data there
-			assert(current_directory == kernel_directory);
+			page_directory_t *old_dir = current_directory;
 			switch_page_directory(mm->page_directory);
 
 			// Okay, we should have the memory. Let's clear it (since PARTS may be left empty by the memcpy,
@@ -183,8 +204,7 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 			// DO NOT use start_addr_aligned here - we want the program to dictate the exact location
 			memcpy((void *)start_addr, data + phdr->p_offset, phdr->p_filesz);
 
-			// Return to the kernel's directory again
-			switch_page_directory(kernel_directory);
+			switch_page_directory(old_dir);
 		}
 		else if (phdr->p_type == PT_GNU_STACK || phdr->p_type == PT_GNU_RELRO || phdr->p_type == PT_GNU_EH_FRAME) {
 			// Quietly ignore
@@ -192,10 +212,6 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 		else
 			printk("Warning: skipping unsupported ELF program header (#%u, p_type = 0x%x)\n", i, phdr->p_type);
 	}
-
-	// If we're still here: set the program entry point
-	// (This updates the value on the stack in task.c)
-	set_entry_point(task, (uint32)header->e_entry);
 
 	// Set up the reentrancy structure for Newlib
 	uint32 size = sizeof(struct _reent);
@@ -206,7 +222,8 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 
 	vmm_alloc_user(task->mm->brk, task->mm->brk + size, mm, true);
 
-	assert(current_directory == kernel_directory);
+	//assert(current_directory == kernel_directory);
+	page_directory_t *old_dir = current_directory;
 	switch_page_directory(task->mm->page_directory);
 
 	task->reent = (struct _reent *)task->mm->brk;
@@ -220,19 +237,26 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 	// Copy the argv data from the kernel heap to the task's address space
 	// This function updates argv to point to the new location.
 	uint32 argc = 0;
-	for (; argv[argc] != NULL; argc++) { } // TODO: OBOE? FIXME
+	for (; argv[argc] != NULL; argc++) { }
 	copy_argv_env_to_task(&argv, argc, task);
 
 	uint32 envc = 0;
 	if (envp) {
-		for (; envp[envc] != NULL; envc++) { } // TODO: OBOE? FIXME
+		for (; envp[envc] != NULL; envc++) { }
 		copy_argv_env_to_task(&envp, envc, task);
 	}
 
 	*((uint32 *)(USER_STACK_START - 4)) = (uint32)argv;
 	*((uint32 *)(USER_STACK_START - 8)) = (uint32)argc;
 
-	switch_page_directory(kernel_directory);
+	// Update the task's name
+	strlcpy((char *)task->name, argv[0], TASK_NAME_LEN);
+
+	if (old_dir != kernel_directory) {
+		// execve, stay with the new dir
+	}
+	else
+		switch_page_directory(old_dir);
 
 #if ELF_DEBUG
 
@@ -283,16 +307,61 @@ static bool elf_load_int(const char *path, task_t *task, char **argv, char **env
 	printk("done in elf_load\n");
 #endif // ELF_DEBUG
 
+	// If we're still here: set the program entry point
+	// (This updates the value on the stack in task.c)
+	task->new_entry = (uint32)header->e_entry;
+	set_entry_point((task_t *)task, task->new_entry);
+
 	kfree(data);
-	return true;
+	return 0;
 }
 
-int execve(const char *path, char * const argv[], char *const envp[]) {
-	return -ENOSYS;
+int execve(const char *path, char *argv[], char *envp[]) {
+	INTERRUPT_LOCK;
+	int r = elf_load_int(path, (task_t *)current_task, argv, envp);
+	kfree((void *)path);
+
+	if (r == 0) {
+		assert(interrupts_enabled() == false);
+		current_task->state = TASK_RUNNING;
+		vmm_destroy_task_mm(current_task->old_mm);
+		current_task->old_mm = NULL;
+
+		current_task->did_execve = true;
+		current_task->esp = (uint32)current_task->stack - 84 + 12;
+		// Overwrite the task's stack with new, zeroed values for registers etc.
+
+		set_task_stack((task_t *)current_task, NULL, 0, 0);
+		assert(current_task->new_entry > 0x100000);
+		set_entry_point((task_t *)current_task, current_task->new_entry);
+
+		assert(current_directory == current_task->mm->page_directory);
+		//current_task->esp = ((uint32)((uint32)USER_STACK_START - sizeof(registers_t)));
+
+		INTERRUPT_UNLOCK;
+		YIELD;
+		panic("returned past execve()!");
+	}
+	else {
+		assert(r < 0);
+
+		// execve failed! Let's undo most of the work, and return.
+		struct task_mm *new_mm = current_task->mm;
+		current_task->mm = current_task->old_mm;
+		vmm_destroy_task_mm(new_mm);
+
+		INTERRUPT_UNLOCK;
+		return r;
+	}
+
+	return 0; // To silence warnings
 }
 
-int sys_execve(const char *path, char * const argv[], char *const envp[]) {
-	if (!CHECK_ACCESS_STR(path))
+int sys_execve(const char *path, char *argv[], char *envp[]) {
+
+	//panic("BYT APPROACH: skapa ny task, kopiera ALL INFO (inkl. pid, fdtable) och byt ena mot den andro om allt funkat");
+
+	if (path == NULL || !CHECK_ACCESS_STR(path))
 		return -EFAULT;
 	if (argv == NULL || !CHECK_ACCESS_READ(argv, sizeof(char *)))
 		return -EFAULT;
@@ -354,6 +423,20 @@ int sys_execve(const char *path, char * const argv[], char *const envp[]) {
 		}
 		assert(kenvp[envc] == NULL);
 	}
+	else {
+		// TODO: execve: copy environment from current task if envp == NULL!
+		//panic("execve: envp == NULL! TODO: copy the environment here!");
+	}
 
-	return execve(path, kargv, kenvp);
+	// And, finally, copy the path.
+	size_t len = strlen(path);
+	char *kpath = kmalloc(len + 1);
+	strlcpy(kpath, path, len + 1);
+
+	current_task->old_mm = current_task->mm; // destroyed later on, if execve doesn't fail
+	current_task->mm = vmm_create_user_mm();
+
+	int r = execve(kpath, kargv, kenvp);
+	panic("execve failed with return value %d\n", r);
+	return r;
 }

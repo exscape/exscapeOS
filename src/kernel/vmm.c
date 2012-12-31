@@ -386,6 +386,31 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 	}
 }
 
+struct task_mm *vmm_create_user_mm(void) {
+	// Set up the memory map struct for this task
+	struct task_mm *mm = kmalloc(sizeof(struct task_mm));
+	memset(mm, 0, sizeof(struct task_mm));
+	mm->areas = list_create();
+	mm->page_directory = create_user_page_dir();
+
+	/* Set up a usermode stack for this task */
+	vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, mm, PAGE_RW);
+
+	/* Set a guard page */
+	vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), mm->page_directory);
+
+	return mm;
+}
+
+struct task_mm *vmm_create_kernel_mm(void) {
+	// Set up the memory map struct for this task
+	struct task_mm *mm = kmalloc(sizeof(struct task_mm));
+	memset(mm, 0, sizeof(struct task_mm));
+	mm->page_directory = current_directory;
+
+	return mm;
+}
+
 void *sbrk(sint32 incr) {
 	// Adds (at least) /incr/ bytes (negative values subtract) to this task's heap area.
 	// The initial heap area is always zero.

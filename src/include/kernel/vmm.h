@@ -118,6 +118,9 @@ uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir);
 void vmm_set_guard(uint32 virtual, page_directory_t *dir);
 void vmm_clear_guard(uint32 virtual, page_directory_t *dir);
 
+struct task_mm *vmm_create_user_mm(void);
+struct task_mm *vmm_create_kernel_mm(void);
+
 /* Sets up everything required and activates paging. */
 void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, unsigned long upper_mem);
 

@@ -97,6 +97,7 @@ DECL_SYSCALL2(nanosleep, int, const struct timespec *, struct timespec *);
 DECL_SYSCALL1(wait, int, int *);
 DECL_SYSCALL0(getppid, int);
 DECL_SYSCALL3(waitpid, int, int, int *, int);
+DECL_SYSCALL3(execve, int, const char *, char **, char **);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -126,6 +127,7 @@ DEFN_SYSCALL2(nanosleep, int, 21, const struct timespec *, struct timespec *);
 DEFN_SYSCALL1(wait, int, 22, int *);
 DEFN_SYSCALL0(getppid, int, 23);
 DEFN_SYSCALL3(waitpid, int, 24, int, int *, int);
+DEFN_SYSCALL3(execve, int, 25, const char *, char **, char **);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -171,9 +173,11 @@ int close(int file) {
 }
 
 int execve(char *name, char **argv, char **env) {
-	// TODO: execve!
-	errno = ENOMEM;
-	return -1;
+	int r = sys_execve(name, argv, env);
+	if (r != 0) {
+		errno = -r;
+		return -1;
+	}
 }
 
 int fstat(int file, struct stat *st) {

@@ -27,6 +27,7 @@ int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp);
 int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp __attribute__((unused)));
 int sys_wait(int *status);
 int sys_waitpid(int pid, int *status, int options);
+int sys_execve(const char *path, char **argv, char **envp);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
@@ -54,7 +55,8 @@ struct syscall_entry syscalls[] = {
 	{ &sys_nanosleep, 32},
 	{ &sys_wait, 32 },
 	{ &getppid, 32 },
-	{ &sys_waitpid, 32 }
+	{ &sys_waitpid, 32 },
+	{ &sys_execve, 32}
 };
 
 uint32 num_syscalls = 0;

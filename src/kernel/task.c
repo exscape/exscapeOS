@@ -226,7 +226,7 @@ void reaper_func(void *data, uint32 length) {
 			}
 		}
 		INTERRUPT_UNLOCK;
-		sleep(1000);
+		sleep(20); // TODO: make sure that higher values won't cause lag!
 	}
 }
 
@@ -378,7 +378,7 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 	strlcpy(buf, path, 1024);
 	path_basename(buf);
 
-	task_t *task = create_task_user((void *)0 /* set up later on */, buf /* task name */, con, data, data_len);
+	task_t *task = create_task_int((void *)0 /* set up later on */, buf /* task name */, con, 3, data, data_len);
 	task->state = TASK_IDLE; // Ensure the task doesn't start until the image is fully loaded
 	assert(task != NULL);
 
@@ -397,22 +397,55 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 	return task;
 }
 
-task_t *create_task_user( void (*entry_point)(void *, uint32), const char *name, console_t *con, void *data, uint32 length) {
-	INTERRUPT_LOCK;
-
-	task_t *task = create_task_int(entry_point, name, con, 3 /* privilege level */, data, length);
+uint32 *set_task_stack(task_t *task, void *data, uint32 data_len, uint32 entry_point) {
 	assert(task != NULL);
+	assert(task->stack != NULL);
 
-	assert(task->console == con);
-	if (con != NULL) {
-		node_t *n = list_find_last(con->tasks, (void *)task);
-		if (n)
-			assert((task_t *)n->data == task);
+	/* Set up the kernel stack of the new process */
+	uint32 *kernelStack = task->stack;
+	uint32 code_segment = 0x08;
+
+	/* data and data length parameters (in opposite order) */
+	*(--kernelStack) = data_len;
+	*(--kernelStack) = (uint32)data;
+
+	/* Functions will call this automatically when they attempt to return */
+	*(--kernelStack) = (uint32)&_exit; // TODO: what will the argument be here? Something that causes stack corruption?
+
+	if (task->privilege == 3) {
+		*(--kernelStack) = 0x23; /* SS */
+		*(--kernelStack) = (USER_STACK_START - 12); /* ESP */
+		code_segment = 0x1b; /* 0x18 | 3 */
 	}
 
-	INTERRUPT_UNLOCK;
+	*(--kernelStack) = 0x0202; /* EFLAGS: IF = 1, IOPL = 0 */
+	*(--kernelStack) = code_segment;        /* CS */
+	*(--kernelStack) = entry_point; // entry point / EIP
+	*(--kernelStack) = 0;                   /* Error code */
+	*(--kernelStack) = 0;                   /* Interrupt number */
 
-	return task;
+	/* GPRs, except ESP */
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+	*(--kernelStack) = 0;
+
+	uint32 data_segment = (task->privilege == 3) ? 0x23 : 0x10;
+
+	/* Data segments (DS, ES, FS, GS) */
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+	*(--kernelStack) = data_segment;
+
+	/* Now that we're done on the stack, set the stack pointers in the task structure */
+	task->esp = (uint32)kernelStack;
+	task->ss = data_segment;
+
+	return kernelStack;
 }
 
 static task_t *create_task_int( void (*entry_point)(void *, uint32), const char *name, console_t *console, uint8 privilege, void *data, uint32 data_len) {
@@ -466,10 +499,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	else
 		strlcpy(task->name, name, TASK_NAME_LEN);
 
-	// Set up the memory map struct for this task
-	task->mm = kmalloc(sizeof(struct task_mm));
-	memset(task->mm, 0, sizeof(struct task_mm));
-
 	// Set up the task's file descriptor table
 	task->fdtable = kmalloc(sizeof(struct open_file) * MAX_OPEN_FILES); // TODO: smaller size + dynamic resizing
 	memset(task->fdtable, 0, sizeof(struct open_file) * MAX_OPEN_FILES);
@@ -477,14 +506,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	task->parent = NULL;
 
 	if (task->privilege == 3) {
-		task->mm->areas = list_create();
-		task->mm->page_directory = create_user_page_dir();
-
-		/* Set up a usermode stack for this task */
-		vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, task->mm, PAGE_RW);
-
-		/* Set a guard page */
-		vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), task->mm->page_directory);
+		task->mm = vmm_create_user_mm();
+		task->old_mm = NULL;
 
 		// Set up stdin, stdout and stderr for this task
 		// Note: The entire table was just zeroed (above)
@@ -509,7 +532,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		task->fdtable[2] = stderr;
 	}
 	else if (task->privilege == 0) {
-		task->mm->page_directory = current_directory;
+		task->mm = vmm_create_kernel_mm();
 	}
 	else
 		panic("Task privilege isn't 0 or 3!");
@@ -525,49 +548,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	if (console)
 		list_append(task->console->tasks, task);
 
-	/* Set up the kernel stack of the new process */
-	uint32 *kernelStack = task->stack;
-	uint32 code_segment = 0x08;
-
-	/* data and data length parameters (in opposite order) */
-	*(--kernelStack) = data_len;
-	*(--kernelStack) = (uint32)data;
-
-	/* Functions will call this automatically when they attempt to return */
-	*(--kernelStack) = (uint32)&_exit; // TODO: what will the argument be here? Something that causes stack corruption?
-
-	if (task->privilege == 3) {
-		*(--kernelStack) = 0x23; /* SS */
-		*(--kernelStack) = (USER_STACK_START - 12); /* ESP */
-		code_segment = 0x1b; /* 0x18 | 3 */
-	}
-
-	*(--kernelStack) = 0x0202; /* EFLAGS: IF = 1, IOPL = 0 */
-	*(--kernelStack) = code_segment;        /* CS */
-	*(--kernelStack) = (uint32)entry_point; /* EIP */
-	*(--kernelStack) = 0;                   /* Error code */
-	*(--kernelStack) = 0;                   /* Interrupt number */
-
-	/* GPRs, except ESP */
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-	*(--kernelStack) = 0;
-
-	uint32 data_segment = (privilege == 3) ? 0x23 : 0x10;
-
-	/* Data segments (DS, ES, FS, GS) */
-	*(--kernelStack) = data_segment;
-	*(--kernelStack) = data_segment;
-	*(--kernelStack) = data_segment;
-	*(--kernelStack) = data_segment;
-
-	/* Now that we're done on the stack, set the stack pointers in the task structure */
-	task->esp = (uint32)kernelStack;
-	task->ss = data_segment;
+	set_task_stack(task, data, data_len, (uint32)entry_point);
 
 	/* Add the new task in the ready queue; we'll insert it so it runs next */
 	list_node_insert_after(list_find_first((list_t *)&ready_queue, (void *)current_task), (void *)task);
@@ -698,6 +679,7 @@ int fork(void) {
 	*(--kernelStack) = data_segment;
 
 	/* Now that we're done on the stack, set the stack pointers in the task structure */
+	printk("fork: kernelStack %p, child->stack %p\n", kernelStack, child->stack);
 	child->esp = (uint32)kernelStack;
 	child->ss = data_segment;
 
@@ -819,7 +801,6 @@ pid_t sys_waitpid(pid_t pid, int *status, int options) {
 
 void set_entry_point(task_t *task, uint32 addr) {
 	assert(task != NULL);
-	assert(task->privilege == 3);
 	*((uint32 *)((uint32)task->stack - 32)) = addr;
 }
 
@@ -945,6 +926,12 @@ uint32 scheduler_taskSwitch(uint32 esp) {
 		}
 
 		return switch_task(tmp, esp);
+	}
+	
+	if (current_task->did_execve) {
+		current_task->did_execve = false;
+		esp = current_task->esp;
+		return esp;
 	}
 
 	/*
