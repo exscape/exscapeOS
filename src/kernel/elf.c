@@ -56,9 +56,9 @@ void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 	}
 
 	i = 0;
-	do {
+	while (tmp_argv[i] != NULL) {
 		kfree(tmp_argv[i++]);
-	} while (tmp_argv[i]);
+	}
 	kfree(tmp_argv);
 
 	*argv = new_argv;
@@ -324,6 +324,7 @@ int execve(const char *path, char *argv[], char *envp[]) {
 	if (r == 0) {
 		assert(interrupts_enabled() == false);
 		current_task->state = TASK_RUNNING;
+		destroy_user_page_dir(current_task->old_mm->page_directory);
 		vmm_destroy_task_mm(current_task->old_mm);
 		current_task->old_mm = NULL;
 
@@ -412,21 +413,25 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 
 	// Do the same for the environment, if there is one
 	char **kenvp = NULL;
-	if (envp) {
-		kenvp = kmalloc(sizeof(char *) * (envc + 1));
-		memset(kenvp, 0, sizeof(char *) * (envc + 1));
 
-		for (uint32 i = 0; i < envc; i++) {
-			uint32 len = user_strlen(envp[i]) + 1;
-			kenvp[i] = kmalloc(len);
-			strlcpy(kenvp[i], envp[i], len);
-		}
-		assert(kenvp[envc] == NULL);
+	// If the caller (the user, prior to the Newlib glue) passes env == NULL,
+	// syscalls.c will provide us with "environ" to copy, instead.
+	// Thus, envp should never be NULL, unless:
+	// 1) A Newlib bug exists, or
+	// 2) The user explicitly bypasses Newlib and uses the syscall,
+	//    in which case he'll have to take care of this.
+	printk("TODO: fix envp\n");
+	//assert(envp != NULL);
+
+	kenvp = kmalloc(sizeof(char *) * (envc + 1));
+	memset(kenvp, 0, sizeof(char *) * (envc + 1));
+
+	for (uint32 i = 0; i < envc; i++) {
+		uint32 len = user_strlen(envp[i]) + 1;
+		kenvp[i] = kmalloc(len);
+		strlcpy(kenvp[i], envp[i], len);
 	}
-	else {
-		// TODO: execve: copy environment from current task if envp == NULL!
-		//panic("execve: envp == NULL! TODO: copy the environment here!");
-	}
+	assert(kenvp[envc] == NULL);
 
 	// And, finally, copy the path.
 	size_t len = strlen(path);
@@ -437,6 +442,6 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 	current_task->mm = vmm_create_user_mm();
 
 	int r = execve(kpath, kargv, kenvp);
-	panic("execve failed with return value %d\n", r);
+	panic("execve failed with return value %d; handle this!\n", r);
 	return r;
 }
