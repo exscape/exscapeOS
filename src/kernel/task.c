@@ -173,7 +173,6 @@ void destroy_task(task_t *task) {
 	task->fdtable = NULL;
 
 	if (task->privilege == 3) {
-		list_remove_first(pagedirs, task->mm->page_directory);
 		destroy_user_page_dir(task->mm->page_directory);
 	}
 	// Free all of this task's frames (user space stack, stuff loaded from ELF files, etc.)

@@ -706,6 +706,7 @@ void destroy_user_page_dir(page_directory_t *dir) {
 			kfree(table);
 		}
 	}
+	list_remove_first(pagedirs, dir);
 
 	kfree(dir);
 
