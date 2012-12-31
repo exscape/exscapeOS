@@ -6,11 +6,19 @@
 #include <kernel/heap.h>
 #include <kernel/console.h> /* printk */
 #include <kernel/pmm.h>
+#include <kernel/elf.h> /* symbol lookup */
 
 // The kernel's page directory
 page_directory_t *kernel_directory = 0;
 // The current page directory;
 page_directory_t *current_directory = 0;
+
+// Forward declarations; the internal (static, _ prefixed) functions are below the public ones
+static void _vmm_invalidate(void *addr);
+static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable);
+static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir);
+static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir);
+//static void _vmm_flush_tlb(void);
 
 /* defined in kheap.c */
 extern uint32 placement_address;
@@ -20,12 +28,35 @@ uint32 mem_end_page = 0;
 
 list_t *pagedirs = NULL;
 
-// Forward declarations; the internal (static, _ prefixed) functions are below the public ones
-static void _vmm_invalidate(void *addr);
-static void _vmm_map(uint32 virtual, uint32 physical, page_directory_t *dir, bool kernelmode, bool writable);
-static page_t *_vmm_get_page(uint32 virtual, page_directory_t *dir);
-static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir);
-//static void _vmm_flush_tlb(void);
+void print_backtrace_ebp(uint32 _ebp) {
+	uint32 *ebp = (uint32 *)_ebp;
+
+	while (ebp != NULL) {
+		if (ebp == NULL || ebp > (uint32 *)0xcfff0000 || ebp < (uint32 *)0x100000) {
+			printk("breaking; ebp = %p *(ebp + 1) = %p\n", ebp, *(ebp + 1));
+			break;
+		}
+
+		struct symbol *sym = addr_to_func(*(ebp + 1));
+		if (sym == NULL) {
+			printk("??? (0x%p) %s\n", *(ebp + 1), IS_USER_SPACE(*(ebp + 1)) ? "(userspace)" : "");
+		}
+		else {
+			if (strcmp(sym->name, "_exit") == 0 && *(ebp + 1) - sym->eip == 0)
+				printk("[end of backtrace - task entry point was above]\n");
+			else
+				printk("%s+0x%x\n", sym->name, *(ebp + 1) - sym->eip);
+		}
+		ebp = (uint32 *)*ebp;
+	}
+}
+
+void print_backtrace(void) {
+	uint32 ebp;
+	asm volatile("mov %%ebp, %[ebp]" : [ebp]"=m"(ebp) : : "memory", "cc");
+	print_backtrace_ebp(ebp);
+}
+
 
 // Allocate physical memory for kernel space, possibly with continuous physical addresses, and map it to the selected virtual address range
 // Returns the first physical address in the range (even if the range may be discontinuous).
