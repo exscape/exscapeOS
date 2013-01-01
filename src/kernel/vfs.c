@@ -345,6 +345,29 @@ error:
 
 }
 
+char *sys_getcwd(char *buf, size_t size) {
+	if (buf == NULL || size == 0) {
+		// Newlib should never call with these arguments
+		panic("sys_getcwd(): buf == NULL || size == 0");
+		return (char *)(-EFAULT);
+	}
+	if (!CHECK_ACCESS_WRITE(buf, size)) {
+		// Ditto
+		panic("sys_getcwd(): passed invalid buffer");
+		return (char *)(-EFAULT);
+	}
+
+	assert(current_task->pwd != NULL);
+
+	if (strlen(current_task->pwd) >= size) {
+		return (char *)(-ERANGE);
+	}
+
+	strlcpy(buf, current_task->pwd, size);
+
+	return buf;
+}
+
 int sys_chdir(const char *in_path) {
 	if (!CHECK_ACCESS_STR(in_path))
 		return -EFAULT;

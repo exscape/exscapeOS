@@ -28,6 +28,7 @@ int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp __attribute
 int sys_wait(int *status);
 int sys_waitpid(int pid, int *status, int options);
 int sys_execve(const char *path, char **argv, char **envp);
+char *sys_getcwd(char *buf, size_t size);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
@@ -56,7 +57,8 @@ struct syscall_entry syscalls[] = {
 	{ &sys_wait, 32 },
 	{ &getppid, 32 },
 	{ &sys_waitpid, 32 },
-	{ &sys_execve, 32}
+	{ &sys_execve, 32},
+	{ &sys_getcwd, 32}
 };
 
 uint32 num_syscalls = 0;

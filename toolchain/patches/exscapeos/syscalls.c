@@ -99,6 +99,7 @@ DECL_SYSCALL1(wait, int, int *);
 DECL_SYSCALL0(getppid, int);
 DECL_SYSCALL3(waitpid, int, int, int *, int);
 DECL_SYSCALL3(execve, int, const char *, char * const *, char * const *);
+DECL_SYSCALL2(getcwd, char *, char *, size_t);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -129,6 +130,7 @@ DEFN_SYSCALL1(wait, int, 22, int *);
 DEFN_SYSCALL0(getppid, int, 23);
 DEFN_SYSCALL3(waitpid, int, 24, int, int *, int);
 DEFN_SYSCALL3(execve, int, 25, const char *, char * const *, char * const *);
+DEFN_SYSCALL2(getcwd, char *, 26, char *, size_t);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -388,4 +390,36 @@ int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
 	}
 	else
 		return 0;
+}
+
+char *getcwd(char *__buf, size_t __size) {
+	if (__buf != NULL && __size > 0) {
+		// User specified a proper buffer: use it, and give up if it fails
+		char *ret = sys_getcwd(__buf, __size);
+		int r = (int)ret;
+		if (r < 0 && r > -150) {
+			// Treat as errno
+			errno = -r;
+			return NULL;
+		}
+		else
+			return ret;
+	}
+	else if (__size == 0 && __buf != NULL) {
+		// size == 0 is invalid; however we ignore it if buf == NULL
+		errno = EINVAL;
+		return NULL;
+	}
+	else if (__buf == NULL) {
+		// Allocate a buffer to use
+		char *buf = malloc(PATH_MAX + 1);
+		char *ret = sys_getcwd(buf, PATH_MAX + 1);
+		if ((int)ret < 0 && (int)ret > -150) {
+			free(buf);
+			errno = -((int)ret);
+			return NULL;
+		}
+		else
+			return ret;
+	}
 }
