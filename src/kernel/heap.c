@@ -5,6 +5,7 @@
 #include <kernel/interrupts.h>
 #include <stdio.h> /* sprintf */
 #include <string.h> /* memset */
+#include <kernel/backtrace.h>
 
 /* Enable extra debugging, i.e. much stricter checks for each alloc/free */
 /* 0: no debugging

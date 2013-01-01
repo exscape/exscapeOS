@@ -7,33 +7,11 @@
 #include <string.h>
 #include <kernel/vmm.h>
 #include <sys/errno.h>
+#include <kernel/backtrace.h>
 
 #define ELF_DEBUG 0
 
 struct symbol *syms = NULL;
-
-// Translate a kernel EIP (e.g. 0x104e3c) to a function name
-struct symbol *addr_to_func(uint32 addr) {
-	if (addr <= 0x100000 || addr >= 0x130000)
-		return NULL;
-	struct symbol *symp = syms;
-	struct symbol tmp = { .eip = 0xffffffff, .name = NULL };
-	struct symbol *best_match = &tmp;
-
-	uint32 min_diff = 0xffffffff;
-	while (symp->eip) {
-		if (symp->eip <= addr && (addr - symp->eip) < min_diff) {
-			best_match = symp;
-			min_diff = addr - symp->eip;
-		}
-		symp++;
-	}
-
-	if (best_match->eip == 0xffffffff || best_match->name == NULL || *(best_match->name) == 0)
-		return NULL;
-
-	return best_match;
-}
 
 void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
 	// Find the string table

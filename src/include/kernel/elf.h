@@ -5,16 +5,8 @@
 #include <kernel/vfs.h>
 #include <kernel/task.h>
 
-struct symbol {
-	uint32 eip;
-	const char *name;
-};
-
 bool elf_load(const char *path, task_t *task, void *data /* command line stuff */);
 void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx);
-
-struct symbol *addr_to_func(uint32 addr);
-
 typedef uint32 Elf32_Addr;
 typedef uint16 Elf32_Half;
 typedef uint32 Elf32_Off;

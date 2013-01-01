@@ -118,17 +118,6 @@ uint32 vmm_get_phys(uint32 virtual, page_directory_t *dir);
 void vmm_set_guard(uint32 virtual, page_directory_t *dir);
 void vmm_clear_guard(uint32 virtual, page_directory_t *dir);
 
-#define BACKTRACE_MAX 16
-// Lower indexes = deeper nesting
-struct backtrace {
-	uint32 eip[BACKTRACE_MAX];
-};
-
-void get_backtrace(uint32 _ebp, struct backtrace *bt);
-void print_backtrace_struct(struct backtrace *bt);
-void print_backtrace(void);
-void print_backtrace_ebp(uint32 _ebp);
-
 struct task_mm *vmm_create_user_mm(void);
 struct task_mm *vmm_create_kernel_mm(void);
 

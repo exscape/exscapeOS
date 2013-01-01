@@ -280,7 +280,6 @@ int read(int file, void *ptr, size_t len) {
 void *sbrk(ptrdiff_t incr) {
 	void *ret = (void *)sys_sbrk(incr);
 	if ((signed long)ret < 0 && (signed long)ret > -200) {
-		// TODO: hack! Assume this region is invalid, and use it for errno returns
 		errno = - ((int)ret);
 		return (void *)(-1);
 	}

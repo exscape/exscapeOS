@@ -6,6 +6,7 @@
 #include <kernel/task.h>
 #include <kernel/vmm.h>
 #include <kernel/elf.h>
+#include <kernel/backtrace.h>
 
 /* task.c */
 extern bool task_switching;
