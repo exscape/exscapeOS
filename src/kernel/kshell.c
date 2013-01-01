@@ -413,8 +413,8 @@ void kshell(void *data, uint32 length) {
 		if (*p == 0)
 			continue;
 
-		//tracing = true;
-		//start_leak_trace();
+		tracing = true;
+		start_leak_trace();
 
 		if (strcmp(p, "help") == 0 || strncmp(p, "help ", 5) == 0) {
 			printk("exscapeOS kernel shell help\n\nAvailable commands:\n");
