@@ -48,7 +48,7 @@ First, some requirements:
 * Some common misc. packages (bash, wget, patch, find, and likely others)
 * GCC
 * nasm
-* mkisofs (or xorrisofs from the xorriso package: edit the Makefile in that case)
+* mkisofs (or xorrisofs from the xorriso package: edit the Makefile to replace mkisofs with xorrisofs in that case)
 * Stuff that the exscapeOS-targeted GCC needs to compile: the MPC, MPFR and GMP libs.
 * QEMU, or something else to run it in (having QEMU will make it easier)
 
