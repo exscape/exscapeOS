@@ -5,8 +5,9 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wuninitialized -Wstrict-prototypes \
 				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function # TODO: re-add unused-function
 
-GCCINC = /usr/local/cross/lib/gcc/i586-pc-exscapeos/4.7.2/include
-TOOLCHAININC = /usr/local/cross/i586-pc-exscapeos/include
+PREFIX = /usr/local/cross
+GCCINC = $(PREFIX)/lib/gcc/i586-pc-exscapeos/4.7.2/include
+TOOLCHAININC = $(PREFIX)/i586-pc-exscapeos/include
 
 CC = i586-pc-exscapeos-gcc
 CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -I$(GCCINC) -I$(TOOLCHAININC) -std=gnu99 -march=i586 $(WARNINGS) -ggdb3 -D__DYNAMIC_REENT__ -D_EXSCAPEOS_KERNEL

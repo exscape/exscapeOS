@@ -11,6 +11,8 @@ FORCE_CLEAN=1
 export TARGET=i586-pc-exscapeos
 export PREFIX=/usr/local/cross
 
+sed -e "s#PREFIX = .*#PREFIX = $PREFIX#g" -i ../Makefile
+
 MAC=0 # checked below automatically
 if gcc --version | grep -iq llvm; then
 	MAC=1
