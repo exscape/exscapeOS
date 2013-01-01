@@ -437,6 +437,7 @@ int dup2(int fd, int fd2) {
 	// Now then: set fd2 to point at the file from fd
 	assert(current_task->fdtable[fd2] == NULL);
 	current_task->fdtable[fd2] = file;
+	file->count++;
 
 	INTERRUPT_UNLOCK;
 	return fd2;
