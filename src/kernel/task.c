@@ -137,7 +137,7 @@ void destroy_task(task_t *task) {
 			// 1) It might be dead: in that case, we free the memory associated with it, and be done with it.
 			// 2) It might be alive: in that case, we move it to a new parent process.
 			if (child->state == TASK_DEAD) {
-				list_remove_first((list_t *)&ready_queue, task);
+				list_remove_first((list_t *)&ready_queue, child);
 				memset(child, 0, sizeof(task_t));
 				kfree(child);
 			}
