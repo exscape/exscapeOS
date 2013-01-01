@@ -383,8 +383,9 @@ task_t *create_task_elf(const char *path, console_t *con, void *data, uint32 dat
 
 	if (!elf_load(path, task, data)) {
 		// Abort!
-		task->state = TASK_EXITING;
-		destroy_task(task);
+		kill(task);
+		//task->state = TASK_EXITING;
+		//destroy_task(task);
 		INTERRUPT_UNLOCK;
 		return NULL;
 	}
