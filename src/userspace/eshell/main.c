@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+//extern char **environ;
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,22 +27,8 @@
 //size_t strlcat(char *dst, const char *src, size_t size);
 //size_t strlcpy(char *dst, const char *src, size_t size);
 
-#if 0
 char *get_cwd(void) {
-	char buf[1024] = {0};
-	if (getcwd(buf, 1024) == NULL)
-		return NULL;
-	size_t len = strlen(buf);
-	char *ret = malloc(len + 1);
-	strcpy(ret, buf);
-
-	return ret;
-}
-#endif
-
-char *get_cwd(void) {
-	// TODO: get_cwd()
-	return strdup("/");
+	return getcwd(NULL, 0);
 }
 
 void str_replace(char *buf, const char *old, const char *new, int size) {
@@ -307,6 +294,8 @@ next_input:
 		if (home && strlen(home) <= strlen(cwd_str) && strncmp(cwd_str, home, strlen(home)) == 0) {
 			char tmp[256] = {0};
 			strcpy(tmp, "~");
+			if (home[strlen(home) - 1] == '/' && strlen(cwd_str) > 1)
+				strlcat(tmp, "/", 256);
 			strlcat(tmp, cwd_str + strlen(home), 256);
 			free(cwd_str);
 			cwd_str = malloc(strlen(tmp) + 1);
