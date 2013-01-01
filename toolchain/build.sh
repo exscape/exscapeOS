@@ -1,13 +1,17 @@
 #!/bin/sh
 
+if [[ `basename $PWD` != "toolchain" ]]; then
+	echo "This script (build.sh) must be run from the toolchain directory."
+	exit 1
+fi
+
 # Set these up!
-NEWLIB_ONLY=1
 DL=1
 FORCE_CLEAN=1
 export TARGET=i586-pc-exscapeos
 export PREFIX=/usr/local/cross
 
-MAC=0 # checked below
+MAC=0 # checked below automatically
 if gcc --version | grep -iq llvm; then
 	MAC=1
 fi
