@@ -119,7 +119,7 @@ void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 		size += PAGE_SIZE;
 	}
 
-	vmm_alloc_user(mm->brk_start, mm->brk_start + size, mm, false /* read-only */);
+	vmm_alloc_user(mm->brk_start, mm->brk_start + size, mm, true /* read-write */);
 	char *addr = (char *)mm->brk_start;
 	mm->brk += size;
 	mm->brk_start += size;
