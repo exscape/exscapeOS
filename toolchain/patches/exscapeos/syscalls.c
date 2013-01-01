@@ -381,6 +381,12 @@ int fork(void) {
 	}
 }
 
+int pipe(int fildes[2]) {
+	// TODO: pipe!
+	errno = ENFILE;
+	return -1;
+}
+
 // Ugly, but doing this appears fairly common-ish.
 int vfork(void)
 {
