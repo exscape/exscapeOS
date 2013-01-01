@@ -256,13 +256,13 @@ int do_close(int fd, task_t *task) {
 	task->fdtable[fd] = NULL;
 	assert(file->count >= 0);
 
-	if (file->path != NULL)
-		kfree(file->path);
-
 	if (file->count == 0) {
+		if (file->path != NULL)
+			kfree(file->path);
 		memset(file, 0, sizeof(struct open_file));
 		kfree(file);
 	}
+
 	return r;
 }
 
