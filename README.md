@@ -19,6 +19,7 @@ Some things that are implemented (also see the CHECKLIST file) are:
 * fork(), execve() for multitasking in user mode
 * Read-only FAT32 (and 32 only) support (disks aren't *required*, but supported)
 * RTC (date/time) stuff, both in kernel mode and user mode (gettimeofday(), time() etc.)
+* VERY basic networking: RTL8139 driver, IP + ARP + ICMP echo and nothing more, and only in kernel mode
 * ... and much, much more significant and nonsignificant stuff.
 
 I successfully "ported" Lua the same day I'm writing this, which I suppose
@@ -48,7 +49,7 @@ First, some requirements:
 * Some common misc. packages (bash, wget, patch, find, and likely others)
 * GCC
 * nasm
-* mkisofs (or xorrisofs from the xorriso package: edit the Makefile in that case)
+* mkisofs (or xorrisofs from the xorriso package: edit the Makefile to replace mkisofs with xorrisofs in that case)
 * Stuff that the exscapeOS-targeted GCC needs to compile: the MPC, MPFR and GMP libs.
 * QEMU, or something else to run it in (having QEMU will make it easier)
 
