@@ -381,6 +381,20 @@ int fork(void) {
 	}
 }
 
+// Ugly, but doing this appears fairly common-ish.
+int vfork(void)
+{
+  int pid = fork();
+	if (pid == 0) {
+		/* In child. */
+		return 0;
+	}
+	else {
+		/* In parent.  Wait for child to finish. */
+		return waitpid(pid, NULL, 0);
+	}
+}
+
 int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
 	int ret;
 	if ((ret = sys_nanosleep(rqtp, rmtp)) != 0) {
