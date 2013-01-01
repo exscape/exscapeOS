@@ -181,7 +181,10 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 	if (p == path) { // Path begins with a /
 		p++;
 		p = strchr(p, '/');
-		assert(p == NULL); // path much not contain directories
+		if (p != NULL) {
+			// We don't support subdirectories!
+			return -ENOENT;
+		}
 		p = path + 1;
 	}
 	else
@@ -362,8 +365,8 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 	if (in_path[0] == '/') {
 		p = &in_path[1];
 		if (strchr(p, '/') != NULL) {
-			panic("initrd_stat: initrd does't support subdirectories!");
-			return -1;
+			//panic("initrd_stat: initrd doesn't support subdirectories!");
+			return -ENOENT;
 		}
 	}
 
