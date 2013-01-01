@@ -277,7 +277,7 @@ uint32 isr_handler(uint32 esp) {
 
 		struct symbol *sym = addr_to_func(regs->eip);
 		if (sym) {
-			printk("%s+0x%x (function that crashed)\n", sym->name, regs->eip - sym->eip);
+			printk("0x%08x %s+0x%x (function that crashed)\n", regs->eip, sym->name, regs->eip - sym->eip);
 		}
 		else
 			printk("EIP not in any known kernel function\n");
