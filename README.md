@@ -79,6 +79,9 @@ The OS has basic FAT32 support - read-only, however. The VFS is barely existent 
 needs a rewrite from the ground up, but that shouldn't be overly obvious from a user's
 viewpoint.
 
+The console system has a few nice features: Alt+F1 though Alt+F4 can be used to use multiple virtual consoles.  
+They support 15 screens worth of scrollback: scroll using shift + arrow keys, or one screen at a time with shift + alt + arrow keys.
+
 Contact
 ========
 You can reach me at serenity@exscape.org if you have any questions, comments
