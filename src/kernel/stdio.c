@@ -7,7 +7,7 @@
 /* Implements I/O for the standard streams */
 
 int stdio_read(int fd, void *buf, size_t length) {
-	assert(fd >= 0 && fd <= 2);
+	assert(fd >= 0 && fd <= 2); // TODO: don't detect based on fd, as fds can be duplicated etc! Same for _write.
 	char *p = (char *)buf;
 
 	if (fd != 0) {
@@ -26,7 +26,10 @@ int stdio_read(int fd, void *buf, size_t length) {
 			if (p > (char *)buf) {
 				p--;
 				putchar(c);
+				putchar(' ');
+				putchar(c);
 				update_cursor();
+				ret--;
 			}
 		}
 
