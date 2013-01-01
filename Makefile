@@ -39,6 +39,9 @@ all: $(OBJFILES)
 	@set -e; for prog in $(USERSPACEPROG); do \
 		make -C $$prog; \
 	done
+	@set -e; if [[ ! -f "initrd/lua" ]]; then \
+		cd contrib && bash lua.sh ; cd ..; \
+	fi
 	@cd misc; ./create_initrd ../initrd/* > /dev/null ; cd ..
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles

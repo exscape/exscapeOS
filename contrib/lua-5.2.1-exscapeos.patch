@@ -1,0 +1,52 @@
+diff -Naur lua-5.2.1/Makefile lua-5.2.1-exscapeos/Makefile
+--- lua-5.2.1/Makefile	2012-05-17 16:05:54.000000000 +0200
++++ lua-5.2.1-exscapeos/Makefile	2013-01-01 15:34:06.000000000 +0100
+@@ -4,7 +4,7 @@
+ # == CHANGE THE SETTINGS BELOW TO SUIT YOUR ENVIRONMENT =======================
+ 
+ # Your platform. See PLATS for possible values.
+-PLAT= none
++PLAT= posix
+ 
+ # Where to install. The installation starts in the src and doc directories,
+ # so take care if INSTALL_TOP is not an absolute path. See the local target.
+diff -Naur lua-5.2.1/src/Makefile lua-5.2.1-exscapeos/src/Makefile
+--- lua-5.2.1/src/Makefile	2012-03-09 17:32:16.000000000 +0100
++++ lua-5.2.1-exscapeos/src/Makefile	2013-01-01 15:33:58.000000000 +0100
+@@ -4,15 +4,15 @@
+ # == CHANGE THE SETTINGS BELOW TO SUIT YOUR ENVIRONMENT =======================
+ 
+ # Your platform. See PLATS for possible values.
+-PLAT= none
++PLAT= posix
+ 
+-CC= gcc
+-CFLAGS= -O2 -Wall -DLUA_COMPAT_ALL $(SYSCFLAGS) $(MYCFLAGS)
++CC= i586-pc-exscapeos-gcc
++CFLAGS= -O0 -gstabs+ -Wall -DLUA_COMPAT_ALL $(SYSCFLAGS) $(MYCFLAGS)
+ LDFLAGS= $(SYSLDFLAGS) $(MYLDFLAGS)
+ LIBS= -lm $(SYSLIBS) $(MYLIBS)
+ 
+-AR= ar rcu
+-RANLIB= ranlib
++AR= i586-pc-exscapeos-ar rcu
++RANLIB= i586-pc-exscapeos-ranlib
+ RM= rm -f
+ 
+ SYSCFLAGS=
+diff -Naur lua-5.2.1/src/luaconf.h lua-5.2.1-exscapeos/src/luaconf.h
+--- lua-5.2.1/src/luaconf.h	2012-05-11 16:14:42.000000000 +0200
++++ lua-5.2.1-exscapeos/src/luaconf.h	2013-01-01 16:41:33.000000000 +0100
+@@ -66,10 +66,10 @@
+ ** CHANGE it (define it) if your system is XSI compatible.
+ */
+ #if defined(LUA_USE_POSIX)
+-#define LUA_USE_MKSTEMP
++/*#define LUA_USE_MKSTEMP*/
+ #define LUA_USE_ISATTY
+ #define LUA_USE_POPEN
+-#define LUA_USE_ULONGJMP
++/*#define LUA_USE_ULONGJMP*/
+ #define LUA_USE_GMTIME_R
+ #endif
+ 
