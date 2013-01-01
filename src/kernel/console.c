@@ -341,7 +341,7 @@ static void puts_status(int x, const char *str) {
 	size_t len = strlen(str);
 	assert(x + len <= 80);
 	for (size_t i = 0; i < len; i++) {
-		if(x + i == 79) break; // TODO: allow timer spinner
+		//if(x + i == 79) break; // TODO: allow timer spinner
 		real_vmem[x + i] = (status_bgcolor << BGCOLOR) | (status_fgcolor << FGCOLOR) | str[i];
 	}
 }

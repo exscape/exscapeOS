@@ -264,7 +264,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	if (init_rtl8139())
 		printc(BLACK, GREEN, "done\n");
 	else
-		printc(BLACK, RED, "failed!\n");
+		printc(BLACK, RED, "none found!\n");
 #endif
 
 	printk("All initialization complete!\n\n");

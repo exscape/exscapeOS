@@ -546,7 +546,7 @@ next_input:
 
 			int stat = 0;
 			while (waitpid(-1, &stat, 0) != -1) { /* Wait for all child tasks to finish */ }
-			printf("child existed with exit status %d\n", WEXITSTATUS(stat));
+			//printf("child existed with exit status %d\n", WEXITSTATUS(stat));
 			//last_exit = WEXITSTATUS(stat); // Extract the 8-bit return value
 		}
 		else if (pid == 0) {
