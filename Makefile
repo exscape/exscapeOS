@@ -32,7 +32,7 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
-	@if [[ ! -f "misc/create_initrd" ]]; then \
+	@if [ ! -f "misc/create_initrd" ]; then \
 		$(NATIVECC) -o misc/create_initrd misc/src/create_initrd.c -std=gnu99; \
 	fi
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
@@ -40,7 +40,7 @@ all: $(OBJFILES)
 	@set -e; for prog in $(USERSPACEPROG); do \
 		make -C $$prog; \
 	done
-	@set -e; if [[ ! -f "initrd/lua" ]]; then \
+	@set -e; if [ ! -f "initrd/lua" ]; then \
 		cd contrib && bash lua.sh ; cd ..; \
 	fi
 	@cd misc; ./create_initrd ../initrd/* > /dev/null ; cd ..
