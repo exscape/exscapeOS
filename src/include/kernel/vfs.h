@@ -103,6 +103,9 @@ int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
 int getdents (int fd, void *dp, int count);
 
+int dup(int);
+int dup2(int, int);
+
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out);
 
 #define lstat stat

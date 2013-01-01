@@ -243,6 +243,9 @@ int do_close(int fd, task_t *task) {
 		return -EBADF;
 
 	struct open_file *file = do_get_filp(fd, task);
+	if (file == NULL) {
+		return -EBADF;
+	}
 	if (file->count < 1)
 		return -EBADF;
 
@@ -260,7 +263,6 @@ int do_close(int fd, task_t *task) {
 		memset(file, 0, sizeof(struct open_file));
 		kfree(file);
 	}
-
 	return r;
 }
 
@@ -383,6 +385,61 @@ off_t lseek(int fd, off_t offset, int whence) {
 	if (file->fops.lseek == NULL)
 		return -EBADF;
 	return file->fops.lseek(fd, offset, whence);
+}
+
+int dup(int fd) {
+	// Duplicate a file descriptor. That is, given an fd,
+	// return another fd that points to the same file.
+	if (fd < 0 || fd >= MAX_OPEN_FILES)
+		return -EBADF;
+
+	INTERRUPT_LOCK;
+	struct open_file *file = get_filp(fd);
+	if (file == NULL) {
+		INTERRUPT_UNLOCK;
+		return -EBADF;
+	}
+
+	// Find the lowest-numbered free file descriptor
+	for (int i = 0; i < MAX_OPEN_FILES; i++) {
+		if (current_task->fdtable[i] == NULL) {
+			// Found it!
+			current_task->fdtable[i] = file;
+			file->count++;
+			INTERRUPT_UNLOCK;
+			return i;
+		}
+	}
+
+	// We found no free fds!
+	INTERRUPT_UNLOCK;
+	return -EMFILE;
+}
+
+int dup2(int fd, int fd2) {
+	if (fd < 0 || fd >= MAX_OPEN_FILES || fd2 < 0 || fd2 >= MAX_OPEN_FILES) {
+		return -EBADF;
+	}
+
+	INTERRUPT_LOCK;
+	struct open_file *file = get_filp(fd);
+	if (file == NULL) {
+		INTERRUPT_UNLOCK;
+		return -EBADF;
+	}
+
+	struct open_file *tmp = get_filp(fd2);
+	if (tmp != NULL) {
+		// We need to close this open file first!
+		close(fd2);
+	}
+
+	// Now then: set fd2 to point at the file from fd
+	assert(current_task->fdtable[fd2] == NULL);
+	current_task->fdtable[fd2] = file;
+
+	INTERRUPT_UNLOCK;
+	return fd2;
 }
 
 mountpoint_t *find_mountpoint_for_path(const char *path) {

@@ -58,7 +58,9 @@ struct syscall_entry syscalls[] = {
 	{ &getppid, 32 },
 	{ &sys_waitpid, 32 },
 	{ &sys_execve, 32},
-	{ &sys_getcwd, 32}
+	{ &sys_getcwd, 32},
+	{ &dup, 32},
+	{ &dup2, 32},
 };
 
 uint32 num_syscalls = 0;

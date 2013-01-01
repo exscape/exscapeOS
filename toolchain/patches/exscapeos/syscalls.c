@@ -100,6 +100,8 @@ DECL_SYSCALL0(getppid, int);
 DECL_SYSCALL3(waitpid, int, int, int *, int);
 DECL_SYSCALL3(execve, int, const char *, char * const *, char * const *);
 DECL_SYSCALL2(getcwd, char *, char *, size_t);
+DECL_SYSCALL1(dup, int, int);
+DECL_SYSCALL2(dup2, int, int, int);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -131,6 +133,8 @@ DEFN_SYSCALL0(getppid, int, 23);
 DEFN_SYSCALL3(waitpid, int, 24, int, int *, int);
 DEFN_SYSCALL3(execve, int, 25, const char *, char * const *, char * const *);
 DEFN_SYSCALL2(getcwd, char *, 26, char *, size_t);
+DEFN_SYSCALL1(dup, int, 27, int);
+DEFN_SYSCALL2(dup2, int, 28, int, int);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -399,6 +403,14 @@ int vfork(void)
 		/* In parent.  Wait for child to finish. */
 		return waitpid(pid, NULL, 0);
 	}
+}
+
+int dup(int fd) {
+	return sys_dup(fd);
+}
+
+int dup2(int fd, int fd2) {
+	return sys_dup2(fd, fd2);
 }
 
 int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
