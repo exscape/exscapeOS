@@ -1,5 +1,5 @@
-#define _POSIX_C_SOURCE 200809L
-//extern char **environ;
+//#define _POSIX_C_SOURCE 200809L
+extern char **environ;
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +14,7 @@
 #include <glob.h>
 //#include <setjmp.h>
 
-//#define DEBUG_PARSING
+#define DEBUG_PARSING
 //#define USE_READLINE
 
 #ifdef USE_READLINE
@@ -348,12 +348,12 @@ next_input:
 		}
 #endif
 
-		//char *redir_stdin = NULL, *redir_stdout = NULL, *redir_stderr = NULL;
-		//bool redir_append_stdout = false, redir_append_stderr = false; // use >>?
+		char *redir_stdin = NULL, *redir_stdout = NULL, *redir_stderr = NULL;
+		bool redir_append_stdout = false, redir_append_stderr = false; // use >>?
 
 		// Handle redirects
 		int i = 0;
-#if 0
+#if 1
 		while (i < argc) {
 			assert(argv[i] != NULL);
 			// Exact parsing is a bitch, but this is fairly easy.
@@ -612,7 +612,7 @@ next_input:
 			}
 #endif
 
-#if 0
+#if 1
 			// Set up redirects
 			if (redir_stdin) {
 				if (freopen(redir_stdin, "r", stdin) == NULL) {
