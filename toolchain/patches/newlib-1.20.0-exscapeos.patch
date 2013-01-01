@@ -94,3 +94,50 @@ diff -Naur newlib-1.20.0/newlib/libc/sys/configure.in newlib-1.20.0-exscapeos/ne
  	h8300hms) AC_CONFIG_SUBDIRS(h8300hms) ;;
  	h8500hms) AC_CONFIG_SUBDIRS(h8500hms) ;;
  	linux) AC_CONFIG_SUBDIRS(linux) ;;
+--- newlib-1.20.0/newlib/libc/posix/Makefile.in	2013-01-01 15:37:06.000000000 +0100
++++ newlib-1.20.0/newlib/libc/posix/Makefile.in	2013-01-01 15:37:41.000000000 +0100
+@@ -58,7 +58,6 @@
+ am__objects_1 = lib_a-closedir.$(OBJEXT) lib_a-collate.$(OBJEXT) \
+ 	lib_a-collcmp.$(OBJEXT) lib_a-creat.$(OBJEXT) \
+ 	lib_a-fnmatch.$(OBJEXT) lib_a-glob.$(OBJEXT) \
+-	lib_a-_isatty.$(OBJEXT) lib_a-isatty.$(OBJEXT) \
+ 	lib_a-opendir.$(OBJEXT) lib_a-readdir.$(OBJEXT) \
+ 	lib_a-readdir_r.$(OBJEXT) lib_a-regcomp.$(OBJEXT) \
+ 	lib_a-regerror.$(OBJEXT) lib_a-regexec.$(OBJEXT) \
+@@ -84,7 +83,7 @@
+ LTLIBRARIES = $(noinst_LTLIBRARIES)
+ libposix_la_LIBADD =
+ am__objects_6 = closedir.lo collate.lo collcmp.lo creat.lo fnmatch.lo \
+-	glob.lo _isatty.lo isatty.lo opendir.lo readdir.lo \
++	glob.lo opendir.lo readdir.lo \
+ 	readdir_r.lo regcomp.lo regerror.lo regexec.lo regfree.lo \
+ 	rewinddir.lo sleep.lo usleep.lo telldir.lo
+ am__objects_7 = scandir.lo seekdir.lo
+@@ -269,7 +268,7 @@
+ INCLUDES = $(NEWLIB_CFLAGS) $(CROSS_CFLAGS) $(TARGET_CFLAGS)
+ GENERAL_SOURCES = \
+ 	closedir.c collate.c collcmp.c creat.c \
+-	fnmatch.c glob.c _isatty.c isatty.c \
++	fnmatch.c glob.c \
+ 	opendir.c readdir.c readdir_r.c \
+ 	regcomp.c regerror.c regexec.c regfree.c \
+ 	rewinddir.c sleep.c usleep.c \
+@@ -409,18 +408,6 @@
+ lib_a-glob.obj: glob.c
+ 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-glob.obj `if test -f 'glob.c'; then $(CYGPATH_W) 'glob.c'; else $(CYGPATH_W) '$(srcdir)/glob.c'; fi`
+ 
+-lib_a-_isatty.o: _isatty.c
+-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-_isatty.o `test -f '_isatty.c' || echo '$(srcdir)/'`_isatty.c
+-
+-lib_a-_isatty.obj: _isatty.c
+-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-_isatty.obj `if test -f '_isatty.c'; then $(CYGPATH_W) '_isatty.c'; else $(CYGPATH_W) '$(srcdir)/_isatty.c'; fi`
+-
+-lib_a-isatty.o: isatty.c
+-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-isatty.o `test -f 'isatty.c' || echo '$(srcdir)/'`isatty.c
+-
+-lib_a-isatty.obj: isatty.c
+-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-isatty.obj `if test -f 'isatty.c'; then $(CYGPATH_W) 'isatty.c'; else $(CYGPATH_W) '$(srcdir)/isatty.c'; fi`
+-
+ lib_a-opendir.o: opendir.c
+ 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-opendir.o `test -f 'opendir.c' || echo '$(srcdir)/'`opendir.c
+ 
