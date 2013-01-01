@@ -289,9 +289,9 @@ next_input:
 		cwd_str = get_cwd();
 
 		// Replace the home directory name with ~, if relevant
-		setenv("HOME", "/", 1); // TODO
+		setenv("HOME", "/", 1);
 		char *home = getenv("HOME");
-		if (home && strlen(home) <= strlen(cwd_str) && strncmp(cwd_str, home, strlen(home)) == 0) {
+		if (home && strlen(home) <= strlen(cwd_str) && strncmp(cwd_str, home, strlen(home)) == 0 && strcmp(home, "/") != 0) {
 			char tmp[256] = {0};
 			strcpy(tmp, "~");
 			if (home[strlen(home) - 1] == '/' && strlen(cwd_str) > 1)
