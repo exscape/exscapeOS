@@ -19,6 +19,7 @@ Some things that are implemented (also see the CHECKLIST file) are:
 * fork(), execve() for multitasking in user mode
 * Read-only FAT32 (and 32 only) support (disks aren't *required*, but supported)
 * RTC (date/time) stuff, both in kernel mode and user mode (gettimeofday(), time() etc.)
+* VERY basic networking: RTL8139 driver, IP + ARP + ICMP echo and nothing more, and only in kernel mode
 * ... and much, much more significant and nonsignificant stuff.
 
 I successfully "ported" Lua the same day I'm writing this, which I suppose
