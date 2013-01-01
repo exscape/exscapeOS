@@ -28,7 +28,7 @@ unsigned char kbdmix[128] =
   't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',	/* Enter key */
     0,			/* 29   - Control */
   'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';',	/* 39 */
- '\'', '`',   0,		/* Left shift */
+ '\'', '<',   0,		/* Left shift */
  '\\', 'z', 'x', 'c', 'v', 'b', 'n',			/* 49 */
   'm', ',', '.', '-',   0,				/* Right shift */
   '*',
@@ -78,7 +78,7 @@ unsigned char kbdse_shift[128] =
   'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'A', '\n', /* Enter key */
     0,          /* 29   - Control */
   'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'O', /* 39 */
- '\'', '`',   0,        /* Left shift */
+ '\'', '>',   0,        /* Left shift */
  '>', 'Z', 'X', 'C', 'V', 'B', 'N',            /* 49 */
   'M', ';', ':', '_',   0,              /* Right shift */
 
