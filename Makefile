@@ -46,7 +46,6 @@ all: $(OBJFILES)
 	@cp misc/initrd.img isofiles/boot
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
-	@bash net-scripts/prepare.sh
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
@@ -67,7 +66,11 @@ todolist:
 %.o: %.s Makefile
 	@nasm -o $@ $< -f elf -F dwarf -g
 
+nofat: all
+	qemu -cdrom bootable.iso -monitor stdio -s -serial file:serial-output -m 64
+
 net: all
+	@bash net-scripts/prepare.sh
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
 
 run: all
