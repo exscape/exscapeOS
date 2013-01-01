@@ -62,6 +62,10 @@ struct leak_info *leak_info = NULL;
 void start_leak_trace(void) {
 	// We can use kmalloc since tracing hasn't started, and will have ended
 	// before we call kfree()
+	if (leak_info != NULL) {
+		printk("Warning: start_leak_trace() with trace already running\n");
+		return;
+	}
 	assert(leak_info == NULL);
 	leak_info = kmalloc(sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
 	memset(leak_info, 0, sizeof(struct leak_info) * MAX_TRACED_ALLOCATIONS);
