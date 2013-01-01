@@ -250,6 +250,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 		return fd;
 	}
 	else {
+		destroy_filp(fd);
 		return -ENOENT;
 	}
 }
