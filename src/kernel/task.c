@@ -530,6 +530,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 		memcpy(stderr, stdin, sizeof(struct open_file));
 		task->fdtable[1] = stdout;
 		task->fdtable[2] = stderr;
+
+		stdin->ino  = 0; // used to identify this as the "keyboard input" file regardless of fd later on (redirects etc.)
+		stdout->ino = 1; // ditto for screen output
+		stderr->ino = 2; // ditto
 	}
 	else if (task->privilege == 0) {
 		task->mm = vmm_create_kernel_mm();

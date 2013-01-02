@@ -3,11 +3,20 @@
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
 #include <string.h>
+#include <sys/errno.h>
 
 /* Implements I/O for the standard streams */
 
 int stdio_read(int fd, void *buf, size_t length) {
-	assert(fd >= 0 && fd <= 2); // TODO: don't detect based on fd, as fds can be duplicated etc! Same for _write.
+	struct open_file *filp = get_filp(fd);
+	if (!filp)
+		return -EBADF;
+	if (filp->ino != 0) {
+		assert(filp->ino <= 2);
+		// Read on stdout or stderr
+		return 0;
+	}
+
 	char *p = (char *)buf;
 
 	if (fd != 0) {
@@ -62,16 +71,17 @@ int stdio_read(int fd, void *buf, size_t length) {
 }
 
 int stdio_write(int fd, const void *buf, size_t length) {
-	const char *p = (const char *)buf;
-	assert(fd >= 0 && fd <= 2);
-
-	if (fd == 0) {
-		return 0; // We can't write to stdin!
+	struct open_file *filp = get_filp(fd);
+	if (!filp)
+		return -EBADF;
+	if (filp->ino == 0) {
+		// Write on stdin
+		return 0;
 	}
 
-	// fd must now be 1 or 2 - they are treated the same, as there is no
-	// buffering on either one.
+	// stdout and stderr are treated identically; neither is buffered
 
+	const char *p = (const char *)buf;
 	size_t ret = 0;
 
 	for (size_t i = 0; i < length && *p; i++) {
@@ -92,9 +102,12 @@ int stdio_close(int fd) {
 }
 
 int stdio_fstat(int fd, struct stat *st) {
+	struct open_file *filp = get_filp(fd);
+	if (!filp)
+		return -EBADF;
 	memset(st, 0, sizeof(struct stat));
 	st->st_dev = 0xffff; // TODO
-	st->st_ino = fd; // There's no better meaning, really
+	st->st_ino = filp->ino;
 	st->st_mode = 0666 | S_IFCHR;
 	st->st_blksize = 128;
 
