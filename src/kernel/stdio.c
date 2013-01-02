@@ -32,6 +32,16 @@ int stdio_read(int fd, void *buf, size_t length) {
 				ret--;
 			}
 		}
+		else if (c == -1) {
+			// EOF sent by Ctrl-D
+			if (ret > 0)
+				continue;
+			else {
+				putchar('^');
+				putchar('D');
+				return 0;
+			}
+		}
 
 		if (c == '\r' || c == '\n') {
 			ret++;

@@ -82,7 +82,10 @@ int getchar(void) {
 	if (keybuffer->read_ptr >= keybuffer->data + KEYBUFFER_SIZE)
 		keybuffer->read_ptr = keybuffer->data;
 
-	return ret;
+	if (ret == 4) // Used as EOF
+		return -1;
+	else
+		return ret;
 }
 
 // NOTE: these only do half the work... they may well point outside of the buffer!
