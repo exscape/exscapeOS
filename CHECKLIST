@@ -22,4 +22,8 @@
 	[ ] Write suppport
 [x] Executable loading (ELF parsing, etc.)
 [x] User-mode libc (wohoo!)
+[x] fork + execve
+[x] User-mode shell
+[ ] Signals
+[ ] Pipes
 [ ] FPU/SSE/AVX state saving during context switches

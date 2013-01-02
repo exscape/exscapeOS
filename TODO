@@ -1,6 +1,9 @@
+	* "clear" command in the user mode shell
+	* Color support (ANSI escapes?)
+	Combined, this likely means adding some terminfo-ish terminal support; I have *NO* idea how that works, so it'll have to wait a bit.
+
 * FAT: write support!
 * DMA for ATA transfers?
-* Keyboard input: pass more info to userland, so that e.g. ^C and ^D could work.
 * Signal support
 * Improve the user-mode shell
 * Pipes
