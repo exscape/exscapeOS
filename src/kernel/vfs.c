@@ -342,6 +342,7 @@ int chdir(const char *in_path) {
 	return 0;
 
 error:
+	kfree(current_task->pwd);
 	current_task->pwd = old_pwd;
 	return err;
 
