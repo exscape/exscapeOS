@@ -736,14 +736,14 @@ pid_t sys_waitpid(pid_t pid, int *status, int options) {
 		return -EFAULT;
 	if (current_task->children == NULL || current_task->children->count <= 0)
 		return -ECHILD;
-	if (options != 0 && options != WNOHANG && options != (WNOHANG | WUNTRACED))
+	if ((options & ~(WNOHANG | WUNTRACED)) != 0) /* unknown flags used */
 		return -EINVAL;
 
 	if (pid == -1 && options == 0)
 		return sys_wait(status);
 	else if (pid < -1 || pid == 0) {
 		panic("waitpid() with pid < -1, or pid == 0: process groups are not implemented!");
-		return -ENOSYS;
+		return -ENOSYS; // not reached
 	}
 	assert(pid > 0 || pid == -1);
 
