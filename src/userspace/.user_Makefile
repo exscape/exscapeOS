@@ -16,7 +16,7 @@ OUTNAME := $(shell basename `pwd`)
 
 all: $(OBJFILES)
 	@$(LD) $(LDFLAGS) -o $(OUTNAME) $(OBJFILES)
-	@mv -f $(OUTNAME) ../../../initrd
+	@mv -f $(OUTNAME) ../../../initrd/bin
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) $(OUTNAME))

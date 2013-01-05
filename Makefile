@@ -40,7 +40,7 @@ all: $(OBJFILES)
 	@set -e; if [ ! -f "initrd/bin/lua" ]; then \
 		cd contrib && bash lua.sh ; cd ..; \
 	fi
-	python misc/create_initrd.py
+	@python misc/create_initrd.py > /dev/null # let stderr through!
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
 
