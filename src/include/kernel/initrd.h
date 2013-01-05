@@ -10,10 +10,14 @@ typedef struct {
 
 /* Also defined in create_initrd.c */
 typedef struct {
-	uint8 magic;
+	int parent; /* inode of the parent directory; 0 for the root dir */
+	int inode; /* inode of this file/directory; also 0 for the root dir */
+	int mtime; /* unix timestamp */
 	char name[64];
-	uint32 offset; /* how far into the initrd image this file is located */
-	uint32 length; /* size of the file, in bytes */
+	uint32 mode; /* orig. file perms & ~0222 - includes S_ISDIR() etc. flags */
+	uint32 offset; /* # of bytes into initrd file is located. 0 for directories */
+	uint32 length; /* file: # bytes. dir: # direct child entries...? */
+
 } initrd_file_header_t;
 
 /* Creates the initrd; the argument is the memory location of the multiboot module */
