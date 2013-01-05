@@ -107,6 +107,8 @@ bool fs_mount(void) {
 }
 
 int initrd_getdents(int fd, void *dp, int count);
+int initrd_closedir(DIR *dir);
+
 int initrd_read(int fd, void *buf, size_t length) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = get_filp(fd);
@@ -225,10 +227,13 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 			else
 				file->fops.getdents = NULL;
 			file->count++;
+
+			initrd_closedir(dir);
 			return fd;
 		}
 	}
 
+	initrd_closedir(dir);
 	return -ENOENT;
 }
 
@@ -239,7 +244,6 @@ int initrd_close(int fd) {
 }
 
 struct dirent *initrd_readdir(DIR *dir);
-int initrd_closedir(DIR *dir);
 
 DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 	assert(mp != NULL);
@@ -408,6 +412,8 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 	st->st_atime = initrd_files[i].mtime;
 	st->st_blksize = 4096; // Doesn't matter
 	st->st_blocks = blocks;
+
+	close(fd);
 
 	return 0;
 }
