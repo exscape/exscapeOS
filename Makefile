@@ -32,19 +32,15 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
-	@if [ ! -f "misc/create_initrd" ]; then \
-		$(NATIVECC) -o misc/create_initrd misc/src/create_initrd.c -std=gnu99; \
-	fi
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
 	@set -e; for prog in $(USERSPACEPROG); do \
 		make -C $$prog; \
 	done
-	@set -e; if [ ! -f "initrd/lua" ]; then \
+	@set -e; if [ ! -f "initrd/bin/lua" ]; then \
 		cd contrib && bash lua.sh ; cd ..; \
 	fi
-	@cd misc; ./create_initrd ../initrd/* > /dev/null ; cd ..
-	@cp misc/initrd.img isofiles/boot
+	python misc/create_initrd.py
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
 
