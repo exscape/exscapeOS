@@ -8,6 +8,7 @@
 #include <kernel/task.h>
 #include <sys/errno.h>
 #include <path.h>
+#include <kernel/fat.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 static initrd_file_header_t *initrd_files; /* array of headers, one for each file in the initrd */
@@ -73,6 +74,8 @@ bool fs_mount(void) {
 					if (strcmp(path, "/") == 0)
 						root_mounted = true;
 					strcpy(mp->path, path);
+					fat32_partition_t *part = (fat32_partition_t *)devtable[mp->dev];
+					part->mp = mp;
 					printk("%s, ", mp->path);
 					break;
 				}

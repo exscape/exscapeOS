@@ -71,6 +71,8 @@ typedef struct fat32_partition {
 	/* The entire BPB and EBPB data structures for this partition */
 	fat32_bpb_t *bpb;
 
+	mountpoint_t *mp;
+
 	uint8 *cached_fat;
 } fat32_partition_t;
 

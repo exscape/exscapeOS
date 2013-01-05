@@ -424,6 +424,7 @@ bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32 *cur_c
 
 	return true;
 }
+
 /* Locates the (first) cluster number associated with a path. */
 uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, int type) {
 	assert(part != NULL);
@@ -451,7 +452,7 @@ uint32 fat_cluster_for_path(fat32_partition_t *part, const char *in_path, int ty
 	struct dirent *dirent = NULL;
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
 		/* Take care of this token */
-		DIR *dir = fat_opendir_cluster(part, cur_cluster, find_mountpoint_for_path(in_path));
+		DIR *dir = fat_opendir_cluster(part, cur_cluster, part->mp);
 		while ((dirent = fat_readdir(dir)) != NULL) {
 			if (stricmp(dirent->d_name, token) == 0) {
 				/* We found the entry we were looking for! */
