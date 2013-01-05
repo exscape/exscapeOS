@@ -641,9 +641,7 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
-			//start_leak_trace();
-			//tracing = true;
-			static const char _PATH[] = "/bin:/initrd/bin:/";
+			static const char _PATH[] = "/bin:/initrd/bin:/fat/bin:/";
 			char PATH[sizeof(_PATH)] = {0};
 
 			strcpy(PATH, _PATH); // strtok_r will modify this!
@@ -669,10 +667,14 @@ void kshell(void *data, uint32 length) {
 						task = create_task_elf(path, con, p, strlen(p));
 
 						closedir(dir);
+						dir = NULL;
 						goto exit_loop;
 					}
 				}
-				closedir(dir);
+				if (dir) {
+					closedir(dir);
+					dir = NULL;
+				}
 			}
 			printk("No such command: %s\n", p);
 exit_loop:

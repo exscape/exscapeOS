@@ -277,12 +277,12 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 					break;
 				}
 				else {
-					return NULL; // TODO: ENOTDIR
+					goto err; // TODO: ENOTDIR
 				}
 			}
 		}
 		if (!found)
-			return NULL; // TODO: ENOENT
+			goto err; // TODO: ENOENT
 	}
 
 	// struct dirent has space for (currently) 256 chars in the path; the initrd only supports 64,
@@ -329,6 +329,10 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 	}
 
 	return dir;
+
+err:
+	kfree(dir);
+	return NULL;
 }
 
 struct dirent *initrd_readdir(DIR *dir) {
@@ -443,7 +447,7 @@ int initrd_getdents(int fd, void *dp, int count) {
 	DIR *dir = file->data;
 	assert(dir != NULL);
 
-	if (dir->len != 0 && dir->pos >= dir->len) {
+	if (dir->buf != NULL && dir->pos >= dir->len) {
 		// We're done!
 		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
 		initrd_closedir(dir);
