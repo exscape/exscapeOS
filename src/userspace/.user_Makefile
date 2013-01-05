@@ -19,7 +19,7 @@ all: $(OBJFILES)
 	@mv -f $(OUTNAME) ../../../initrd/bin
 
 clean:
-	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) $(OUTNAME))
+	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) ../../../initrd/bin/$(OUTNAME))
 
 -include $(DEPFILES)
 
