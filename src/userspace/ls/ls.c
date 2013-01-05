@@ -105,8 +105,21 @@ int main(int argc, char **argv) {
 			else if (opt_list) {
 
 				char perm_str[11] = "-rwxrwxrwx";
-				if (st.st_mode & 040000)
+				if (S_ISDIR(st.st_mode))
 					perm_str[0] = 'd';
+				else if (S_ISCHR(st.st_mode))
+					perm_str[0] = 'c';
+				else if (S_ISBLK(st.st_mode))
+					perm_str[0] = 'b';
+				else if (S_ISLNK(st.st_mode))
+					perm_str[0] = 'l';
+				else if (S_ISFIFO(st.st_mode))
+					perm_str[0] = 'p';
+				else if (S_ISSOCK(st.st_mode))
+					perm_str[0] = 's';
+				else if ( ! S_ISREG(st.st_mode) ) {
+					fprintf(stderr, "ls: warning: unknown permission for file %s\n", dent->d_name);
+				}
 
 				for (int i=0; i<9; i++) {
 					if (!(st.st_mode & (1 << i))) {
