@@ -14,6 +14,7 @@ _IFDIR = 0040000
 #};
 structstr = 'iii64sIII'
 
+# Describes one file or directory on the initrd
 class File(object):
 	def __init__(self, parent, inode, name, mode, length, path, mtime):
 		self.parent = parent
@@ -33,6 +34,7 @@ class File(object):
 	def __str__(self):
 		return __repr__(self)
 
+# Creates an initrd image from a set of Files (see above)
 def create_image(output_path, files):
 	if len(files) < 1:
 		sys.stderr.write('Error: attempted to write 0 files')
@@ -42,22 +44,35 @@ def create_image(output_path, files):
 	header_fmt = 'i'
 	f.write(struct.pack(header_fmt, len(files))) # write the initrd header
 
+# total data bytes
 	total = 0
 
 	print 'initrd header length: {0} bytes'.format(struct.calcsize(header_fmt))
 	print 'file header length: {0} bytes per file'.format(struct.calcsize(structstr))
 
+	# Write all the headers
 	for file in files:
 		if (file.mode & _IFDIR) == 0:
 			file.offset = 4 + struct.calcsize(structstr) * len(files) + total # first header + all file headers + all previously written file data
 		else:
+			# Dirs have no data and thus no offset
 			file.offset = 0
+
+			# Set file.length to the number of child entries
+			children = 0
+			for _f in files:
+				if _f.parent == file.inode:
+					children += 1
+			file.length = children
+
 		f.write(file.__repr__())
 		readable_date = datetime.datetime.fromtimestamp(file.mtime).strftime('%Y-%m-%d %H:%M:%S')
-		print "Wrote file header: parent={0} inode={1} mtime={2} name={3} mode={4} offset={5} length={6}".format(file.parent, file.inode, readable_date, file.name, oct(file.mode), file.offset, file.length)
+		print "Wrote file header: parent={0} inode={1} mtime={2} name={3} mode={4} offset={5} length={6} {7}".format(file.parent, file.inode, readable_date, file.name, oct(file.mode), file.offset, file.length, "(# direct children)" if (file.mode & _IFDIR) else "")
 		if (file.mode & _IFDIR) == 0:
 			# Only files change the offset, not dirs!
 			total += file.length
+
+	# Write the file data
 	for file in files:
 		if (file.mode & _IFDIR):
 			continue
