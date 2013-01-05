@@ -10,17 +10,9 @@
 #include <path.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
-static initrd_file_header_t *file_headers; /* array of headers, one for each file in the initrd */
+static initrd_file_header_t *initrd_files; /* array of headers, one for each file in the initrd */
 
 mountpoint_t *initrd_mp = NULL;
-
-//struct dirent dirent;
-
-// Returns the file size
-//static uint32 initrd_fsize(fs_node_t *node) {
-//initrd_file_header_t header = file_headers[node->inode];
-//return header.length;
-//}
 
 /*
  * This function USES the initrd, but doesn't *really* belong here.
@@ -34,17 +26,22 @@ bool fs_mount(void) {
 	}
 	int ino = -1;
 	for (uint32 i=0; i < initrd_header->nfiles; i++) {
-		if (strcmp(file_headers[i].name, "mounts") == 0) {
-			ino = i;
-			break;
+		if (strcmp(initrd_files[i].name, "mounts") == 0) {
+			int parent = initrd_files[i].parent;
+			if (initrd_files[parent].parent == 0 && strcmp(initrd_files[parent].name, "etc") == 0) {
+				// Ugly, but this can't use the real initrd code.
+				// Checks that this is indeed /etc/mounts and not some other file named "mounts".
+				ino = i;
+				break;
+			}
 		}
 	}
 
 	if (ino == -1) {
-		panic("initrd has no \"mounts\" file! I cannot set up a FS root without it.");
+		panic("initrd has no /etc/mounts file! I cannot set up a FS root without it.");
 	}
 
-	initrd_file_header_t header = file_headers[ino];
+	initrd_file_header_t header = initrd_files[ino];
 	char *buf = kmalloc(header.length + 1);
 	memcpy(buf, (void *)header.offset, header.length);
 	buf[header.length] = 0;
@@ -113,8 +110,12 @@ int initrd_getdents(int fd, void *dp, int count);
 int initrd_read(int fd, void *buf, size_t length) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = get_filp(fd);
+
 	assert(devtable[file->dev] == (void *)0xffffffff);
-	initrd_file_header_t header = file_headers[file->ino];
+	initrd_file_header_t header = initrd_files[file->ino];
+
+	if (S_ISDIR(header.mode))
+		return -EISDIR;
 
 	/* We can't read outside the file! */
 	if (file->offset >= header.length)
@@ -141,8 +142,13 @@ off_t initrd_lseek(int fd, off_t offset, int whence) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = get_filp(fd);
 
+
 	assert(file->ino < initrd_header->nfiles);
-	uint32 file_size = file_headers[file->ino].length;
+
+	if (!S_ISREG(initrd_files[file->ino].mode))
+		return -EINVAL;
+
+	uint32 file_size = initrd_files[file->ino].length;
 
 	if (whence == SEEK_SET) {
 		if (offset < 0)
@@ -171,57 +177,42 @@ off_t initrd_lseek(int fd, off_t offset, int whence) {
 }
 int initrd_fstat(int fd, struct stat *st);
 
-int initrd_open(uint32 dev, const char *path, int mode) {
-	assert(dev <= MAX_DEVS - 1);
-	assert(devtable[dev] == (void *)0xffffffff);
+DIR *initrd_opendir(mountpoint_t *mp, const char *in_path);
+int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) {
+	//assert(dev <= MAX_DEVS - 1);
+	//assert(devtable[dev] == (void *)0xffffffff);
+	/* ignore dev */
 	assert(path != NULL);
 	mode=mode; // still unused
-
-	const char *p = strchr(path, '/');
-	if (p == path) { // Path begins with a /
-		p++;
-		p = strchr(p, '/');
-		if (p != NULL) {
-			// We don't support subdirectories!
-			return -ENOENT;
-		}
-		p = path + 1;
-	}
-	else
-		p = path;
 
 	int fd;
 	struct open_file *file = new_filp(&fd);
 	if (!file || fd < 0)
-		return -EMFILE;
+		return -EMFILE; // TODO: huh?
 
-	if (strcmp(path, "/.") == 0 || strcmp(path, "/") == 0) {
-		// Special case for the root directory
-		memset(file, 0, sizeof (struct open_file));
-		file->ino = 0xfffffff;
-		file->dev = dev;
-		file->_cur_ino = 0xffffffff;
-		file->count++;
-		assert(file->count == 1); // until dup/dup2 etc. exists
-		file->path = strdup(path);
-		file->fops.close = initrd_close;
-		file->fops.lseek = initrd_lseek;
-		file->fops.fstat = initrd_fstat;
-		file->fops.getdents = initrd_getdents;
-		file->mp = initrd_mp;
+	char dirname[PATH_MAX+1] = {0};
+	char basename[PATH_MAX+1] = {0};
+	strlcpy(dirname, path, PATH_MAX+1);
+	strlcpy(basename, path, PATH_MAX+1);
 
-		return fd;
+	path_dirname(dirname);
+	path_basename(basename);
+
+	DIR *dir = initrd_opendir(initrd_mp, dirname);
+	if (!dir) {
+		destroy_filp(fd);
+		return -ENOENT; // TODO: correct errno (there are other causes for opendir to fail!)
 	}
 
-	file->ino = 0xffffffff;
-	// Find the inode number
+	assert(dir->ino < initrd_header->nfiles);
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
-		if (strcmp(file_headers[i].name, p) == 0) {
+		if (initrd_files[i].parent == (int)dir->ino && strcmp(initrd_files[i].name, basename) == 0) {
+			// Found it!
 			file->ino = i;
 			file->dev = dev;
 			file->_cur_ino = i;
 			file->offset = 0;
-			file->size = 0; // TODO: remove?
+			file->size = initrd_files[i].length;
 			file->mp = initrd_mp;
 			file->path = strdup(path); // TODO: what does this turn out to be?
 			file->fops.read  = initrd_read;
@@ -229,21 +220,16 @@ int initrd_open(uint32 dev, const char *path, int mode) {
 			file->fops.close = initrd_close;
 			file->fops.lseek = initrd_lseek;
 			file->fops.fstat = initrd_fstat;
+			if (S_ISDIR(initrd_files[i].mode))
+				file->fops.getdents = initrd_getdents;
+			else
+				file->fops.getdents = NULL;
 			file->count++;
-			assert(file->count == 1); // We have no dup, dup2 etc. yet
-			break;
+			return fd;
 		}
 	}
 
-	if (file->ino == 0xffffffff) {
-		// We didn't find it
-		destroy_filp(fd);
-		return -ENOENT;
-	}
-
-	assert(file->mp != NULL);
-
-	return fd;
+	return -ENOENT;
 }
 
 int initrd_close(int fd) {
@@ -255,13 +241,9 @@ int initrd_close(int fd) {
 struct dirent *initrd_readdir(DIR *dir);
 int initrd_closedir(DIR *dir);
 
-DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
+DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 	assert(mp != NULL);
-	assert(path != NULL);
-	if (strcmp(path, "/") != 0) {
-		// initrd doesn't support subdirectories! / is the only one that can be opened
-		return NULL;
-	}
+	assert(in_path != NULL);
 
 	DIR *dir = kmalloc(sizeof(DIR));
 	memset(dir, 0, sizeof(DIR));
@@ -269,10 +251,37 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 	dir->dev = mp->dev;
 	dir->mp = mp;
 
+	char path[PATH_MAX+1];
+	strlcpy(path, in_path, PATH_MAX+1);
+
+	// Find the correct inode, by looping through all the tokens in the path
+	char *tmp;
+	char *token = NULL;
+	int dir_inode = 0; // root dir
+	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
+		// Did we find this token?
+		// E.g. in the second loop for path="/etc/dir/file", we must find a "dir" that S_ISDIR() and is a child of etc
+		bool found = false; 
+		for (uint32 i=0; i < initrd_header->nfiles; i++) {
+			if (initrd_files[i].parent == dir_inode && strcmp(initrd_files[i].name, token) == 0) {
+				if (S_ISDIR(initrd_files[i].mode)) {
+					found = true;
+					dir_inode = initrd_files[i].inode;
+					break;
+				}
+				else {
+					return NULL; // TODO: ENOTDIR
+				}
+			}
+		}
+		if (!found)
+			return NULL; // TODO: ENOENT
+	}
+
 	// struct dirent has space for (currently) 256 chars in the path; the initrd only supports 64,
 	// so we can cut back a bit. Add 4 bytes for padding, and the rest to ensure that the last dirent
 	// is all within the buffer.
-	dir->_buflen = initrd_header->nfiles * (sizeof(struct dirent) - MAXNAMLEN + 64 + 4) + sizeof(struct dirent);
+	dir->_buflen = initrd_files[dir_inode].length * (sizeof(struct dirent) - MAXNAMLEN + 64 + 4) + sizeof(struct dirent);
 	dir->buf = kmalloc(dir->_buflen);
 	memset(dir->buf, 0, dir->_buflen);
 
@@ -281,14 +290,22 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *path) {
 
 	dir->pos = 0;
 	dir->len = 0;
+	dir->ino = dir_inode;
 
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
+		if (initrd_files[i].parent != dir_inode)
+			continue;
+
 		struct dirent *dent = (struct dirent *)(dir->buf + dir->len);
 		// It's already zeroed out, above
 		dent->d_ino = i;
 		dent->d_dev = dir->dev;
-		dent->d_type = DT_REG;
-		strlcpy(dent->d_name, file_headers[i].name, 64);
+		if (S_ISDIR(initrd_files[i].mode))
+			dent->d_type = DT_DIR;
+		else
+			dent->d_type = DT_REG;
+
+		strlcpy(dent->d_name, initrd_files[i].name, 64);
 		dent->d_namlen = strlen(dent->d_name);
 		dent->d_reclen = 12 /* fixed fields */ + dent->d_namlen + 1 /* NULL */;
 
@@ -349,6 +366,7 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st);
 
 int initrd_fstat(int fd, struct stat *st) {
 	struct open_file *file = get_filp(fd);
+	assert(file != NULL);
 
 	char relpath[PATH_MAX+1] = {0};
 	find_relpath(file->path, relpath, NULL);
@@ -361,59 +379,37 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 	assert(in_path != NULL);
 	assert(st != NULL);
 
-	const char *p = NULL;
-	if (in_path[0] == '/') {
-		p = &in_path[1];
-		if (strchr(p, '/') != NULL) {
-			//panic("initrd_stat: initrd doesn't support subdirectories!");
-			return -ENOENT;
+	int fd = initrd_open(0xffff /* invalid dev, unused */, in_path, 0);
+	if (fd < 0)
+		return fd;
+
+	struct open_file *file = get_filp(fd);
+	assert(file != NULL);
+
+	memset(st, 0, sizeof(struct stat));
+
+	st->st_dev = 0xffff; // invalid ID
+	for (int dev=0; dev < MAX_DEVS; dev++) {
+		if (devtable[dev] == (void *)0xffffffff) {
+			st->st_dev = dev;
+			break;
 		}
 	}
 
-	if (!*p) {
-		// Path is just /
-		// SPECIAL CASE: stat the root directory, which
-		// won't be found in the directory list on-disk. Ugh.
-		memset(st, 0, sizeof(struct stat));
+	int i = file->ino;
 
-		st->st_dev = mp->dev;
-		st->st_ino = 0xffff;
-		st->st_mode = 0777; // TODO
-		st->st_mode |= 040000; // directory
-		st->st_nlink = 1;
-		st->st_size = 0;
-		// TODO: set times!
-		st->st_blksize = 4096; // doesn't really matter
-		st->st_blocks = 1;
+	uint32 blocks = (initrd_files[i].length % 4096 == 0) ? initrd_files[i].length / 4096 : (initrd_files[i].length / 4096) + 1;
+	st->st_ino = i;
+	st->st_mode = initrd_files[i].mode;
+	st->st_nlink = 1;
+	st->st_size = initrd_files[i].length;
+	st->st_mtime = initrd_files[i].mtime;
+	st->st_ctime = initrd_files[i].mtime;
+	st->st_atime = initrd_files[i].mtime;
+	st->st_blksize = 4096; // Doesn't matter
+	st->st_blocks = blocks;
 
-		return 0;
-	}
-
-	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
-		if (strcmp(file_headers[i].name, p) == 0) {
-			memset(st, 0, sizeof(struct stat));
-
-			st->st_dev = 0xffff; // invalid ID
-			for (int dev=0; dev < MAX_DEVS; dev++) {
-				if (devtable[dev] == (void *)0xffffffff) {
-					st->st_dev = dev;
-					break;
-				}
-			}
-			uint32 blocks = (file_headers[i].length % 4096 == 0) ? file_headers[i].length / 4096 : (file_headers[i].length / 4096) + 1;
-			st->st_ino = i;
-			st->st_mode = 0777; // TODO
-			st->st_nlink = 1;
-			st->st_size = file_headers[i].length;
-			// TODO: file times!
-			st->st_blksize = 4096; // Doesn't matter
-			st->st_blocks = blocks;
-
-			return 0;
-		}
-	}
-
-	return -ENOENT;
+	return 0;
 }
 
 int initrd_getdents(int fd, void *dp, int count) {
@@ -426,11 +422,13 @@ int initrd_getdents(int fd, void *dp, int count) {
 	}
 
 	struct open_file *file = get_filp(fd);
+	assert(file != NULL);
 
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
 		assert(file->dev < MAX_DEVS);
-		file->data = initrd_opendir(initrd_mp, "/");
+		assert(file->path != NULL && file->path[0] != 0);
+		file->data = initrd_opendir(initrd_mp, file->path);
 	}
 
 	DIR *dir = file->data;
@@ -488,12 +486,11 @@ int initrd_getdents(int fd, void *dp, int count) {
 	return written;
 }
 
-
 /* Fetches the initrd from the location specified (provided by GRUB),
  * and sets up the necessary structures. */
 void init_initrd(uint32 location) {
 	initrd_header = (initrd_header_t *)location;
-	file_headers = (initrd_file_header_t *)(location + sizeof(initrd_header_t));
+	initrd_files = (initrd_file_header_t *)(location + sizeof(initrd_header_t));
 
 	mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
 	//strlcpy(mp->path, "/", sizeof(mp->path));
@@ -518,6 +515,6 @@ void init_initrd(uint32 location) {
 	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
 		/* Change the offset value to be relative to the start of memory, 
 		 * rather than the start of the ramdisk/initrd image */
-		file_headers[i].offset += location;
+		initrd_files[i].offset += location;
 	}
 }

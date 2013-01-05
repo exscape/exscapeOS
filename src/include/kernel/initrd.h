@@ -17,7 +17,6 @@ typedef struct {
 	uint32 mode; /* orig. file perms & ~0222 - includes S_ISDIR() etc. flags */
 	uint32 offset; /* # of bytes into initrd file is located. 0 for directories */
 	uint32 length; /* file: # bytes. dir: # direct child entries...? */
-
 } initrd_file_header_t;
 
 /* Creates the initrd; the argument is the memory location of the multiboot module */
