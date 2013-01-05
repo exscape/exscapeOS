@@ -292,17 +292,17 @@ int chdir(const char *in_path) {
 		strlcpy(path, in_path, PATH_MAX+1);
 	}
 	else {
-		// Relatve path
+		// Relative path
 		strlcpy(path, current_task->pwd, PATH_MAX+1);
 		path_join(path, in_path);
 	}
 
 	int err = 0;
 
-	char *old_pwd = current_task->pwd;
-	size_t path_len = strlen(path);
-	current_task->pwd = kmalloc(path_len + 1);
-	strlcpy(current_task->pwd, path, path_len + 1);
+	char *old_pwd = kmalloc(strlen(current_task->pwd) + 1);
+	strcpy(old_pwd, current_task->pwd);
+
+	strlcpy(current_task->pwd, path, PATH_MAX + 1);
 
 	// Now that we can modify "path" freely, let's validate it (yes, after setting it!)
 	char *tmp;
@@ -342,10 +342,9 @@ int chdir(const char *in_path) {
 	return 0;
 
 error:
-	kfree(current_task->pwd);
-	current_task->pwd = old_pwd;
+	strlcpy(current_task->pwd, old_pwd, PATH_MAX+1);
+	kfree(old_pwd);
 	return err;
-
 }
 
 char *sys_getcwd(char *buf, size_t size) {

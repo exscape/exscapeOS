@@ -486,10 +486,12 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	task->privilege = privilege;
 
+	task->pwd = kmalloc(PATH_MAX + 1);
+
 	if (current_task && current_task->pwd)
-		task->pwd = strdup(current_task->pwd);
+		strlcpy(task->pwd, current_task->pwd, PATH_MAX+1);
 	else
-		task->pwd = strdup("/");
+		strcpy(task->pwd, "/");
 
 	if (task->privilege == 0) {
 		strcpy(task->name, "[");
@@ -611,7 +613,8 @@ int fork(void) {
 
 	assert(current_task->pwd != NULL);
 	assert(current_task->pwd[0] != 0);
-	child->pwd = strdup(current_task->pwd);
+	child->pwd = kmalloc(PATH_MAX+1);
+	strlcpy(child->pwd, current_task->pwd, PATH_MAX+1);
 
 	strlcpy(child->name, parent->name, TASK_NAME_LEN);
 

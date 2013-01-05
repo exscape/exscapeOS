@@ -643,7 +643,7 @@ void kshell(void *data, uint32 length) {
 		else {
 			//start_leak_trace();
 			//tracing = true;
-			static const char _PATH[] = "/:/bin:/initrd"; // TODO: store this on disk
+			static const char _PATH[] = "/bin:/initrd/bin:/";
 			char PATH[sizeof(_PATH)] = {0};
 
 			strcpy(PATH, _PATH); // strtok_r will modify this!
