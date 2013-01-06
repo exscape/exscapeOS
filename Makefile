@@ -43,6 +43,7 @@ all: $(OBJFILES)
 	@python misc/create_initrd.py > /dev/null # let stderr through!
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
+	@mv initrd/bin/eshell initrd/bin/sh
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
@@ -50,6 +51,7 @@ clean:
 		make -C $$prog clean; \
 		rm -f initrd/`basename $$prog` ; \
 	done
+	@rm -f initrd/bin/sh
 
 -include $(DEPFILES)
 
