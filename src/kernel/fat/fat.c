@@ -631,7 +631,9 @@ static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *l
 		st->st_ino = (disk_direntry->high_cluster_num << 16) | (disk_direntry->low_cluster_num);
 		st->st_mode = 0777; // TODO
 		if (disk_direntry->attrib & ATTRIB_DIR)
-			st->st_mode |= 040000;
+			st->st_mode |= _IFDIR;
+		else
+			st->st_mode |= _IFREG;
 		st->st_nlink = 1;
 		st->st_size = (disk_direntry->attrib & ATTRIB_DIR) ? 0 : disk_direntry->file_size;
 		st->st_mtime = fat_calc_time(disk_direntry, FAT_MTIME);

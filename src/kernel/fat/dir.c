@@ -242,6 +242,12 @@ int fat_getdents(int fd, void *dp, int count) {
 		assert(file->dev < MAX_DEVS);
 		fat32_partition_t *part = (fat32_partition_t *)devtable[file->dev];
 		assert(part != NULL);
+
+		struct stat st;
+		fstat(fd, &st);
+		if (!S_ISDIR(st.st_mode))
+			return -ENOTDIR;
+
 		file->data = fat_opendir_cluster(part, file->ino, file->mp);
 		if (file->data == NULL) {
 			return -ENOTDIR; // TODO - this can't happen at the moment, though (fat_opendir_cluster always succeds)
