@@ -102,6 +102,7 @@ DECL_SYSCALL3(execve, int, const char *, char * const *, char * const *);
 DECL_SYSCALL2(getcwd, char *, char *, size_t);
 DECL_SYSCALL1(dup, int, int);
 DECL_SYSCALL2(dup2, int, int, int);
+DECL_SYSCALL1(pipe, int, int *);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -135,6 +136,7 @@ DEFN_SYSCALL3(execve, int, 25, const char *, char * const *, char * const *);
 DEFN_SYSCALL2(getcwd, char *, 26, char *, size_t);
 DEFN_SYSCALL1(dup, int, 27, int);
 DEFN_SYSCALL2(dup2, int, 28, int, int);
+DEFN_SYSCALL1(pipe, int, 29, int *);
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {
@@ -386,9 +388,13 @@ int fork(void) {
 }
 
 int pipe(int fildes[2]) {
-	// TODO: pipe!
-	errno = ENFILE;
-	return -1;
+	int ret;
+	if ((ret = sys_pipe(fildes)) == 0)
+		return 0;
+	else {
+		errno = -ret;
+		return -1;
+	}
 }
 
 // Ugly, but doing this appears fairly common-ish.

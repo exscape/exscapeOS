@@ -29,6 +29,7 @@ int sys_wait(int *status);
 int sys_waitpid(int pid, int *status, int options);
 int sys_execve(const char *path, char **argv, char **envp);
 char *sys_getcwd(char *buf, size_t size);
+int sys_pipe(int fildes[2]);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, return_size }, */
@@ -61,6 +62,7 @@ struct syscall_entry syscalls[] = {
 	{ &sys_getcwd, 32},
 	{ &dup, 32},
 	{ &dup2, 32},
+	{ &sys_pipe, 32},
 };
 
 uint32 num_syscalls = 0;

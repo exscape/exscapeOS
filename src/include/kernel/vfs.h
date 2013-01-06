@@ -70,11 +70,13 @@ mountpoint_t *find_mountpoint_for_path(const char *path);
 extern void *devtable[MAX_DEVS];
 extern uint32 next_dev;
 
+#define DEV_PIPE 0x7fff
+
 typedef struct open_file {
-	int count; // number of fds that link to this file; TODO
+	int count; // number of fds that link to this file
 	dev_t dev;
 	ino_t ino;
-	ino_t _cur_ino; // current cluster number, i.e. when offset != 0
+	ino_t _cur_ino; // current cluster number, i.e. when offset != 0. implementation specific
 	off_t offset;
 	off_t size;
 	mountpoint_t *mp;
