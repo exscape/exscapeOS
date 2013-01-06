@@ -11,7 +11,7 @@
 
 int pipe_read(int fd, void *buf, size_t count);
 int pipe_write(int fd, const void *buf, size_t count);
-int pipe_close(int fd);
+int pipe_close(int fd, struct open_file *file);
 int pipe_fstat(int fd, struct stat *st);
 
 int pipe(int fildes[2]) {
@@ -87,7 +87,7 @@ int pipe_read(int fd, void *buf, size_t count) {
 
 	struct pipe *p = (struct pipe *)file->data;
 
-	if (p->writer == NULL && p->bytes_avail) {
+	if (p->writer == NULL && p->bytes_avail == 0) {
 		// No write end, and no data!
 		return 0;
 	}
@@ -103,10 +103,10 @@ int pipe_read(int fd, void *buf, size_t count) {
 		sleep(30);
 	}
 
-	assert(p->bytes_avail > 0);
-
 	// We have some data!
 	mutex_lock(p->lock);
+
+	assert(p->bytes_avail > 0);
 
 	// # bytes that can be read without wrapping
 	uint32 n = p->max_pos - p->read_pos;
@@ -224,8 +224,7 @@ int pipe_write(int fd, const void *buf, size_t count) {
 	return bytes_written;
 }
 
-int pipe_close(int fd) {
-	struct open_file *file = get_filp(fd);
+int pipe_close(int fd, struct open_file *file) {
 	if (!file)
 		return -EBADF;
 
@@ -235,15 +234,29 @@ int pipe_close(int fd) {
 	struct pipe *p = (struct pipe *)file->data;
 	assert(p->reader == file || p->writer == file);
 
+	if (p->reader == file) {
+		if (file->count == 1) {
+			// We are called prior to count-- in close, so this pipe end WILL close fully
+			p->reader = NULL;
+			// TODO: abort blocking writers
+		}
+	}
+	else {
+		if (file->count == 1) {
+			p->writer = NULL;
+			// TODO: abort blocking readers
+		}
+	}
 
-	//panic("pipe_close");
-
-
-
-	// TODO: close the pipe properly, plus destroy the lock and free the buffer
-
-
-
+	if (p->reader == NULL && p->writer == NULL) {
+		//panic("freeing pipe stuff");
+		// Free everything
+		mutex_destroy(p->lock);
+		memset(p->buffer, 0, PIPE_BUFFER_SIZE); // TODO: remove this eventually
+		kfree(p->buffer);
+		memset(p, 0, sizeof(struct pipe));
+		kfree(p);
+	}
 
 	return 0;
 }

@@ -141,7 +141,7 @@ int initrd_read(int fd, void *buf, size_t length) {
 	return length;
 }
 
-int initrd_close(int fd);
+int initrd_close(int fd, struct open_file *);
 
 off_t initrd_lseek(int fd, off_t offset, int whence) {
 	assert(fd <= MAX_OPEN_FILES);
@@ -240,7 +240,7 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 	return -ENOENT;
 }
 
-int initrd_close(int fd) {
+int initrd_close(int fd, struct open_file *file) {
 	// close() does everything required by itself
 
 	return 0;

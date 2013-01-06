@@ -21,7 +21,7 @@ int fat_closedir(struct dir *dir);
 int fat_fstat(int fd, struct stat *buf);
 int fat_open(uint32 dev, const char *path, int mode);
 int fat_read(int fd, void *buf, size_t length);
-int fat_close(int fd);
+int fat_close(int fd, struct open_file *file);
 static bool fat_callback_stat(fat32_direntry_t *disk_direntry, DIR *dir, char *lfn_buf, void *in_data);
 void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *, void *), void *data);
 void fat_parse_short_name(char *buf, const char *name);
@@ -364,7 +364,7 @@ done:
 	return bytes_read;
 }
 
-int fat_close(int fd) {
+int fat_close(int fd, struct open_file *file) {
 	// close() does everything required by itself.
 
 	return 0;

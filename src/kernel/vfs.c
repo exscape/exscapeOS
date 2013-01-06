@@ -251,7 +251,7 @@ int do_close(int fd, task_t *task) {
 
 	assert(file->fops.close != NULL);
 
-	int r = file->fops.close(fd);
+	int r = file->fops.close(fd, file);
 	file->count--;
 	task->fdtable[fd] = NULL;
 	assert(file->count >= 0);

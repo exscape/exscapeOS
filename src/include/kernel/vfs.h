@@ -39,10 +39,11 @@ typedef struct mp_ops {
 	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
 } mp_ops_t;
 
+struct open_file;
 typedef struct open_file_ops {
 	int   (*read)(int /* fd */, void * /* buf */, size_t /* length */);
 	int   (*write)(int /* fd */, const void * /* buf */, size_t /* length */);
-	int   (*close)(int /* fd */);
+	int   (*close)(int /* fd */, struct open_file * /* file */);
 	off_t (*lseek)(int /* fd */, off_t /* offset */, int /* whence */);
 	int   (*fstat)(int /* fd */, struct stat *);
 	int (*getdents)(int /* fd */, void * /* buffer */, int /* count */);
