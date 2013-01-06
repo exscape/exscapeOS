@@ -15,6 +15,8 @@ uint32 next_dev = 0;
 list_t *mountpoints = NULL;
 
 struct open_file *do_get_filp(int fd, task_t *task) {
+	if (fd < 0 || fd > MAX_OPEN_FILES)
+		return NULL;
 	return (struct open_file *)task->fdtable[fd];
 }
 
@@ -153,10 +155,10 @@ int sys_stat(const char *path, struct stat *buf) {
 }
 
 int read(int fd, void *buf, int length) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
+	struct open_file *file = get_filp(fd);
+	if (file == NULL)
 		return -EBADF;
 
-	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -172,10 +174,10 @@ int sys_read(int fd, void *buf, int length) {
 }
 
 int write(int fd, const void *buf, int length) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
+	struct open_file *file = get_filp(fd);
+	if (file == NULL)
 		return -EBADF;
 
-	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -199,10 +201,10 @@ int sys_write(int fd, const void *buf, int length) {
 }
 
 int fstat(int fd, struct stat *buf) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
+	struct open_file *file = get_filp(fd);
+	if (file == NULL)
 		return -EBADF;
 
-	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -219,10 +221,10 @@ int sys_fstat(int fd, struct stat *buf) {
 }
 
 int getdents(int fd, void *dp, int count) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
+	struct open_file *file = get_filp(fd);
+	if (file == NULL)
 		return -EBADF;
 
-	struct open_file *file = get_filp(fd);
 	if (file->count < 1)
 		return -EBADF;
 
@@ -239,13 +241,11 @@ int sys_getdents(int fd, void *dp, int count) {
 
 int do_close(int fd, task_t *task) {
 	assert(task != NULL);
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
-		return -EBADF;
 
 	struct open_file *file = do_get_filp(fd, task);
-	if (file == NULL) {
+	if (file == NULL)
 		return -EBADF;
-	}
+
 	if (file->count < 1)
 		return -EBADF;
 
@@ -377,21 +377,19 @@ int sys_chdir(const char *in_path) {
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
-		return -EBADF;
-
 	struct open_file *file = get_filp(fd);
-
-	if (file->fops.lseek == NULL)
+	if (file == NULL || file->fops.lseek == NULL)
 		return -EBADF;
+
+	if (file->dev == DEV_PIPE)
+		return -ESPIPE;
+
 	return file->fops.lseek(fd, offset, whence);
 }
 
 int dup(int fd) {
 	// Duplicate a file descriptor. That is, given an fd,
 	// return another fd that points to the same file.
-	if (fd < 0 || fd >= MAX_OPEN_FILES)
-		return -EBADF;
 
 	INTERRUPT_LOCK;
 	struct open_file *file = get_filp(fd);
@@ -417,7 +415,8 @@ int dup(int fd) {
 }
 
 int dup2(int fd, int fd2) {
-	if (fd < 0 || fd >= MAX_OPEN_FILES || fd2 < 0 || fd2 >= MAX_OPEN_FILES) {
+	if (fd2 < 0 || fd2 >= MAX_OPEN_FILES) {
+		/* fd is checked in get_filp */
 		return -EBADF;
 	}
 
