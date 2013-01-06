@@ -43,7 +43,9 @@ all: $(OBJFILES)
 	@python misc/create_initrd.py > /dev/null # let stderr through!
 	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles
 #	@/opt/local/bin/ctags -R *
-	@mv initrd/bin/eshell initrd/bin/sh
+	@if [ -f "initrd/bin/eshell" ]; then \
+		mv initrd/bin/eshell initrd/bin/sh; \
+	fi
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
