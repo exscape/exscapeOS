@@ -228,8 +228,7 @@ int pipe_close(int fd, struct open_file *file) {
 	if (!file)
 		return -EBADF;
 
-	if (file->data == NULL)
-		return -EBADF;
+	assert(file->data != NULL);
 
 	struct pipe *p = (struct pipe *)file->data;
 	assert(p->reader == file || p->writer == file);
