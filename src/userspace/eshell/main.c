@@ -255,8 +255,12 @@ void sigint_handler(int sig) {
 }
 #endif
 
+int run_command(char *cmd) {
+	return 0;
+}
+
 int main(int my_argc, char **my_argv) {
-	setenv("PATH", "/:/initrd", 1);
+	setenv("PATH", "/bin:/initrd/bin:/initrd:/", 1);
 	char buf[1024] = {0};
 	//int last_exit = 0;
 
@@ -277,6 +281,26 @@ int main(int my_argc, char **my_argv) {
 	//struct passwd *pwd = getpwuid(geteuid());
 
 	char *cwd_str = NULL;
+
+	int c;
+	while ((c = getopt(my_argc, my_argv, "c:h")) != -1) {
+		switch (c) {
+			case 'h':
+				printf("eshell v0.1 help\n");
+				printf("Possible command line options:\n");
+				printf("-c command\tExecute a command\n");
+				printf("-h\t\tDisplay this help screen\n");
+				break;
+			case 'c':
+				run_command(optarg);
+				break;
+			default:
+				exit(1);
+				break;
+		}
+	}
+	my_argc -= optind;
+	my_argv += optind;
 
 	while (true) {
 next_input:
