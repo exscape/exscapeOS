@@ -236,6 +236,7 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 		}
 	}
 
+	destroy_filp(fd);
 	initrd_closedir(dir);
 	return -ENOENT;
 }
