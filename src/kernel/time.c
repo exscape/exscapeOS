@@ -310,3 +310,11 @@ int sys_gettimeofday(struct timeval *restrict tp, void *restrict tzp __attribute
 		return -EFAULT;
 	return gettimeofday(tp, tzp); // TODO: check tzp
 }
+
+time_t kern_time(void) {
+	// Get the current UNIX timestamp
+	struct timeval t;
+	gettimeofday(&t, NULL);
+
+	return t.tv_sec;
+}
