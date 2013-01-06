@@ -5,7 +5,7 @@ if [[ $(basename $PWD) != "contrib" ]]; then
 	exit 1
 fi
 
-if [[ -f "../initrd/lua" ]]; then
+if [[ -f "../initrd/bin/lua" ]]; then
 	if [[ $1 != "-f" ]]; then
 		echo 'Lua already installed; skipping (use -f to force reinstall)'
 		exit 0
@@ -20,7 +20,7 @@ tar xf lua-5.2.1.tar.gz &&
 cd lua-5.2.1 &&
 patch -p1 < $W/lua-5.2.1-exscapeos.patch &&
 make -j8 &&
-cp -f src/lua $W/../initrd/lua &&
+cp -f src/lua $W/../initrd/bin/lua &&
 echo 'Successfully built and installed Lua!'
 
 popd
