@@ -1,3 +1,4 @@
+#include <sys/syslimits.h>
 #include <kernel/pipe.h>
 #include <kernel/kernutil.h>
 #include <kernel/vmm.h>
@@ -7,7 +8,6 @@
 #include <kernel/heap.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
-#include <sys/syslimits.h>
 
 int pipe_read(int fd, void *buf, size_t count);
 int pipe_write(int fd, const void *buf, size_t count);
@@ -40,7 +40,7 @@ int pipe(int fildes[2]) {
 	p->writer = write_end;
 	p->read_pos = p->buffer;
 	p->write_pos = p->buffer;
-	p->max_pos = p->buffer + PIPE_BUFFER_SIZE - 1;
+	p->max_pos = p->buffer + PIPE_BUFFER_SIZE;
 	p->lock = mutex_create();
 	/* leave mtime and atime as 0 */
 
@@ -109,6 +109,7 @@ int pipe_read(int fd, void *buf, size_t count) {
 	assert(p->bytes_avail > 0);
 
 	// # bytes that can be read without wrapping
+	// (there may be fewer bytes available!)
 	uint32 n = p->max_pos - p->read_pos;
 
 	uint32 bytes_read = 0;
@@ -149,7 +150,7 @@ int pipe_read(int fd, void *buf, size_t count) {
 	return bytes_read;
 }
 
-int pipe_write(int fd, const void *buf, size_t count) { 
+int pipe_write(int fd, const void *buf, size_t count) {
 	struct open_file *file = get_filp(fd);
 	if (file == NULL)
 		return -EBADF;
@@ -172,6 +173,9 @@ int pipe_write(int fd, const void *buf, size_t count) {
 		return -EBADF;
 	}
 
+	if (count == 0)
+		return 0;
+
 	// First, block until we can write anything at all (all writes below PIPE_BUF bytes must be atomic)
 	while (PIPE_BUFFER_SIZE - (volatile uint32)p->bytes_avail < min(PIPE_BUF, count)) {
 		// TODO: block properly!
@@ -188,7 +192,7 @@ int pipe_write(int fd, const void *buf, size_t count) {
 	uint32 bytes_written = 0;
 
 	// First, write the stuff we can without wrapping
-	uint32 to_write = min(count, n);
+	uint32 to_write = min(min(count, n), PIPE_BUFFER_SIZE - p->bytes_avail);
 	assert(PIPE_BUFFER_SIZE - p->bytes_avail >= to_write);
 	assert(p->write_pos + to_write <= p->max_pos);
 

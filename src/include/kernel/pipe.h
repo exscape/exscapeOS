@@ -4,7 +4,7 @@
 #include <kernel/vfs.h>
 #include <kernel/mutex.h>
 
-#define PIPE_BUFFER_SIZE 16384
+#define PIPE_BUFFER_SIZE 65536
 
 int pipe(int fildes[2]);
 int sys_pipe(int fildes[2]);
