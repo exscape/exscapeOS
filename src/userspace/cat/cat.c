@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
 		return 0;
 
 #define BUFSIZE (16*1024)
-	char *buf = malloc(BUFSIZE + 1);
+	char *buf = malloc(BUFSIZE);
 
 	bool error = false;
 
@@ -28,14 +28,19 @@ int main(int argc, char **argv) {
 		int r = 0;
 		uint32 tot = 0;
 		do {
-			memset(buf, 0, BUFSIZE + 1);
+			memset(buf, 0, BUFSIZE);
 			r = read(fd, buf, BUFSIZE);
 			if (r == -1) {
 				fprintf(stderr, "%s: %s: %s\n", argv[0], argv[i], strerror(errno));
 				break;
 			}
 			tot += r;
-			fputs(buf, stdout);
+			if (r > 0) {
+				int w = 0;
+				do {
+					w += write(fileno(stdout), buf + w, r - w);
+				} while (w < r);
+			}
 		} while (r > 0);
 
 		close(fd);
