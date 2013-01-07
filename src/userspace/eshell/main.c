@@ -36,35 +36,7 @@ char *get_cwd(void) {
 
 char *last_wd = NULL;
 
-void str_replace(char *buf, const char *old, const char *new, int size) {
-	char *start = strstr(buf, old);
-	if (start == NULL)
-		return;
-
-	ssize_t buf_len = (ssize_t)strlen(buf);
-	ssize_t old_len = (ssize_t)strlen(old);
-	ssize_t new_len = (ssize_t)strlen(new);
-
-	if (buf_len + (new_len - old_len) > size) {
-		// This won't fit!
-		return;
-	}
-
-	char *end = start + old_len;
-	char *ending = malloc((buf + buf_len) - end + 1);
-	strlcpy(ending, end, (buf + buf_len) - end + 1);
-
-	// OK, we have the stuff after the variable stored away; now we're free
-	// to destroy the buffer contents after /end/ with no ill consequences.
-
-	// Do the replace
-	int t = (size - (start - buf));
-	strlcpy(start, new, t);
-	// Copy back the ending
-	strlcat(start + new_len, ending, (size - new_len));
-
-	free(ending);
-}
+void str_replace(char *buf, const char *old, const char *new, int size);
 
 void replace_variables(char *buf, int size) {
 	// Replace all variables in buf with their environment values
@@ -262,7 +234,8 @@ void sigint_handler(int sig) {
 
 #define max(a,b) ( (a > b) ? a : b )
 
-int execute_command(char *cmd) {
+// Process an input string, e.g. "cmd1 2>/dev/null | cmd2 && cmd3"
+int process_input(char *cmd) {
 	// Pre-parse the command line and substitute variable values
 	char *buf = malloc(max(strlen(cmd) * 3, 2048));
 	strlcpy(buf, cmd, 2048);
@@ -669,7 +642,7 @@ int main(int my_argc, char **my_argv) {
 				printf("-h          Display this help screen\n");
 				break;
 			case 'c':
-				exit(execute_command(optarg));
+				exit(process_input(optarg));
 				break;
 			default:
 				exit(1);
@@ -729,7 +702,7 @@ int main(int my_argc, char **my_argv) {
 		}
 #endif
 
-		execute_command(buf);
+		process_input(buf);
 	}
 	return 0;
 }
