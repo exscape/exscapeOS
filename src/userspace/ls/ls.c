@@ -7,6 +7,7 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
+#include <errno.h>
 
 void print_help(void) {
 	fprintf(stderr, "Usage: ls [-alh] [files...]\n");
@@ -17,12 +18,101 @@ void print_help(void) {
 	fprintf(stderr, "-h: display this help message\n");
 }
 
+// TODO: reduce amount of globals
+int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_type = 0;
+int current_year = 0;
+int line_used = 0; // used for standard mode only
+
+int do_file(const char *fullname, const char *name) {
+	struct stat st;
+	if (stat(fullname, &st) != 0) {
+		fprintf(stderr, "ls: ");
+		perror(name);
+		return 1;
+	}
+
+	if (opt_singlecol) {
+		printf("%s%s\n", name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		return 0;
+	}
+	else if (opt_list) {
+
+		char perm_str[11] = "-rwxrwxrwx";
+		if (S_ISDIR(st.st_mode))
+			perm_str[0] = 'd';
+		else if (S_ISCHR(st.st_mode))
+			perm_str[0] = 'c';
+		else if (S_ISBLK(st.st_mode))
+			perm_str[0] = 'b';
+		else if (S_ISLNK(st.st_mode))
+			perm_str[0] = 'l';
+		else if (S_ISFIFO(st.st_mode))
+			perm_str[0] = 'p';
+		else if (S_ISSOCK(st.st_mode))
+			perm_str[0] = 's';
+		else if ( ! S_ISREG(st.st_mode) ) {
+			fprintf(stderr, "ls: warning: unknown permission for file %s\n", name);
+		}
+
+		for (int i=0; i<9; i++) {
+			if (!(st.st_mode & (1 << i))) {
+				perm_str[9 - i] = '-';
+			}
+		}
+
+		time_t tmp = st.st_mtime;
+		struct tm *tm = localtime(&tmp);
+		char date_buf[16] = {0};
+		if (tm->tm_year + 1900 == current_year)
+			strftime(date_buf,  16, "%d %b %H:%M", tm);
+		else
+			strftime(date_buf, 16, "%d %b  %Y", tm);
+
+		printf("%s 1 root  root %8u %s %s%s\n", perm_str, (uint32)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+	}
+	else {
+		// standard format
+		if (line_used + strlen(name) + 4 > 80) {
+			printf("\n");
+			line_used = 0;
+		}
+		line_used += printf("%s%s    ", name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+	}
+
+	return 0;
+}
+
+int do_dir(const char *dirname) {
+	DIR *dir = opendir(dirname);
+	if (!dir) {
+		fprintf(stderr, "ls: ");
+		perror(dirname);
+		return 1;
+	}
+
+	struct dirent *dent;
+	while ((dent = readdir(dir)) != NULL) {
+		errno = 0;
+		if (!opt_all && *(dent->d_name) == '.')
+			continue;
+
+		char name[1024] = {0};
+		strlcpy(name, dirname, 1024);
+		if (name[strlen(name) - 1] != '/')
+			strlcat(name, "/", 1024);
+		strlcat(name, dent->d_name, 1024);
+
+		do_file(name, dent->d_name);
+	}
+
+	return 0;
+}
+
+
 int main(int argc, char **argv) {
 	assert(argv[argc] == NULL);
 
 	int c;
-	int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_type = 0;
-
 	while ((c = getopt(argc, argv, "1aFhl")) != -1) {
 		switch(c) {
 			case 'a':
@@ -64,91 +154,31 @@ int main(int argc, char **argv) {
 
 	time_t tmp = time(NULL);
 	struct tm *tm = localtime(&tmp);
-	int current_year = tm->tm_year + 1900;
+	current_year = tm->tm_year + 1900;
 
 	do {
-		if (argc > 1) {
-			// TODO: only print this if the argument is a directory
-			printf("%s:\n", *files);
-		}
-
-		DIR *dir = opendir(*files);
-		if (!dir) {
+		struct stat st;
+		if (stat(*files, &st) != 0) {
 			fprintf(stderr, "ls: ");
 			perror(*files);
 			continue;
 		}
 
-		struct dirent *dent;
-		int line_used = 0; // used for standard mode only
-		while ((dent = readdir(dir)) != NULL) {
-			if (!opt_all && *(dent->d_name) == '.')
-				continue;
-
-			char name[1024] = {0};
-			strlcpy(name, *files, 1024);
-			if (name[strlen(name) - 1] != '/')
-				strlcat(name, "/", 1024);
-			strlcat(name, dent->d_name, 1024);
-
-			struct stat st;
-			if (stat(name, &st) != 0) {
-				fprintf(stderr, "ls: ");
-				perror(name);
-				continue;
-			}
-
-			if (opt_singlecol) {
-				printf("%s%s\n", dent->d_name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
-				continue;
-			}
-			else if (opt_list) {
-
-				char perm_str[11] = "-rwxrwxrwx";
-				if (S_ISDIR(st.st_mode))
-					perm_str[0] = 'd';
-				else if (S_ISCHR(st.st_mode))
-					perm_str[0] = 'c';
-				else if (S_ISBLK(st.st_mode))
-					perm_str[0] = 'b';
-				else if (S_ISLNK(st.st_mode))
-					perm_str[0] = 'l';
-				else if (S_ISFIFO(st.st_mode))
-					perm_str[0] = 'p';
-				else if (S_ISSOCK(st.st_mode))
-					perm_str[0] = 's';
-				else if ( ! S_ISREG(st.st_mode) ) {
-					fprintf(stderr, "ls: warning: unknown permission for file %s\n", dent->d_name);
-				}
-
-				for (int i=0; i<9; i++) {
-					if (!(st.st_mode & (1 << i))) {
-						perm_str[9 - i] = '-';
-					}
-				}
-
-				tmp = st.st_mtime;
-				tm = localtime(&tmp);
-				char date_buf[16] = {0};
-				if (tm->tm_year + 1900 == current_year)
-					strftime(date_buf,  16, "%d %b %H:%M", tm);
-				else
-					strftime(date_buf, 16, "%d %b  %Y", tm);
-
-				printf("%s 1 root  root %8u %s %s%s\n", perm_str, (uint32)st.st_size, date_buf, dent->d_name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
-			}
-			else {
-				// standard format
-				if (line_used + dent->d_namlen + 4 > 80) {
-					printf("\n");
-					line_used = 0;
-				}
-				line_used += printf("%s%s    ", dent->d_name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
-			}
+		if (argc > 1 && S_ISDIR(st.st_mode)) {
+			printf("%s:\n", *files);
 		}
 
-		if (argc > 1) {
-			// TODO: only print this if the argument is a directory
+		if (S_ISDIR(st.st_mode)) {
+			do_dir(*files);
+		}
+		else
+			do_file(*files, *files);
+
+		if (errno) {
+			fprintf(stderr, "ls: %s: %s\n", *files, strerror(errno));
+		}
+
+		if (argc > 1 && S_ISDIR(st.st_mode)) {
 			printf("\n");
 		}
 	} while (*(++files));
