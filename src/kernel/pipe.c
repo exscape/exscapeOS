@@ -160,70 +160,77 @@ int pipe_write(int fd, const void *buf, size_t count) {
 
 	struct pipe *p = (struct pipe *)file->data;
 
-	if (p->reader == NULL || p->reader->count <= 0) {
-		if (p->reader)
-			assert(p->reader->count == 0);
-		// Write to pipe with no reader!
-		// TODO: send SIGPIPE as well
-		return -EPIPE;
-	}
-
 	if (file == p->reader) {
 		// write() on read end of pipe
 		return -EBADF;
 	}
 
-	if (count == 0)
-		return 0;
-
-	// First, block until we can write anything at all (all writes below PIPE_BUF bytes must be atomic)
-	while (PIPE_BUFFER_SIZE - (volatile uint32)p->bytes_avail < min(PIPE_BUF, count)) {
-		// TODO: block properly!
-		sleep(30);
-	}
-
-	// OK, we should be able to fit min(PIPE_BUF, count) bytes now.
-
-	mutex_lock(p->lock);
-
-	// # bytes that can be written without wrapping
-	uint32 n = p->max_pos - p->write_pos;
-
 	uint32 bytes_written = 0;
 
-	// First, write the stuff we can without wrapping
-	uint32 to_write = min(min(count, n), PIPE_BUFFER_SIZE - p->bytes_avail);
-	assert(PIPE_BUFFER_SIZE - p->bytes_avail >= to_write);
-	assert(p->write_pos + to_write <= p->max_pos);
+	while (count > bytes_written) {
+		if (p->reader == NULL || p->reader->count <= 0) {
+			if (p->reader)
+				assert(p->reader->count == 0);
+			// Write to pipe with no reader!
+			// TODO: send SIGPIPE as well
+			return -EPIPE; // TODO: should we return bytes_written here if > 0?
+		}
 
-	memcpy(p->write_pos, buf, to_write);
-	p->write_pos += to_write;
-	p->bytes_avail += to_write;
-	bytes_written += to_write;
+		// First, block until we can write anything at all (all writes below PIPE_BUF bytes must be atomic)
+		while (PIPE_BUFFER_SIZE - (volatile uint32)p->bytes_avail < min(PIPE_BUF, count)) {
+			// TODO: block properly!
+			sleep(30);
+		}
 
-	p->atime = kern_time();
-	p->mtime = p->atime;
+		if (p->reader == NULL || p->reader->count <= 0) {
+			if (p->reader)
+				assert(p->reader->count == 0);
+			// Write to pipe with no reader!
+			// TODO: send SIGPIPE as well
+			return -EPIPE; // TODO: should we return bytes_written here if > 0?
+		}
 
-	// Wrap, if necessary
-	if (p->write_pos >= p->max_pos) {
-		assert(p->write_pos == p->max_pos); // being *greater* than max_pos would be a bug!
-		p->write_pos = p->buffer;
-	}
+		// OK, we should be able to fit min(PIPE_BUF, count) bytes now.
 
-	// TODO: assertions relating read_pos and write_pos
+		mutex_lock(p->lock);
 
-	if (count > bytes_written && PIPE_BUFFER_SIZE - p->bytes_avail > 0) {
-		// But wait, there's more!
-		to_write = min(PIPE_BUFFER_SIZE - p->bytes_avail, count);
+		// # bytes that can be written without wrapping
+		uint32 n = p->max_pos - p->write_pos;
+
+		// First, write the stuff we can without wrapping
+		uint32 to_write = min(min(count, n), PIPE_BUFFER_SIZE - p->bytes_avail);
 		assert(PIPE_BUFFER_SIZE - p->bytes_avail >= to_write);
 		assert(p->write_pos + to_write <= p->max_pos);
-		memcpy(p->write_pos, (char *)buf + bytes_written, to_write);
+
+		memcpy(p->write_pos, buf, to_write);
 		p->write_pos += to_write;
 		p->bytes_avail += to_write;
 		bytes_written += to_write;
-	}
 
-	mutex_unlock(p->lock);
+		// Wrap, if necessary
+		if (p->write_pos >= p->max_pos) {
+			assert(p->write_pos == p->max_pos); // being *greater* than max_pos would be a bug!
+			p->write_pos = p->buffer;
+		}
+
+		// TODO: assertions relating read_pos and write_pos
+
+		if (count > bytes_written && PIPE_BUFFER_SIZE - p->bytes_avail > 0) {
+			// But wait, there's more!
+			to_write = min(PIPE_BUFFER_SIZE - p->bytes_avail, count);
+			assert(PIPE_BUFFER_SIZE - p->bytes_avail >= to_write);
+			assert(p->write_pos + to_write <= p->max_pos);
+			memcpy(p->write_pos, (char *)buf + bytes_written, to_write);
+			p->write_pos += to_write;
+			p->bytes_avail += to_write;
+			bytes_written += to_write;
+		}
+
+		p->atime = kern_time();
+		p->mtime = p->atime;
+
+		mutex_unlock(p->lock);
+	}
 
 	return bytes_written;
 }
