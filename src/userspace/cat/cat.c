@@ -35,12 +35,8 @@ int main(int argc, char **argv) {
 				break;
 			}
 			tot += r;
-			if (r > 0) {
-				int w = 0;
-				do {
-					w += write(fileno(stdout), buf + w, r - w);
-				} while (w < r);
-			}
+			if (r > 0)
+				write(fileno(stdout), buf, r);
 		} while (r > 0);
 
 		close(fd);
