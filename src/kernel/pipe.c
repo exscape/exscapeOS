@@ -146,6 +146,16 @@ int pipe_read(int fd, void *buf, size_t count) {
 	// call again. We can't block until we've read the exact count, as that would
 	// break spec!
 
+#if 0
+	char *tmp = kmalloc(bytes_read+1);
+	memset(tmp, 0, bytes_read+1);
+	memcpy(tmp, buf, bytes_read);
+	for (uint32 i=0; i < bytes_read; i++) {
+		if (tmp[i] == '\n') tmp[i] = '_';
+	}
+	printk("pipe_read read %u bytes  : \"%s\"\n", bytes_read, tmp);
+#endif
+
 	mutex_unlock(p->lock);
 	return bytes_read;
 }

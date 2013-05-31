@@ -3,10 +3,11 @@
 #include <time.h>
 
 #define MAX_GUESSES 10
+#define MAX_NUM 10000
 
 int main(int argc, char **argv) {
 	srand(time(NULL));
-	int num = 1 + (rand() % 100);
+	int num = 1 + (rand() % MAX_NUM);
 	int guess = -1;
 	int num_guesses = 0;
 
@@ -14,7 +15,7 @@ int main(int argc, char **argv) {
 
 	while (guess != num) {
 		printf("%d guesses remaining\n", MAX_GUESSES - num_guesses);
-		fputs("Guess the number, from user mode (1-100): ", stdout);
+		printf("Guess the number, from user mode (1-%d): ", MAX_NUM);
 		fflush(stdout);
 
 		char *end;

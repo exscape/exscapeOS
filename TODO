@@ -10,7 +10,6 @@
 * DMA for ATA transfers?
 * Signal support
 * Improve the user-mode shell
-	* -c command line option
 	* Pipe support
 	* Better parsing, e.g. 2>&1 works the same as 2> &1 does now; echo a>b writes 'a' to the file 'b' even without the space in between, etc.
 * Pipes

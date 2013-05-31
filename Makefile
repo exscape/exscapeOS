@@ -32,6 +32,9 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := /opt/local/bin/qemu
 
 all: $(OBJFILES)
+	@set -e; if [ ! -d "initrd/bin" ]; then \
+		mkdir -p initrd/bin initrd/etc; \
+	fi
 	@$(LD) -T linker-kernel.ld -o kernel.bin ${OBJFILES}
 	@cp kernel.bin isofiles/boot
 	@set -e; for prog in $(USERSPACEPROG); do \
@@ -51,7 +54,7 @@ clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 	@for prog in $(USERSPACEPROG); do \
 		make -C $$prog clean; \
-		rm -f initrd/`basename $$prog` ; \
+		rm -f initrd/bin/`basename $$prog` ; \
 	done
 	@rm -f initrd/bin/sh
 

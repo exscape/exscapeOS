@@ -296,7 +296,7 @@ bool init_rtl8139(void) {
 
 		/* Configure the receive buffer register */
 		/* 1 << 10 sets MXDMA to 100 (256 bytes, the maximum size DMA burst) */
-		rtl_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP | (1 << 10));;// | RTL_WRAP);
+		rtl_dword_w(RTL_RCR, RTL_AB | RTL_AM | RTL_APM | RTL_AAP | (1 << 10));
 
 		/* Configure the Transmit configuration register */
 		uint32 tcr = rtl_dword_r(RTL_TCR);
