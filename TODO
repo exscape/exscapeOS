@@ -6,13 +6,31 @@
 * Increase userspace stack size dynamically on page faults, up to at least several MB
 * Copy-on-write fork()
 
+* Rewrite the sleep/block system to handle:
+	* sleep()
+	* wait*()
+	* mutexes
+	* I/O (pipes, ATA)
+
+* Pipes:
+	* Proper blocking, including notifying tasks waiting when the last reader/writer is closed
+
+* initrd:
+	* Document the new initrd format (create_initrd.py, initrd.c)
+	* . and .. are nonexistent in initrd directories
+
+* Try to recreate and fix the OS not running under QEMU 1.0 (qemu-kvm-1.0/x86_64)
+
+* Improve the user-mode shell
+	* Tab completion escaping (also add support for escaped spaces in argument parsing)
+	* Pipe support
+	* ; && and ||
+	* !! and !cmd (and perhaps !-n) to look through history
+	* Better parsing, e.g. 2>&1 works the same as 2> &1 does now; echo a>b writes 'a' to the file 'b' even without the space in between, etc.
+
 * FAT: write support!
 * DMA for ATA transfers?
 * Signal support
-* Improve the user-mode shell
-	* Pipe support
-	* Better parsing, e.g. 2>&1 works the same as 2> &1 does now; echo a>b writes 'a' to the file 'b' even without the space in between, etc.
-* Pipes
 * Proper VFS
 * Implement the remaining syscalls for Newlib
 * Implement queues for mutexes
