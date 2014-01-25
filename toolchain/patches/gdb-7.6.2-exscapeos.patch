@@ -1,0 +1,59 @@
+diff -Naur gdb-7.6.2/bfd/config.bfd gdb-7.6.2-patched/bfd/config.bfd
+--- gdb-7.6.2/bfd/config.bfd	2013-12-08 05:33:13.000000000 +0100
++++ gdb-7.6.2-patched/bfd/config.bfd	2014-01-25 21:47:36.000000000 +0100
+@@ -538,6 +538,9 @@
+   i[3-7]86-*-aros*)
+     targ_defvec=bfd_elf32_i386_vec
+     ;;
++  i[3-7]86-*-exscapeos*)
++    targ_defvec=bfd_elf32_i386_vec
++    ;;
+   i[3-7]86-*-chorus*)
+     targ_defvec=bfd_elf32_i386_vec
+     ;;
+diff -Naur gdb-7.6.2/config.sub gdb-7.6.2-patched/config.sub
+--- gdb-7.6.2/config.sub	2013-12-08 05:33:13.000000000 +0100
++++ gdb-7.6.2-patched/config.sub	2014-01-25 21:47:14.000000000 +0100
+@@ -510,6 +510,10 @@
+ 		basic_machine=i386-pc
+ 		os=-aros
+ 		;;
++	exscapeos)
++		basic_machine=i386-pc
++		os=-exscapeos
++		;;
+ 	aux)
+ 		basic_machine=m68k-apple
+ 		os=-aux
+@@ -1358,7 +1362,7 @@
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
+ 	      | -sym* | -kopensolaris* | -plan9* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+-	      | -aos* | -aros* \
++	      | -aos* | -aros* | -exscapeos* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+ 	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
+@@ -1502,6 +1506,9 @@
+ 	-aros*)
+ 		os=-aros
+ 		;;
++	-exscapeos*)
++		os=-exscapeos
++		;;
+ 	-zvmoe)
+ 		os=-zvmoe
+ 		;;
+diff -Naur gdb-7.6.2/readline/support/config.sub gdb-7.6.2-patched/readline/support/config.sub
+--- gdb-7.6.2/readline/support/config.sub	2013-12-08 05:11:52.000000000 +0100
++++ gdb-7.6.2-patched/readline/support/config.sub	2014-01-25 21:47:53.000000000 +0100
+@@ -1389,6 +1389,9 @@
+ 	-aros*)
+ 		os=-aros
+ 		;;
++	-exscapeos*)
++		os=-exscapeos
++		;;
+ 	-kaos*)
+ 		os=-kaos
+ 		;;

@@ -6,10 +6,10 @@ if [[ `basename $PWD` != "toolchain" ]]; then
 fi
 
 # Set these up!
-DL=1
-FORCE_CLEAN=1
-export TARGET=i586-pc-exscapeos
-export PREFIX=/usr/local/cross
+DL=1          # Download distfiles automatically?
+FORCE_CLEAN=1 # Remove all unpacked sources/build stuff and re-unpack and patch
+BUILD_GDB=1   # Build a GDB with exscapeos target? (Set to 0 if you're not going to debug, to save time/disk space.)
+export PREFIX=/usr/local/cross # Where to install everything
 
 sed -e "s#PREFIX = .*#PREFIX = $PREFIX#g" -i ../Makefile
 
@@ -17,6 +17,9 @@ MAC=0 # checked below automatically
 if gcc --version | grep -iq llvm; then
 	MAC=1
 fi
+
+# Should not be changed
+export TARGET=i586-pc-exscapeos
 
 err() {
 	echo
@@ -42,19 +45,24 @@ if [[ $DL -eq 1 ]]; then
 	mkdir -p distfiles
 	cd distfiles
 
-	if [[ ! -f "binutils-2.23.1.tar.bz2" ]]; then 
-		wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
-	fi
-
 	if [[ $NEWLIB_ONLY -ne 1 ]]; then
+
+		if [[ ! -f "binutils-2.23.1.tar.bz2" ]]; then
+			wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
+		fi
+
 		if [[ ! -f "gcc-4.8.2.tar.bz2" ]]; then
 			wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.8.2/gcc-4.8.2.tar.bz2' || err
 		fi
 
+		if [[ $BUILD_GDB -ne 0 && ! -f "gdb-7.6.2.tar.bz2" ]]; then
+			wget 'http://ftp.gnu.org/gnu/gdb/gdb-7.6.2.tar.bz2' || err
+		fi
+	fi
+
 		if [[ ! -f "newlib-1.20.0.tar.gz" ]]; then 
 			wget 'ftp://sources.redhat.com/pub/newlib/newlib-1.20.0.tar.gz' || err
 		fi
-	fi
 
 	cd ..
 fi
@@ -63,9 +71,12 @@ if [[ $FORCE_CLEAN -eq 1 ]]; then
 	bash clean.sh || err
 
 	echo
-	echo Unpacking sources... 
+	echo Unpacking sources...
 	if [[ $NEWLIB_ONLY -ne 1 ]]; then
 		for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.8.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
+		if [[ $BUILD_GDB -ne 0 ]]; then
+			tar xf distfiles/gdb-7.6.2.tar.bz2 || er
+		fi
 	else
 		tar xf distfiles/newlib-1.20.0.tar.gz || err
 	fi
@@ -91,9 +102,9 @@ echo Configuring binutils...
 echo
 CFLAGS="-Wno-error" ../binutils-2.23.1/configure --target=$TARGET --prefix=$PREFIX --disable-nls || err
 
-echo 
+echo
 echo Building binutils...
-echo 
+echo
 make -j8 all || err
 
 echo 
@@ -128,6 +139,34 @@ echo
 make install-gcc || err
 make install-target-libgcc || err
 cd ..
+
+
+if [[ $BUILD_GDB -ne 0 ]]; then
+mkdir build-gdb
+echo
+echo Patching gdb...
+echo
+cd gdb-7.6.2
+patch -p1 < ../patches/gdb-7.6.2-exscapeos.patch || err
+cd ..
+
+echo
+echo Configuring gdb...
+echo
+cd build-gdb
+../gdb-7.6.2/configure --target=$TARGET --prefix=$PREFIX --disable-werror || err
+
+echo
+echo Building gdb...
+echo
+make -j8 || err
+
+echo
+echo Installing gdb...
+echo
+make install || err
+cd ..
+fi # BUILD_GDB != 0
 
 fi # end $NEWLIB_ONLY != 1
 
