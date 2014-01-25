@@ -29,7 +29,7 @@ DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
 #QEMU := /usr/local/bin/qemu
-QEMU := /opt/local/bin/qemu
+QEMU := /usr/local/bin/qemu-system-i386
 
 all: $(OBJFILES)
 	@set -e; if [ ! -d "initrd/bin" ]; then \
