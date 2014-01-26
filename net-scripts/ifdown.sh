@@ -1,3 +1,2 @@
 #!/bin/bash
-sudo ipfw -f flush
-sudo killall natd
+echo 'ifdown done (empty script)'

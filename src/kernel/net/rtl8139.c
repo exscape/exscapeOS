@@ -129,9 +129,10 @@ static uint32 rtl8139_rx_handler(uint32 esp) {
 		// Clear the interrupt
 		rtl_word_w(RTL_ISR, RTL_ROK); // TODO: should we clear all bits (0xe07f for the nonreserved bits) here?
 
-		// Copy this packet somewhere else
 		assert(packetLength <= 2048);
+		//printk("received packet, len=%d\n", packetLength);
 
+		// Copy this packet somewhere else
 		if (rxPointer + packetLength >= recv_buf + RTL8139_RXBUFFER_SIZE) {
 			// This packet wraps around! Copy it in two parts.
 			uint32 first_run = (recv_buf + RTL8139_RXBUFFER_SIZE) - rxPointer;
@@ -174,6 +175,8 @@ static uint32 rtl8139_tx_handler(uint32 esp) {
 		free_descriptors++;
 		assert(free_descriptors >= 1 && free_descriptors <= 4);
 	}
+
+	//printk("sent packet\n");
 
 	return esp;
 }

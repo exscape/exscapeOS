@@ -57,7 +57,7 @@ MPC, MPFR and GMP can be installed on debian with:
     sudo apt-get install lib{mpc,mpfr,gmp}-dev
 
 Finally, with prerequisites out of the way...  
-1) Edit toolchain/build.sh to change PREFIX to somewhere convenient, e.g. /tmp/exscapeos  
+1) Edit toolchain/build.sh to change PREFIX to somewhere convenient, e.g. /tmp/exscapeos (or perhaps /usr/local/cross for something more permanent)
 2) cd toolchain; bash build.sh # This should build and install GCC, binutils and Newlib for exscapeOS, and will take a while.  
 3) make # to build the OS itself, plus Lua  
 4) make nofat # to run in QEMU  

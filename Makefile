@@ -29,7 +29,7 @@ DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
 #QEMU := /usr/local/bin/qemu
-QEMU := /usr/local/bin/qemu-system-i386
+QEMU := /usr/local/cross/bin/qemu # qemu 0.14.1, new versions don't work with networking for me; not sure why!
 
 all: $(OBJFILES)
 	@set -e; if [ ! -d "initrd/bin" ]; then \
@@ -71,11 +71,12 @@ todolist:
 	@nasm -o $@ $< -f elf -F dwarf -g
 
 nofat: all
-	qemu -cdrom bootable.iso -monitor stdio -s -serial file:serial-output -m 64
+	$(QEMU) -cdrom bootable.iso -monitor stdio -s -serial file:serial-output -m 64
 
 net: all
 	@bash net-scripts/prepare.sh
-	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
+#@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
+	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
 
 run: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
