@@ -212,22 +212,10 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 	if (num_frames < 2)
 		return pmm_alloc();
 
-	uint32 last = 0;
-	/*
-   	if (num_frames < (placement_address / PAGE_SIZE)) {
-		// This is a regular allocation: there won't be stuff free below the placement address, so don't bother trying
-		last = placement_address + PAGE_SIZE;
-	}
-	else {
-		// This is (most likely!) the very FIRST "allocation" where we identity map the lower addresses. Always start at zero here.
-		last = 0;
-	}
-	*/
-
 	INTERRUPT_LOCK;
 
 	bool success = false;
-	uint32 start = _pmm_first_free_frame(last);
+	uint32 start = _pmm_first_free_frame(0);
 
 	/*
 	 * The idea behind this (naïve but relatively simple) algorithm is:
@@ -246,7 +234,7 @@ uint32 pmm_alloc_continuous(uint32 num_frames) {
 			if (_pmm_test_frame(start + (i * PAGE_SIZE)) != 0) {
 				// We found a non-free frame! D'oh!
 				// Start over at the next possibly free address.
-				last = start + ((i+1) * PAGE_SIZE);
+				start = start + ((i+1) * PAGE_SIZE);
 				success = false;
 				break;
 			}
