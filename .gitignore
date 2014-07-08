@@ -21,6 +21,7 @@ toolchain/distfiles
 toolchain/build-*
 toolchain/gcc-4.*
 toolchain/newlib-1.*
+toolchain/gdb-7.*
 toolchain/binutils-2.*
 src/userspace/misc_test/
 src/userspace/daemon
