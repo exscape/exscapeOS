@@ -91,32 +91,32 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 	 */
 	if (mbd_mmap_addr != 0 && mbd_mmap_length != 0) {
 		// We got a memory map from GRUB
-		memory_map_t *mm = (memory_map_t *)mbd_mmap_addr;
+		memory_map_t *memmap = (memory_map_t *)mbd_mmap_addr;
 
-		while ((uint32)mm < mbd_mmap_addr + mbd_mmap_length) {
-			if (mm->type == 1) {
+		while ((uint32)memmap < mbd_mmap_addr + mbd_mmap_length) {
+			if (memmap->type == 1) {
 				// type == 1 means this area is free; all other types are reserved
 				// and not available for use
 #if 0
-				printk("entry 0x%p: base 0x%p%p length 0x%p%p (free)\n", mm,
-					mm->base_addr_high,
-					mm->base_addr_low,
-					mm->length_high,
-					mm->length_low);
+				printk("entry 0x%p: base 0x%p%p length 0x%p%p (free)\n", memmap,
+					memmap->base_addr_high,
+					memmap->base_addr_low,
+					memmap->length_high,
+					memmap->length_low);
 #endif
 
-				if (mm->base_addr_high != 0) {
+				if (memmap->base_addr_high != 0) {
 					printk("Warning: ignoring available RAM area above 4 GB\n");
-					mm++;
+					memmap++;
 					continue;
 				}
-				if (mm->length_high != 0) {
+				if (memmap->length_high != 0) {
 					printk("Warning: ignoring part of available RAM (length > 4 GB)\n");
 					// no continue, let's use the low 32 bits
 				}
 
 				/* Page align addresses etc. */
-				uint32 addr_lo = mm->base_addr_low;
+				uint32 addr_lo = memmap->base_addr_low;
 				if (addr_lo < 0x1000) // ignore the first page
 					addr_lo = 0x1000;
 				if (addr_lo & 0xfff) {
@@ -124,7 +124,7 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 					addr_lo += 0x1000;
 				}
 
-				uint32 addr_hi = addr_lo + (mm->length_low);
+				uint32 addr_hi = addr_lo + (memmap->length_low);
 				if (addr_hi & 0xfff)
 					addr_hi &= 0xfffff000;
 
@@ -138,16 +138,16 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 				// access memory outside the area
 				assert(IS_PAGE_ALIGNED(addr_lo));
 				assert(IS_PAGE_ALIGNED(addr_hi));
-				assert(addr_lo >= mm->base_addr_low);
+				assert(addr_lo >= memmap->base_addr_low);
 
 				// Clear the addresses in this area
 				uint32 addr;
 				for (addr = addr_lo; addr < addr_hi; addr += PAGE_SIZE) {
-					assert(addr < mm->base_addr_low + mm->length_low);
+					assert(addr < memmap->base_addr_low + memmap->length_low);
 					_pmm_clear_frame(addr);
 				}
 			} // if type == 1 (free)
-			mm++;
+			memmap++;
 		}
 	}
 	else {
