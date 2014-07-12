@@ -412,6 +412,7 @@ int execve(const char *path, char *argv[], char *envp[]) {
 	int r = elf_load_int(path, (task_t *)current_task, argv, envp);
 	kfree((void *)path);
 	// argv and envp are freed in elf_load_int
+	argv = envp = NULL;
 
 	if (r == 0) {
 		assert(interrupts_enabled() == false);
@@ -536,6 +537,7 @@ int sys_execve(const char *path, char *argv[], char *envp[]) {
 	current_task->mm = vmm_create_user_mm();
 
 	int r = execve(kpath, kargv, kenvp);
+	// We never get here unless execve failed, as the new process image takes over
 	printk("WARNING: execve failed with return value %d\n", r);
 	return r;
 }

@@ -158,13 +158,11 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 
 	INTERRUPT_LOCK;
 	for (int i = 0; i < 1024; i++) {
-		if (IS_KERNEL_SPACE(i * 1024 * 4096)) {
+		if (IS_KERNEL_SPACE(i * 1024 * PAGE_SIZE)) {
 			// The page table for this region should be linked to the same table as for
 			// all other tasks, as the kernel space is the same in all of them
 			child_dir->tables_physical[i] = parent_dir->tables_physical[i];
 			child_dir->tables[i] = parent_dir->tables[i];
-			//if (child_dir->tables[i] != NULL)
-				//printk("linking kernel space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
 		}
 		else {
 			// This page table and all of its contents should be copied -- if there's anything here
@@ -172,15 +170,15 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 				continue;
 
 			_vmm_create_page_table(i, child_dir);
-			//printk("copying user space range %p-%p\n", i * 1024 * 4096, (i+1) * 1024*4096 - 1);
+			//printk("copying user space range %p-%p\n", i * 1024 * PAGE_SIZE, (i+1) * 1024*PAGE_SIZE - 1);
 			for (int j = 0; j < 1024; j++) {
 				page_t *page_orig = &parent_dir->tables[i]->pages[j];
 				if (page_orig->frame != 0) {
 					page_t *page_copy = &child_dir->tables[i]->pages[j];
 					uint32 phys = pmm_alloc();
-					copy_page_physical(page_orig->frame * 4096, phys); // copy the actual data for this page
-					*(uint32 *)page_copy = *(uint32 *)page_orig; // copy the page flags etc (could be done with memcpy, too)
-					page_copy->frame = phys / 4096;
+					copy_page_physical(page_orig->frame * PAGE_SIZE, phys); // copy the actual data for this page
+					*(uint32 *)page_copy = *(uint32 *)page_orig; // copy the page flags, etc.
+					page_copy->frame = phys / PAGE_SIZE;
 				}
 			}
 		}

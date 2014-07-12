@@ -569,9 +569,6 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 int fork(void) {
 	assert(current_task->privilege == 3);
 
-	uint32 esp;
-	asm volatile("mov %%esp, %[esp]" : [esp]"=a"(esp) : : "cc", "memory");
-
 	registers_t *regs = (registers_t *)((uint32)current_task->stack - sizeof(registers_t));
 
 	task_t *parent = (task_t *)current_task;
