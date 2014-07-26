@@ -117,11 +117,11 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 
 				/* Page align addresses etc. */
 				uint32 addr_lo = memmap->base_addr_low;
-				if (addr_lo < 0x1000) // ignore the first page
-					addr_lo = 0x1000;
+				if (addr_lo < PAGE_SIZE) // ignore the first page
+					addr_lo = PAGE_SIZE;
 				if (addr_lo & 0xfff) {
 					addr_lo &= 0xfffff000;
-					addr_lo += 0x1000;
+					addr_lo += PAGE_SIZE;
 				}
 
 				uint32 addr_hi = addr_lo + (memmap->length_low);

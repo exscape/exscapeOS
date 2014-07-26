@@ -269,7 +269,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 				uint32 new_brk = end_addr;
 				if (!IS_PAGE_ALIGNED(new_brk)) {
 					new_brk &= ~(PAGE_SIZE - 1);
-					new_brk += 0x1000;
+					new_brk += PAGE_SIZE;
 				}
 				task->mm->brk_start = new_brk;
 				task->mm->brk = new_brk;
@@ -288,6 +288,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 			// Copy the segment (e.g. .text + .rodata + .eh_frame, or .data + .bss) to the location
 			// DO NOT use start_addr_aligned here - we want the program to dictate the exact location
+
 			memcpy((void *)start_addr, data + phdr->p_offset, phdr->p_filesz);
 
 			switch_page_directory(old_dir);
@@ -303,7 +304,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	uint32 size = sizeof(struct _reent);
 	if (size & 0xfff) {
 		size &= 0xfffff000;
-		size += 0x1000;
+		size += PAGE_SIZE;
 	}
 
 	vmm_alloc_user(task->mm->brk, task->mm->brk + size, mm, true);

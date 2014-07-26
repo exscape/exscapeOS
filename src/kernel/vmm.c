@@ -522,11 +522,11 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	uint32 end_text = (uint32)(&__end_text);
 	if ((start_text & 0xfff) != 0) {
 		start_text &= 0xfffff000;
-		// DON'T add 0x1000 here, we want to truncate to map it all (.text starts at 0x10000c atm)
+		// DON'T add PAGE_SIZE here, we want to truncate to map it all (.text starts at 0x10000c atm)
 	}
 	if ((end_text & 0xfff) != 0) {
 		end_text &= 0xfffff000;
-		end_text += 0x1000;
+		end_text += PAGE_SIZE
 	}
 
 	// Map the virtual addresses for the kernel, with their respective permissions
