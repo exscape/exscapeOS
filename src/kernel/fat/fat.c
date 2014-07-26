@@ -290,7 +290,9 @@ int fat_read(int fd, void *buf, size_t length) {
 
 	uint32 bytes_read = 0; // this call to read() only
 
-	uint8 *cluster_buf = kmalloc(part->cluster_size * 32);
+	const uint32 max_clusters = 32; // How many clusters to read at once (to keep the buffer size down)
+
+	uint8 *cluster_buf = kmalloc(part->cluster_size * max_clusters);
 
 	if (file->offset >= file->size) {
 		goto done;
@@ -308,7 +310,7 @@ int fat_read(int fd, void *buf, size_t length) {
 			uint32 next = 0, cur = file->_cur_ino;
 			while ((next = fat_next_cluster(part, cur)) == cur + 1 && \
 					continuous_clusters * part->cluster_size < length && \
-					continuous_clusters < 32)
+					continuous_clusters < max_clusters)
 			{
 				cur = next;
 				continuous_clusters++;

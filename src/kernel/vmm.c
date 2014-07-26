@@ -526,7 +526,7 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	}
 	if ((end_text & 0xfff) != 0) {
 		end_text &= 0xfffff000;
-		end_text += PAGE_SIZE
+		end_text += PAGE_SIZE;
 	}
 
 	// Map the virtual addresses for the kernel, with their respective permissions
