@@ -19,6 +19,7 @@
 #include <kernel/ata.h>
 #include <kernel/partition.h>
 #include <kernel/fat.h>
+#include <kernel/ext2.h>
 #include <kernel/pci.h>
 #include <kernel/net/rtl8139.h>
 #include <kernel/net/nethandler.h>
@@ -201,7 +202,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	for (int i=0; i<3; i++)
 		parse_mbr(&devices[i]);
 
-	/* Detect FAT filesystems on all partitions */
+	/* Detect FAT and ext2 filesystems on all partitions */
 	for (int disk = 0; disk < 4; disk++) {
 
 		if (!devices[disk].exists || devices[disk].is_atapi)
@@ -213,6 +214,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 					 devices[disk].partition[part].type == PART_FAT32_LBA))
 			{
 				fat_detect(&devices[disk], part);
+			}
+			else if (devices[disk].partition[part].exists && devices[disk].partition[part].type == PART_LINUX) {
+				ext2_detect(&devices[disk], part);
 			}
 		}
 	}

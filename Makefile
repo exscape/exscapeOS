@@ -84,7 +84,9 @@ netdebug: all
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
 
 run: all
-	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
+#	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
 
 debug: all
-	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64
+#	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
