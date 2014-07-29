@@ -29,11 +29,11 @@ typedef struct ata_device {
 } ata_device_t;
 
 void ata_init(void); /* detects drives and creates the structures used */
-bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors);
-bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors);
+bool ata_read(ata_device_t *dev, uint64 lba, void *buffer, int sectors);
+bool ata_write(ata_device_t *dev, uint64 lba, void *buffer, int sectors);
 
-bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer); /* reads a buffer */
-bool disk_write(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer);
+bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, void *buffer); /* reads a buffer */
+bool disk_write(ata_device_t *dev, uint64 start_lba, uint32 bytes, void *buffer);
 
 extern ata_channel_t channels[2];
 extern ata_device_t devices[4];

@@ -536,7 +536,7 @@ static bool ata_read_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int secto
 	return true;
 }
 
-bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
+bool ata_read(ata_device_t *dev, uint64 lba, void *buffer, int sectors_total) {
 	assert(sectors_total > 0);
 	assert(dev != NULL);
 	assert(dev->exists);
@@ -564,7 +564,7 @@ bool ata_read(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
 			sectors_to_read /= 2;
 		assert(sectors_to_read > 0);
 
-		if (!ata_read_int(dev, lba + sectors_read, buffer + sectors_read*512, sectors_to_read)) {
+		if (!ata_read_int(dev, lba + sectors_read, (uint8 *)buffer + sectors_read*512, sectors_to_read)) {
 			mutex_unlock(ata_mutex);
 			return false;
 		}
@@ -660,7 +660,7 @@ static bool ata_write_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int sect
 	return true;
 }
 
-bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) {
+bool ata_write(ata_device_t *dev, uint64 lba, void *buffer, int sectors_total) {
 	assert(sectors_total > 0);
 	assert(dev != NULL);
 	assert(dev->exists);
@@ -688,7 +688,7 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) 
 			sectors_to_write /= 2;
 		assert(sectors_to_write > 0);
 
-		if (!ata_write_int(dev, lba + sectors_written, buffer + sectors_written*512, sectors_to_write)) {
+		if (!ata_write_int(dev, lba + sectors_written, (uint8 *)buffer + sectors_written*512, sectors_to_write)) {
 			mutex_unlock(ata_mutex);
 			return false;
 		}
@@ -702,7 +702,7 @@ bool ata_write(ata_device_t *dev, uint64 lba, uint8 *buffer, int sectors_total) 
 /* Reads a buffer of "any" size (make sure that the buffer passed is large enough -
  * for bytes=640, the buffer must be at least 1024 bytes large. For bytes=1900,
  * the buffer must be at least 2048 bytes, etc. Always in multiples of 512. */
-bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer) {
+bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, void *buffer) {
 	uint32 sectors = bytes/512;
 	if (bytes % 512)
 		sectors++;
@@ -720,7 +720,7 @@ bool disk_read(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer)
 /* Writes a buffer of "any" size (make sure that the buffer passed is large enough -
  * for bytes=640, the buffer must be at least 1024 bytes large. For bytes=1900,
  * the buffer must be at least 2048 bytes, etc. Always in multiples of 512. */
-bool disk_write(ata_device_t *dev, uint64 start_lba, uint32 bytes, uint8 *buffer) {
+bool disk_write(ata_device_t *dev, uint64 start_lba, uint32 bytes, void *buffer) {
 	uint32 sectors = bytes/512;
 	if (bytes % 512)
 		sectors++;
