@@ -11,6 +11,7 @@
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
 #include <kernel/fat.h>
+#include <kernel/ext2.h>
 #include <path.h>
 #include <kernel/vfs.h>
 #include <stdio.h>
@@ -336,6 +337,9 @@ static void utime(void *data, uint32 length) {
 	printk("%d\n", tv.tv_sec);
 }
 
+extern list_t *ext2_partitions;
+void ext2_lsdir(ext2_partition_t *part_info, uint32 inode_num);
+
 void kshell(void *data, uint32 length) {
 	unsigned char *buf = kmalloc(1024);
 	memset(buf, 0, 1024);
@@ -614,6 +618,12 @@ void kshell(void *data, uint32 length) {
 			else {
 				printk("unable to kill task with PID %d; task not found?\n", pid);
 			}
+		}
+		else if (strncmp(p, "lsino ", 6) == 0) {
+			p += 6;
+			int inode = atoi(p);
+			ext2_partition_t *tmp = (ext2_partition_t *)ext2_partitions->head->data;
+			ext2_lsdir(tmp, inode);
 		}
 		else if (strncmp(p, "cd ", 3) == 0) {
 			p += 3;

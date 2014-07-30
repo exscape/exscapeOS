@@ -85,8 +85,10 @@ netdebug: all
 
 run: all
 #	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
-	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
+#	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
 
 debug: all
 #	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64
-	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
+#	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
