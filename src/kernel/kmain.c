@@ -105,7 +105,7 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_serial();
 	printc(BLACK, GREEN, "done\n");
 
-	serial_send("Hello world!\n");
+//	serial_send("Hello world!\n");
 
 	/* Time to get started initializing things! */
 	printk("Initializing GDTs... ");

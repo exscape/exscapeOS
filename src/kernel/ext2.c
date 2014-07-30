@@ -2,6 +2,7 @@
 #include <kernel/ext2.h>
 #include <kernel/kernutil.h>
 #include <kernel/console.h>
+#include <kernel/serial.h>
 #include <kernel/heap.h>
 #include <kernel/list.h>
 #include <string.h>
@@ -24,6 +25,7 @@ static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
 
 static uint32 bgrp_for_inode(ext2_partition_t *part, uint32 inode) {
 	assert(part != NULL);
+	printk("returing block group %u for inode %u\n", (inode - 1) / part->super.s_inodes_per_group, inode);
 	return (inode - 1) / part->super.s_inodes_per_group;
 }
 
@@ -77,7 +79,23 @@ static void	read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uin
 	// assuming we haven't reached the end yet.
 	uint32 *blocks = (uint32 *)local_buf;
 	for (uint32 i = 0; i < max_num; i++) {
+		printk("%02u: %u\n", i, blocks[i]);
+	}
+	for (uint32 i = 0; i < max_num; i++) {
+		printk("reading block %u (%u/%u of the indirect blocks)\n", *blocks, i, max_num);
 		assert(ata_read(part->dev, block_to_abs_lba(part, *blocks++), (char *)buf + i * part->blocksize, part->blocksize / 512));
+		printk("here it is:\n");
+
+		for (uint32 j = 0; j < part->blocksize; j++) {
+			char c = *(  (char *)buf + i * part->blocksize + j );
+			if (c >= 0x20)
+				printk("%c", c);
+			else
+				printk(".");
+		}
+		printk("\n");
+		ext2_direntry_t *tmpdir = (ext2_direntry_t *)( (char *)buf + i * part->blocksize );
+		printk("mapping onto dir: dir->inode = %u, dir->rec_len = %u\n", tmpdir->inode, tmpdir->rec_len);
 	}
 
 	kfree(local_buf);
@@ -156,9 +174,29 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 
 	ext2_direntry_t *dir = (ext2_direntry_t *)dir_buf;
 
+	if (inode_num != 2) {
+		printk("Sending serial data... ");
+		for (uint32 i=0; i < read_blocks * part->blocksize; i++) {
+			serial_send_byte(dir_buf[i]);
+		}
+		printk("done!\n");
+	}
+
 	uint32 i = 0;
 	uint32 num = 0;
 	do {
+		if (i < read_blocks * part->blocksize && dir->inode == 0) {
+			assert(i % part->blocksize == 0);
+			printk("\n\ndir->inode == 0 at i = %u, skipping ahead 1 block\n\n\n", i);
+			dir = (ext2_direntry_t *)( (char *)dir + part->blocksize);
+			i += part->blocksize;
+			continue;
+		}
+		else if (i >= read_blocks * part->blocksize) {
+			printk("reading past directory, exiting!\n");
+			break;
+		}
+
 		char name[256] = {0};
 		
 		if (dir->name_len < 120) {
@@ -179,12 +217,9 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 //		}
 		num++;
 //		printk("i=%u read_blocks*blsz = %u, dir->inode = %u\n", i, read_blocks * part->blocksize, dir->inode);
-	} while(i < read_blocks * part->blocksize && dir->inode != 0);
-	printk("printed %d entries, %d bytes of records\n", num, i);
-
-	//
-	// TODO: using inode table + index into it, calculate which block to read + the byte offset to place the ext_inode_t * at
-	//
+	} while(i < read_blocks * part->blocksize);
+	printk("inode ZERO at i = 0x%x\n", i);
+	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, read_blocks * part->blocksize);
 
 	kfree(inode);
 	kfree(dir_buf);
