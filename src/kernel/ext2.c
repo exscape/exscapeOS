@@ -25,7 +25,6 @@ static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
 
 static uint32 bgrp_for_inode(ext2_partition_t *part, uint32 inode) {
 	assert(part != NULL);
-	printk("returing block group %u for inode %u\n", (inode - 1) / part->super.s_inodes_per_group, inode);
 	return (inode - 1) / part->super.s_inodes_per_group;
 }
 
@@ -41,11 +40,9 @@ bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 
 	uint32 bgrp = bgrp_for_inode(part, inode);
 	uint32 index = local_index_for_inode(part, inode);
-	//printk("[reading inode %u] inode bgrp = %d, index into inode table = %d\n", inode, bgrp, index);
 
 	ext2_bgd_t *bgd = part->bgdt + bgrp;
 	uint32 inode_table_block = bgd->bg_inode_table;
-	//printk("[reading inode %u] first block of inode table = %u\n", inode, inode_table_block);
 
 	// byte offset into the inode table
 	uint32 offset = index * sizeof(ext2_inode_t);
@@ -53,8 +50,6 @@ bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	offset %= part->blocksize;
 
 	assert(offset % sizeof(ext2_inode_t) == 0);
-
-	//printk("[reading inode %u] block_offset = %d blocks (from inode table start block %d), then %d bytes into that inode table\n", inode, block_offset, inode_table_block, offset);
 
 	char inode_buf[512] = {0};
 	assert(ata_read(part->dev, block_to_abs_lba(part, inode_table_block + block_offset) + offset/512, inode_buf, 1));
@@ -79,23 +74,7 @@ static void	read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uin
 	// assuming we haven't reached the end yet.
 	uint32 *blocks = (uint32 *)local_buf;
 	for (uint32 i = 0; i < max_num; i++) {
-		printk("%02u: %u\n", i, blocks[i]);
-	}
-	for (uint32 i = 0; i < max_num; i++) {
-		printk("reading block %u (%u/%u of the indirect blocks)\n", *blocks, i, max_num);
 		assert(ata_read(part->dev, block_to_abs_lba(part, *blocks++), (char *)buf + i * part->blocksize, part->blocksize / 512));
-		printk("here it is:\n");
-
-		for (uint32 j = 0; j < part->blocksize; j++) {
-			char c = *(  (char *)buf + i * part->blocksize + j );
-			if (c >= 0x20)
-				printk("%c", c);
-			else
-				printk(".");
-		}
-		printk("\n");
-		ext2_direntry_t *tmpdir = (ext2_direntry_t *)( (char *)buf + i * part->blocksize );
-		printk("mapping onto dir: dir->inode = %u, dir->rec_len = %u\n", tmpdir->inode, tmpdir->rec_len);
 	}
 
 	kfree(local_buf);
@@ -115,21 +94,13 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	assert(num_blocks > 0);
 
 	char *dir_buf = kmalloc(num_blocks * part->blocksize);
-	printk("allocated %u bytes for the directory buffer (%u blocks)\n", num_blocks * part->blocksize, num_blocks);
 	memset(dir_buf, 0, num_blocks * part->blocksize);
 
 	uint32 read_blocks = 0; 
 	
 	for (read_blocks = 0; read_blocks < min(12, num_blocks); read_blocks++) {
-		printk("reading direct block %u, LBA %u\n", inode->i_direct[read_blocks], block_to_abs_lba(part, inode->i_direct[read_blocks]));
 		// Use direct blocks; there are only 12, though
 		assert(ata_read(part->dev, block_to_abs_lba(part, inode->i_direct[read_blocks]), dir_buf + read_blocks * part->blocksize, part->blocksize / 512));
-
-		for (uint32 i=0; i < part->blocksize; i++) {
-			printk("%c ", *(dir_buf + read_blocks * part->blocksize + i));
-		}
-
-		printk("\n\nnext block\n");
 	}
 
 	if (num_blocks > read_blocks) {
@@ -141,7 +112,6 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 
 	if (num_blocks > read_blocks) {
 		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
-		printk("%d blocks read, but %d required! using doubly indirect\n", read_blocks, num_blocks);
 
 		// First, read the ARRAY of of SINGLY indirect blocks from disk.
 		// The block pointer is stored in the doubly indirect entry of the inode (inode->i_doubly).
@@ -173,14 +143,6 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	}
 
 	ext2_direntry_t *dir = (ext2_direntry_t *)dir_buf;
-
-	if (inode_num != 2) {
-		printk("Sending serial data... ");
-		for (uint32 i=0; i < read_blocks * part->blocksize; i++) {
-			serial_send_byte(dir_buf[i]);
-		}
-		printk("done!\n");
-	}
 
 	uint32 i = 0;
 	uint32 num = 0;
@@ -218,7 +180,6 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 		num++;
 //		printk("i=%u read_blocks*blsz = %u, dir->inode = %u\n", i, read_blocks * part->blocksize, dir->inode);
 	} while(i < read_blocks * part->blocksize);
-	printk("inode ZERO at i = 0x%x\n", i);
 	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, read_blocks * part->blocksize);
 
 	kfree(inode);
