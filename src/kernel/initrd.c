@@ -9,6 +9,7 @@
 #include <sys/errno.h>
 #include <path.h>
 #include <kernel/fat.h>
+#include <kernel/ext2.h>
 
 static initrd_header_t *initrd_header;     /* the initrd image header (number of files in the image) */
 static initrd_file_header_t *initrd_files; /* array of headers, one for each file in the initrd */
@@ -75,6 +76,17 @@ bool fs_mount(void) {
 						root_mounted = true;
 					strcpy(mp->path, path);
 					fat32_partition_t *part = (fat32_partition_t *)devtable[mp->dev];
+					part->mp = mp;
+					printk("%s, ", mp->path);
+					break;
+				}
+			}
+			else if (strcmp(mount, "ext2") == 0) {
+				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {
+					if (strcmp(path, "/") == 0)
+						root_mounted = true;
+					strcpy(mp->path, path);
+					ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
 					part->mp = mp;
 					printk("%s, ", mp->path);
 					break;

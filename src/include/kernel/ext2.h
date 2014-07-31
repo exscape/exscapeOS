@@ -198,6 +198,7 @@ typedef struct ext2_direntry {
 
 typedef struct ext2_partition {
 	struct ext2_superblock super;
+	mountpoint_t *mp;
 	ata_device_t *dev;
 	partition_t *part;
 	ext2_bgd_t *bgdt;

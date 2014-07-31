@@ -17,6 +17,9 @@ list_t *ext2_partitions = NULL;
 
 #define min(a,b) ( (a < b ? a : b) )
 
+int ext2_open(uint32 dev, const char *path, int mode);
+int ext2_getdents(int fd, void *dp, int count);
+
 static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
 	assert(part != NULL);
 	uint32 sectors_per_block = (1024 << part->super.s_log_block_size) / 512;
@@ -59,7 +62,7 @@ bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	return true; // TODO: make function void, or fix error handling
 }
 
-static void	read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
+static void read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
 	assert(part != NULL);
 	assert(indir_block > EXT2_ROOT_INO);
 	assert(max_num <= part->blocksize / 4);
@@ -113,7 +116,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	if (num_blocks > read_blocks) {
 		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
 
-		// First, read the ARRAY of of SINGLY indirect blocks from disk.
+		// First, read the ARRAY of SINGLY indirect blocks from disk.
 		// The block pointer is stored in the doubly indirect entry of the inode (inode->i_doubly).
 		char *blocklist = kmalloc(part->blocksize);
 		uint32 *singly_blocks = (uint32 *)blocklist;
@@ -175,7 +178,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
 //		if (dir->inode == 0) { 
 //			ext2_direntry_t *old_dir = (ext2_direntry_t *)((char *)dir - old_len);
-//		  	printk("old_dir = 0x%08x\n", old_dir);	
+//			printk("old_dir = 0x%08x\n", old_dir);
 //		}
 		num++;
 //		printk("i=%u read_blocks*blsz = %u, dir->inode = %u\n", i, read_blocks * part->blocksize, dir->inode);
@@ -228,7 +231,7 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	mountpoint_t *mp = kmalloc(sizeof(mountpoint_t));
 	memset(mp, 0, sizeof(mountpoint_t));
 	mp->path[0] = 0; // not set up here
-//	mp->mpops.open     = ext2_open;
+	mp->mpops.open     = ext2_open;
 //	mp->mpops.opendir  = ext2_opendir;
 //	mp->mpops.stat     = ext2_stat;
 	mp->dev = next_dev; // increased below
@@ -243,4 +246,152 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	ext2_lsdir(part_info, EXT2_ROOT_INO); // TODO: remove this
 
 	return true;
+}
+
+int ext2_open(uint32 dev, const char *path, int mode) {
+	assert(dev <= MAX_DEVS - 1);
+	assert(devtable[dev] != NULL);
+	assert(path != NULL);
+	mode=mode; // still unused
+
+	int fd;
+	struct open_file *file = new_filp(&fd);
+	if (!file || fd < 0)
+		return -EMFILE;
+
+	ext2_partition_t *part = (ext2_partition_t *)devtable[dev];
+	assert(part != NULL);
+
+	//uint32 cluster = ext2_cluster_for_path(part, path, 0 /* any type */);
+
+	//
+	// TODO: find inode for path
+	//
+	uint32 inode = EXT2_ROOT_INO;
+
+	if (inode <= EXT2_ROOT_INO) {
+		file->dev = dev;
+		file->ino = inode;
+		file->_cur_ino = inode; // TODO: this won't do for ext2
+		file->offset = 0;
+		file->size = 0; // TODO: should this be kept or not?
+		file->mp = NULL;
+//		file->fops.read  = ext2_read;
+		file->fops.write = NULL;
+//		file->fops.close = ext2_close;
+//		file->fops.lseek = ext2_lseek;
+//		file->fops.fstat = ext2_fstat;
+		file->fops.getdents = ext2_getdents;
+		list_foreach(mountpoints, it) {
+			mountpoint_t *mp = (mountpoint_t *)it->data;
+			if (mp->dev == dev) {
+				file->mp = mp;
+				break;
+			}
+		}
+		file->path = strdup(path);
+		file->count++;
+		assert(file->count == 1); // We have no dup, dup2 etc. yet
+
+		assert(file->mp != NULL);
+
+		return fd;
+	}
+	else {
+		destroy_filp(fd);
+		return -ENOENT;
+	}
+}
+
+int ext2_getdents(int fd, void *dp, int count) {
+	// Fill upp /dp/ with at most /count/ bytes of struct dirents, read from the
+	// open directory with descriptor /fd/. We need to keep track of where we are,
+	// since the caller doesn't do that via the parameters.
+	// TODO: read stuff as-needed from the file system, instead of reading EVERYTHING
+	// at once. That was the easy solution as I already had the parsing in place prior
+	// to deciding to use getdents() for user mode...
+
+	if (count < 128) {
+		return -EINVAL;
+	}
+
+	struct open_file *file = get_filp(fd);
+
+	if (file->data == NULL) {
+		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
+		assert(file->dev < MAX_DEVS);
+		ext2_partition_t *part = (ext2_partition_t *)devtable[file->dev];
+		assert(part != NULL);
+
+//		struct stat st;
+//		fstat(fd, &st);
+//		if (!S_ISDIR(st.st_mode))
+//			return -ENOTDIR;
+
+//		file->data = ext2_opendir_cluster(part, file->ino, file->mp);
+		if (file->data == NULL) {
+			return -ENOTDIR; // TODO - this can't happen at the moment, though (ext2_opendir_cluster always succeds)
+		}
+	}
+
+	DIR *dir = file->data;
+	assert(dir != NULL);
+
+	if (dir->len != 0 && dir->pos >= dir->len) {
+		// We're done!
+		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
+//		closedir(dir); // TODO
+		file->data = NULL;
+		return 0;
+	}
+/*
+	if (dir->buf == NULL) {
+		// Create the list of directory entries
+		ext2_parse_dir(dir, ext2_callback_create_dentries, NULL);
+	}
+
+	if (dir->buf == NULL) {
+		// If we get here, ext2_parse_dir failed
+		// TODO: error reporting
+		return -1;
+	}
+	*/
+
+//	assert(dir->len > dir->pos);
+//	assert((dir->pos & 3) == 0);
+//	assert(dir->_buflen > dir->len);
+
+	// Okay, time to get to work!
+	// buffer to copy to is /dp/, and at most /count/ bytes can be written safely
+	/*
+	int written = 0;
+	while (dir->pos < dir->len) {
+		struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
+		if (written + dent->d_reclen > count) {
+			if (dent->d_reclen > count) {
+				// Won't fit the next time around, either!
+				return -EINVAL; // TODO: memory leak if we don't clean up somewhere
+			}
+			else {
+				// This won't fit! Read it the next time around.
+				return written;
+			}
+		}
+		assert((char *)dp + written + dent->d_reclen <= (char *)dp + count);
+
+		// Okay, this entry fits; copy it over.
+		memcpy((char *)dp + written, dent, dent->d_reclen);
+		written += dent->d_reclen;
+
+		dir->pos += dent->d_reclen;
+		assert((dir->pos & 3) == 0);
+	}
+
+	// If we get here, the loop exited due to there being no more entries,
+	// though the caller can receive more still. Ensure the state is consistent,
+	// and return.
+	assert(written != 0); // we shouldn't get here if nothing was written
+	assert(dir->pos == dir->len);
+*/
+	return 0; // TODO: written;
 }
