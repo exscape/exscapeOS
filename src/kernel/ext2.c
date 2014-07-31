@@ -72,7 +72,6 @@ static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint
 	assert(*blocklist != 0);
 	assert(num > 0);
 	assert(buf != NULL);
-//	printk("read_direct_blocks(num = %u)\n", num);
 
 	// For each block number in the array, read the data in that block into the buffer,
 	// assuming we haven't reached the end yet.
@@ -86,16 +85,16 @@ static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint
 	return num;
 }
 
-static uint32 read_singly_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
+static uint32 read_singly_indirect_blocks(ext2_partition_t *part, uint32 singly_block, uint32 max_num, void *buf) {
 	assert(part != NULL);
-	assert(indir_block > EXT2_ROOT_INO);
+	assert(singly_block > EXT2_ROOT_INO);
 	assert(max_num <= part->blocksize / 4); // This may be relaxed later, in case blocklists are consecutive on disk
 	assert(buf != NULL);
 	
 	// To begin with, we read the contents of the indirect block into a buffer;
 	// this is really just an array of uint32s.
 	uint32 *blocklist = kmalloc(part->blocksize);
-	assert(ata_read(part->dev, block_to_abs_lba(part, indir_block), blocklist, part->blocksize / 512));
+	assert(ata_read(part->dev, block_to_abs_lba(part, singly_block), blocklist, part->blocksize / 512));
 
 	// Next, read the blocks.
 	read_direct_blocks(part, blocklist, max_num, buf);
@@ -114,30 +113,14 @@ static uint32 read_doubly_indirect_blocks(ext2_partition_t *part, uint32 doubly_
 	uint32 *singly_blocks = kmalloc(part->blocksize);
 	assert(ata_read(part->dev, block_to_abs_lba(part, doubly_block), singly_blocks, part->blocksize / 512));
 
-	/*
-	printk("singly blocks for doubly block %u:\n", doubly_block);
-	for (uint32 i = 0; i < part->blocksize/4; i++) {
-		if(i % 10 == 0) printk("i = %03u: ", i);
-
-		printk("%u ", i, singly_blocks[i]);
-
-		if (i % 10 == 1)
-			printk("\n");
-	}
-	printk("\n\n");
-	*/
-
 	// Next, read through as many of these singly indirect blocks as required.
 	uint32 read_data_blocks = 0;
 	for (uint32 i = 0; num > read_data_blocks && i < part->blocksize/4; i++) {
 		uint32 singly = singly_blocks[i];
-//		printk("i = %u, singly = %u\n", i, singly);
-//		if (singly == 0) { printk("singly == 0 with num = %u, having read %u data blocks (inside doubly); i = %u\n", num, read_data_blocks, i); printk("previous singly = %u\n", *(singly_blocks - 1)); }
-//		printk("file is %u blocks; %u TOTAL blocks read overall, from all pointers\n", num_blocks_global, total_read);
 		if (singly == 0)
 			continue;
-		uint32 num_indir_blocks = min(num - read_data_blocks, part->blocksize/4); // how many data blocks to read from THIS singly indir block
-		read_data_blocks += read_singly_indirect_blocks(part, singly, num_indir_blocks, (char *)buf + read_data_blocks * part->blocksize);
+		uint32 data_blocks_to_read = min(num - read_data_blocks, part->blocksize/4);
+		read_data_blocks += read_singly_indirect_blocks(part, singly, data_blocks_to_read, (char *)buf + read_data_blocks * part->blocksize);
 	}
 	kfree(singly_blocks);
 
@@ -152,21 +135,14 @@ static uint32 read_triply_indirect_blocks(ext2_partition_t *part, uint32 triply_
 	uint32 *doubly_blocks = kmalloc(part->blocksize);
 	assert(ata_read(part->dev, block_to_abs_lba(part, triply_block), doubly_blocks, part->blocksize / 512));
 
-	/*
-	printk("doubly blocks: ");
-	for (uint32 i = 0; i < part->blocksize/4; i++) { printk("%u ", doubly_blocks[i]); }
-	printk("\n\n");
-	*/
-
 	// Next, read through as many of these doubly indirect blocks as required.
 	uint32 read_data_blocks = 0;
 	for (uint32 i = 0; num > read_data_blocks && i < part->blocksize/4; i++) {
 		uint32 doubly = doubly_blocks[i];
-		//if (doubly == 0) { printk("doubly == 0 with num = %u, having read %u data blocks (inside triply)\n", num, read_data_blocks); }
 		if (doubly == 0)
 			continue;
-		uint32 num_indir_blocks = min(num - read_data_blocks, part->blocksize/4 * part->blocksize/4); // how many data blocks to read from THIS doubly indir block
-		read_data_blocks += read_doubly_indirect_blocks(part, doubly, num_indir_blocks, (char *)buf + read_data_blocks * part->blocksize);
+		uint32 data_blocks_to_read = min(num - read_data_blocks, part->blocksize/4 * part->blocksize/4); // how many data blocks to read from THIS doubly indir block
+		read_data_blocks += read_doubly_indirect_blocks(part, doubly, data_blocks_to_read, (char *)buf + read_data_blocks * part->blocksize);
 	}
 	kfree(doubly_blocks);
 
@@ -183,7 +159,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
 
-	if ((inode->i_mode & 0x4000) == 0) {
+	if ((inode->i_mode & EXT2_S_IFDIR) == 0) {
 		printk("warning, inode %u is not a directory! ignoring.\n");
 		kfree(inode);
 		return;
@@ -219,19 +195,13 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 		else {
 			memcpy(name, dir->name + 120, dir->name_len - 120);
 		}
-		//printk("%s\n", name);
 
 		printk("inode %u for %s (rec_len %u, name_len %u), type: %u\n", dir->inode, name, dir->rec_len, dir->name_len, dir->file_type);
 		i += dir->rec_len; // TODO: is this and the condition below correct?
-//		uint32 old_len = dir->rec_len;
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
-//		if (dir->inode == 0) {
-//			ext2_direntry_t *old_dir = (ext2_direntry_t *)((char *)dir - old_len);
-//			printk("old_dir = 0x%08x\n", old_dir);
-//		}
 		num++;
-//		printk("i=%u num_blocks*blsz = %u, dir->inode = %u\n", i, num_blocks * part->blocksize, dir->inode);
 	} while(i < num_blocks * part->blocksize);
+
 	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, num_blocks * part->blocksize);
 
 	kfree(orig_ptr);
@@ -246,8 +216,6 @@ char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size /* o
 
 	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
 	assert(num_blocks > 0);
-
-//	printk("file size = %u, i_blocks=%u, FS blocks = %u\n", inode->i_size, inode->i_blocks, num_blocks);
 
 	if (size)
 		*size = inode->i_size;
@@ -264,31 +232,23 @@ char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size /* o
 	if (num_blocks > read_blocks) {
 		// The 12 direct blocks weren't enough, so we'll have to use singly indirect ones.
 		uint32 blocks_to_read = min(num_blocks - read_blocks, part->blocksize/4);
-//		printk("\n\n%u blocks to read using the singly indirect block pointer\n", blocks_to_read);
 		read_singly_indirect_blocks(part, inode->i_singly, blocks_to_read, file_data + read_blocks * part->blocksize);
 		read_blocks += blocks_to_read;
 	}
 
 	if (num_blocks > read_blocks) {
 		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
-
 		uint32 blocks_to_read = min(num_blocks - read_blocks, part->blocksize/4 * part->blocksize/4);
-//		printk("\n\n%u blocks to read using the doubly indirect block pointer\n", blocks_to_read);
 		read_doubly_indirect_blocks(part, inode->i_doubly, blocks_to_read, file_data + read_blocks * part->blocksize);
 		read_blocks += blocks_to_read;
 	}
 
 	if (num_blocks > read_blocks) {
 		// Triply indirect blocks are required to read this file.
-
 		uint32 blocks_to_read = num_blocks - read_blocks;
-//		printk("\n\n%u blocks to read using the triply indirect block pointer\n", blocks_to_read);
 		read_triply_indirect_blocks(part, inode->i_triply, blocks_to_read, file_data + read_blocks * part->blocksize);
 		read_blocks += blocks_to_read;
 	}
-
-//	printk("ext2_read_file: read %u data blocks, file was reported as %u blocks\n", read_blocks, num_blocks);
-//	assert(read_blocks == num_blocks);
 
 	kfree(inode);
 
@@ -351,11 +311,14 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	return true;
 }
 
+// Find the inode number for a given path, by looking recursively, starting at,
+// with help from inode_for_path(), the root directory.
 static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode) {
 	assert(part != NULL);
 	assert(path != NULL);
 	printk("in _inode_for_path; path = %s, parent_inode = %u\n", path, parent_inode);
 
+	assert(strlen(path) <= 255 || strchr(path, '/') - path <= 255);
 	char cur_entry[256] = {0};
 	strlcpy(cur_entry, path, 256);
 
@@ -372,8 +335,6 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 		panic("Non-directory encountered in path");
 	}
 
-//	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
-//	assert(num_blocks > 0);
 	kfree(inode); inode = NULL;
 
 	uint32 size;
@@ -395,53 +356,31 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 			break;
 		}
 
-		char name[256] = {0};
-
-		memcpy(name, dir->name, dir->name_len);
-		//printk("%s\n", name);
-
-		if (strncmp(cur_entry, name, dir->name_len) == 0) {
+		if (strlen(cur_entry) == dir->name_len && memcmp(cur_entry, dir->name, dir->name_len) == 0) {
 			// Found it!
-			printk("found it! %s, inode %u; path=%s, cur_entry=%s\n", name, dir->inode, path, cur_entry);
+			printk("found it! inode %u; path=%s, cur_entry==name==%s\n", dir->inode, path, cur_entry);
 
 			if (strcmp(path, cur_entry) == 0) {
 				// Found the actual file!
+				kfree(orig_ptr);
 				return dir->inode;
 			}
 			else if (strchr(path, '/')) {
+				kfree(orig_ptr);
 				return _inode_for_path(part, strchr(path, '/') + 1, dir->inode);
 			}
 			else
 				panic("end of path, but file not found");
 		}
 
-		printk("inode %u for %s (rec_len %u, name_len %u), type: %u\n", dir->inode, name, dir->rec_len, dir->name_len, dir->file_type);
 		i += dir->rec_len; // TODO: is this and the condition below correct?
-//		uint32 old_len = dir->rec_len;
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
-//		if (dir->inode == 0) {
-//			ext2_direntry_t *old_dir = (ext2_direntry_t *)((char *)dir - old_len);
-//			printk("old_dir = 0x%08x\n", old_dir);
-//		}
 		num++;
-//		printk("i=%u num_blocks*blsz = %u, dir->inode = %u\n", i, num_blocks * part->blocksize, dir->inode);
 	} while(i < size);
-	printk("printed %u entries, %u bytes of records (out of %u read from disk)\n", num, i, size);
 
 	kfree(orig_ptr);
 
-
-
-
-
-
-
-
-	// TODO: read parent_inode and find the file
-	// test if it's a file or directory
-	// return _inode_for_path(part, ..., the inode number for the next dir/file);
-
-	panic("reached the end of _inode_for_path");
+	printk("reached the end of _inode_for_path(%s) in dir with inode %u, returning 0 (not found)\n", path, parent_inode);
 	return 0;
 }
 
@@ -515,17 +454,18 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 	ext2_partition_t *part = (ext2_partition_t *)devtable[dev];
 	assert(part != NULL);
 
-	//
-	// TODO: find inode for path
-	//
 	uint32 inode_num = inode_for_path(part, path);
+
+	if (inode_num < EXT2_ROOT_INO) {
+		destroy_filp(fd);
+		return -ENOENT;
+	}
 
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
 
 	printk("inode = %u returned to ext2_open for path %s\n", inode_num, path);
-
-	printk("file mode = %u, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
+	printk("file mode = 0x%x, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
 
 	if (inode_num >= EXT2_ROOT_INO) {
 		file->dev = dev;
