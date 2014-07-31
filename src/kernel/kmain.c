@@ -216,7 +216,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 				fat_detect(&devices[disk], part);
 			}
 			else if (devices[disk].partition[part].exists && devices[disk].partition[part].type == PART_LINUX) {
+				printk("calling ext2_detect on disk %u part %u\n... ", disk, part);
 				ext2_detect(&devices[disk], part);
+				printc(BLACK, GREEN, "done\n");
 			}
 		}
 	}

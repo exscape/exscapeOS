@@ -20,7 +20,7 @@ list_t *ext2_partitions = NULL;
 
 int ext2_open(uint32 dev, const char *path, int mode);
 int ext2_getdents(int fd, void *dp, int count);
-char *ext2_read_file(ext2_partition_t *part, uint32 inode_num); // read an ENTIRE FILE and return a malloc'ed buffer with it
+char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size); // read an ENTIRE FILE and return a malloc'ed buffer with it
 
 static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
 	assert(part != NULL);
@@ -64,13 +64,13 @@ bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	return true; // TODO: make function void, or fix error handling
 }
 
-static void read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint32 num, void *buf) {
+static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint32 num, void *buf) {
 	assert(part != NULL);
 	assert(blocklist != NULL);
 	assert(*blocklist != 0);
 	assert(num > 0);
 	assert(buf != NULL);
-	printk("read_direct_blocks(num = %u)\n", num);
+//	printk("read_direct_blocks(num = %u)\n", num);
 
 	// For each block number in the array, read the data in that block into the buffer,
 	// assuming we haven't reached the end yet.
@@ -83,9 +83,11 @@ static void read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint32
 		}
 		assert(ata_read(part->dev, block_to_abs_lba(part, *blocklist++), (char *)buf + i * part->blocksize, part->blocksize / 512));
 	}
+
+	return num;
 }
 
-static void read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
+static uint32 read_singly_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
 	assert(part != NULL);
 	assert(indir_block > EXT2_ROOT_INO);
 	assert(max_num <= part->blocksize / 4); // This may be relaxed later, in case blocklists are consecutive on disk
@@ -100,6 +102,76 @@ static void read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uin
 	read_direct_blocks(part, blocklist, max_num, buf);
 
 	kfree(blocklist);
+
+	return max_num;
+}
+
+static uint32 read_doubly_indirect_blocks(ext2_partition_t *part, uint32 doubly_block, uint32 num, void *buf) {
+	assert(part != NULL);
+	assert(doubly_block > EXT2_ROOT_INO);
+	assert(num <= (part->blocksize/4) * (part->blocksize/4));
+	assert(buf != NULL);
+
+	uint32 *singly_blocks = kmalloc(part->blocksize);
+	assert(ata_read(part->dev, block_to_abs_lba(part, doubly_block), singly_blocks, part->blocksize / 512));
+
+	/*
+	printk("singly blocks for doubly block %u:\n", doubly_block);
+	for (uint32 i = 0; i < part->blocksize/4; i++) {
+		if(i % 10 == 0) printk("i = %03u: ", i);
+
+		printk("%u ", i, singly_blocks[i]);
+
+		if (i % 10 == 1)
+			printk("\n");
+	}
+	printk("\n\n");
+	*/
+
+	// Next, read through as many of these singly indirect blocks as required.
+	uint32 read_data_blocks = 0;
+	for (uint32 i = 0; num > read_data_blocks && i < part->blocksize/4; i++) {
+		uint32 singly = singly_blocks[i];
+//		printk("i = %u, singly = %u\n", i, singly);
+//		if (singly == 0) { printk("singly == 0 with num = %u, having read %u data blocks (inside doubly); i = %u\n", num, read_data_blocks, i); printk("previous singly = %u\n", *(singly_blocks - 1)); }
+//		printk("file is %u blocks; %u TOTAL blocks read overall, from all pointers\n", num_blocks_global, total_read);
+		if (singly == 0)
+			continue;
+		uint32 num_indir_blocks = min(num - read_data_blocks, part->blocksize/4); // how many data blocks to read from THIS singly indir block
+		read_data_blocks += read_singly_indirect_blocks(part, singly, num_indir_blocks, (char *)buf + read_data_blocks * part->blocksize);
+	}
+	kfree(singly_blocks);
+
+	return read_data_blocks;
+}
+
+static uint32 read_triply_indirect_blocks(ext2_partition_t *part, uint32 triply_block, uint32 num, void *buf) {
+	assert(part != NULL);
+	assert(triply_block > EXT2_ROOT_INO);
+	assert(buf != NULL);
+
+	uint32 *doubly_blocks = kmalloc(part->blocksize);
+	assert(ata_read(part->dev, block_to_abs_lba(part, triply_block), doubly_blocks, part->blocksize / 512));
+
+	/*
+	printk("doubly blocks: ");
+	for (uint32 i = 0; i < part->blocksize/4; i++) { printk("%u ", doubly_blocks[i]); }
+	printk("\n\n");
+	*/
+
+	// Next, read through as many of these doubly indirect blocks as required.
+	uint32 read_data_blocks = 0;
+	for (uint32 i = 0; num > read_data_blocks && i < part->blocksize/4; i++) {
+		uint32 doubly = doubly_blocks[i];
+		//if (doubly == 0) { printk("doubly == 0 with num = %u, having read %u data blocks (inside triply)\n", num, read_data_blocks); }
+		if (doubly == 0)
+			continue;
+		uint32 num_indir_blocks = min(num - read_data_blocks, part->blocksize/4 * part->blocksize/4); // how many data blocks to read from THIS doubly indir block
+		read_data_blocks += read_doubly_indirect_blocks(part, doubly, num_indir_blocks, (char *)buf + read_data_blocks * part->blocksize);
+	}
+	kfree(doubly_blocks);
+
+	return read_data_blocks;
 }
 
 uint16 internet_checksum(void *ptr, uint32 length);
@@ -122,7 +194,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	kfree(inode); inode = NULL;
 	assert(num_blocks > 0);
 
-	ext2_direntry_t *dir = (ext2_direntry_t *)ext2_read_file(part, inode_num);
+	ext2_direntry_t *dir = (ext2_direntry_t *)ext2_read_file(part, inode_num, NULL);
 	ext2_direntry_t *orig_ptr = dir; // required for kfree, as we modify dir() below, and thus can't pass it to kfree
 
 	uint32 i = 0;
@@ -166,7 +238,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	kfree(orig_ptr);
 }
 
-char *ext2_read_file(ext2_partition_t *part, uint32 inode_num) {
+char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size /* out */) {
 	assert(part != NULL);
 	assert(inode_num >= EXT2_ROOT_INO);
 
@@ -176,55 +248,48 @@ char *ext2_read_file(ext2_partition_t *part, uint32 inode_num) {
 	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
 	assert(num_blocks > 0);
 
-	printk("file size = %u, i_blocks=%u, FS blocks = %u\n", inode->i_size, inode->i_blocks, num_blocks);
+//	printk("file size = %u, i_blocks=%u, FS blocks = %u\n", inode->i_size, inode->i_blocks, num_blocks);
+
+	if (size)
+		*size = inode->i_size;
 
 	char *file_data = kmalloc(num_blocks * part->blocksize);
 	memset(file_data, 0, num_blocks * part->blocksize);
 
 	uint32 read_blocks = 0;
 
+	// Begin by reading the 12 direct blocks (or fewer, if the file is small).
 	read_direct_blocks(part, &inode->i_direct[0], min(12, num_blocks), file_data);
 	read_blocks += min(12, num_blocks);
 
 	if (num_blocks > read_blocks) {
 		// The 12 direct blocks weren't enough, so we'll have to use singly indirect ones.
-		uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4);
-		printk("\n\nnum_indir_blocks = %u\n\n", num_indir_blocks);
-		read_indirect_blocks(part, inode->i_singly, num_indir_blocks, file_data + read_blocks * part->blocksize);
-		read_blocks += num_indir_blocks;
+		uint32 blocks_to_read = min(num_blocks - read_blocks, part->blocksize/4);
+//		printk("\n\n%u blocks to read using the singly indirect block pointer\n", blocks_to_read);
+		read_singly_indirect_blocks(part, inode->i_singly, blocks_to_read, file_data + read_blocks * part->blocksize);
+		read_blocks += blocks_to_read;
 	}
 
 	if (num_blocks > read_blocks) {
 		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
 
-		// First, read the ARRAY of SINGLY indirect blocks from disk.
-		// The block pointer is stored in the doubly indirect entry of the inode (inode->i_doubly).
-		uint32 *singly_blocks = kmalloc(part->blocksize);
-		assert(ata_read(part->dev, block_to_abs_lba(part, inode->i_doubly), singly_blocks, part->blocksize / 512));
-
-		// Next, read through as many of these singly indirect blocks as required.
-		for (uint32 i = 0; num_blocks > read_blocks && i < part->blocksize/4; i++) {
-			uint32 singly = *singly_blocks++;
-			assert(singly != 0);
-			uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4); // how many data blocks to read from THIS singly indir block
-
-			read_indirect_blocks(part, singly, num_indir_blocks, file_data + read_blocks * part->blocksize);
-			read_blocks += num_indir_blocks;
-		}
-		kfree(singly_blocks);
+		uint32 blocks_to_read = min(num_blocks - read_blocks, part->blocksize/4 * part->blocksize/4);
+//		printk("\n\n%u blocks to read using the doubly indirect block pointer\n", blocks_to_read);
+		read_doubly_indirect_blocks(part, inode->i_doubly, blocks_to_read, file_data + read_blocks * part->blocksize);
+		read_blocks += blocks_to_read;
 	}
 
 	if (num_blocks > read_blocks) {
-		// THAT wasn't enough, EITHER! This likely won't happen, so I will wait to support this until required.
-		// Even with a 1 kB block size, we can store 12 + 256 + 256*256 = 65804 kB this way;
-		// a directory with over 64 MiB worth of data probably doesn't exist in the real world!
-		// Even if each file name was 255 bytes, you could fit over 260 000 files in there.
-		// Someone might do it on e.g. Linux, but I doubt anyone will on exscapeOS.
-		//
-		// With larger block sizes, the limits go up a lot. With 4 kB, we can store (12 + 1024 + 1024*1024) * 4 = 4 GIGABYTES
-		// worth of directory data, which clearly never ever happens; who stores >16 million files per directory (each with a 255 byte name)?
-		panic("TODO: support triply indirect blocks for files");
+		// Triply indirect blocks are required to read this file.
+
+		uint32 blocks_to_read = num_blocks - read_blocks;
+//		printk("\n\n%u blocks to read using the triply indirect block pointer\n", blocks_to_read);
+		read_triply_indirect_blocks(part, inode->i_triply, blocks_to_read, file_data + read_blocks * part->blocksize);
+		read_blocks += blocks_to_read;
 	}
+
+//	printk("ext2_read_file: read %u data blocks, file was reported as %u blocks\n", read_blocks, num_blocks);
+//	assert(read_blocks == num_blocks);
 
 	kfree(inode);
 
