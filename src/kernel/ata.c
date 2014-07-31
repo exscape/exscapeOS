@@ -562,6 +562,10 @@ bool ata_read(ata_device_t *dev, uint64 lba, void *buffer, int sectors_total) {
 		}
 		if (sectors_to_read > dev->max_sectors_multiple)
 			sectors_to_read /= 2;
+
+		while (sectors_to_read > sectors_total)
+			sectors_to_read /= 2;
+
 		assert(sectors_to_read > 0);
 
 		if (!ata_read_int(dev, lba + sectors_read, (uint8 *)buffer + sectors_read*512, sectors_to_read)) {
