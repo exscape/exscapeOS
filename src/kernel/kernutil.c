@@ -93,6 +93,7 @@ void reset(void) {
 	asm volatile("lidt (%0);"
 		"int $3;"
 		: : "r"(&p));
+	for(;;); // To keep GCC quiet; the above WILL not return, but GCC doesn't believe that
 }
 
 void reboot(void) {

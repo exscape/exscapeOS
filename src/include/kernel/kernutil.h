@@ -11,9 +11,9 @@ void outb(uint16 port, uint8 value);
 void outw(uint16 port, uint16 value);
 void outl(uint16 port, uint32 value);
 
-void panic(const char *fmt, ...);
-void reset(void);
-void reboot(void);
+void panic(const char *fmt, ...) __attribute__((noreturn));
+void reset(void) __attribute__((noreturn));
+void reboot(void) __attribute__((noreturn));
 
 #define assert(b) ((b) ? (void)0 : panic_assert(__FILE__, __LINE__, #b))
 extern void panic_assert(const char *file, uint32 line, const char *desc);
