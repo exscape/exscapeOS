@@ -339,6 +339,8 @@ static void utime(void *data, uint32 length) {
 
 extern list_t *ext2_partitions;
 void ext2_lsdir(ext2_partition_t *part_info, uint32 inode_num);
+char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size);
+uint16 internet_checksum(void *data, uint32 len);
 
 void kshell(void *data, uint32 length) {
 	unsigned char *buf = kmalloc(1024);
@@ -625,14 +627,20 @@ void kshell(void *data, uint32 length) {
 			ext2_partition_t *tmp = (ext2_partition_t *)ext2_partitions->head->data;
 			ext2_lsdir(tmp, inode);
 		}
+		else if (strncmp(p, "cksum ", 6) == 0) {
+			p += 6;
+			int inode = atoi(p);
+			if (inode < 2) { printk("error: argument must be inode number for a file name\n"); goto exit_loop; }
+			ext2_partition_t *tmp = (ext2_partition_t *)ext2_partitions->head->data;
+			uint32 size;
+			char *file_data = ext2_read_file(tmp, inode, &size);
+			printk("cksum for inode %u = %04x\n", inode, internet_checksum(file_data, size));
+			kfree(file_data);
+		}
 		else if (strncmp(p, "cd ", 3) == 0) {
 			p += 3;
 			cd(p, strlen(p));
 		}
-		//else if (strncmp(p, "catk ", 5) == 0) {
-			//p += 4;
-			//task = create_task(&cat_kernel, "cat_kernel", con, p, strlen(p));
-		//}
 		else if (strcmp(p, "testbench") == 0) {
 			testbench(NULL, 0);
 		}
