@@ -4,6 +4,7 @@
 #include <kernel/interrupts.h>
 #include <string.h>
 #include <kernel/task.h>
+#include <kernel/backtrace.h>
 
 // Write a byte to the specified port
 void outb(uint16 port, uint8 value)
@@ -71,12 +72,15 @@ void panic(const char *fmt, ...) {
 
 	kernel_paniced = true;
 	update_statusbar();
-	asm volatile("cli; 0: hlt ; jmp 0b");
+	//asm volatile("cli; 0: hlt ; jmp 0b");
+	for(;;) { sleep(10000000); } // to allow scrollback
 }
 
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
 	/* Call panic() instead of doing this ourselves, so that breakpoints
 	 * on panic() catches assertions as well */
+	printk("\nAssertion failure! Backtrace:\n");
+	print_backtrace();
 	panic("Assertion failed: %s (%s:%d)\n", desc, file, line);
 }
 
