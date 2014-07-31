@@ -75,13 +75,10 @@ static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint
 	// For each block number in the array, read the data in that block into the buffer,
 	// assuming we haven't reached the end yet.
 	for (uint32 i = 0; i < num; i++) {
-	//	printk("read_direct_blocks: i = %u, *blocklist = %u\n", i, *blocklist);
-		if (*blocklist==0) {
-			blocklist++;
-//			i++; // TODO: should this be here or not? I *think* it shouldn't
+		if (blocklist[i] == 0) {
 			continue;
 		}
-		assert(ata_read(part->dev, block_to_abs_lba(part, *blocklist++), (char *)buf + i * part->blocksize, part->blocksize / 512));
+		assert(ata_read(part->dev, block_to_abs_lba(part, blocklist[i]), (char *)buf + i * part->blocksize, part->blocksize / 512));
 	}
 
 	return num;
