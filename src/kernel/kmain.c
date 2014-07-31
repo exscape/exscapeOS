@@ -198,9 +198,12 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	ata_init();
 	printc(BLACK, GREEN, "done\n");
 
+	printk("Parsing MBRs... ");
 	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */
 	for (int i=0; i<3; i++)
 		parse_mbr(&devices[i]);
+
+	printc(BLACK, GREEN, "done\n");
 
 	/* Detect FAT and ext2 filesystems on all partitions */
 	for (int disk = 0; disk < 4; disk++) {
