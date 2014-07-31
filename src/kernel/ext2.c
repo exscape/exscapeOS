@@ -12,6 +12,7 @@
 #include <sys/errno.h>
 #include <kernel/pmm.h>
 #include <kernel/time.h>
+#include <kernel/backtrace.h>
 
 list_t *ext2_partitions = NULL;
 
@@ -19,6 +20,7 @@ list_t *ext2_partitions = NULL;
 
 int ext2_open(uint32 dev, const char *path, int mode);
 int ext2_getdents(int fd, void *dp, int count);
+char *ext2_read_file(ext2_partition_t *part, uint32 inode_num); // read an ENTIRE FILE and return a malloc'ed buffer with it
 
 static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
 	assert(part != NULL);
@@ -62,26 +64,45 @@ bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	return true; // TODO: make function void, or fix error handling
 }
 
+static void read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint32 num, void *buf) {
+	assert(part != NULL);
+	assert(blocklist != NULL);
+	assert(*blocklist != 0);
+	assert(num > 0);
+	assert(buf != NULL);
+	printk("read_direct_blocks(num = %u)\n", num);
+
+	// For each block number in the array, read the data in that block into the buffer,
+	// assuming we haven't reached the end yet.
+	for (uint32 i = 0; i < num; i++) {
+	//	printk("read_direct_blocks: i = %u, *blocklist = %u\n", i, *blocklist);
+		if (*blocklist==0) {
+			blocklist++;
+//			i++; // TODO: should this be here or not? I *think* it shouldn't
+			continue;
+		}
+		assert(ata_read(part->dev, block_to_abs_lba(part, *blocklist++), (char *)buf + i * part->blocksize, part->blocksize / 512));
+	}
+}
+
 static void read_indirect_blocks(ext2_partition_t *part, uint32 indir_block, uint32 max_num, void *buf) {
 	assert(part != NULL);
 	assert(indir_block > EXT2_ROOT_INO);
-	assert(max_num <= part->blocksize / 4);
+	assert(max_num <= part->blocksize / 4); // This may be relaxed later, in case blocklists are consecutive on disk
 	assert(buf != NULL);
 	
 	// To begin with, we read the contents of the indirect block into a buffer;
 	// this is really just an array of uint32s.
-	char *local_buf = kmalloc(part->blocksize);
-	assert(ata_read(part->dev, block_to_abs_lba(part, indir_block), local_buf, part->blocksize / 512));
+	uint32 *blocklist = kmalloc(part->blocksize);
+	assert(ata_read(part->dev, block_to_abs_lba(part, indir_block), blocklist, part->blocksize / 512));
 
-	// Next, for each block number in the array, read the data in that block into the buffer,
-	// assuming we haven't reached the end yet.
-	uint32 *blocks = (uint32 *)local_buf;
-	for (uint32 i = 0; i < max_num; i++) {
-		assert(ata_read(part->dev, block_to_abs_lba(part, *blocks++), (char *)buf + i * part->blocksize, part->blocksize / 512));
-	}
+	// Next, read the blocks.
+	read_direct_blocks(part, blocklist, max_num, buf);
 
-	kfree(local_buf);
+	kfree(blocklist);
 }
+
+uint16 internet_checksum(void *ptr, uint32 length);
 
 // Test function, used for the early development (long before VFS integration) only.
 void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
@@ -91,73 +112,30 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
 
-	// Calculate number of FS blocks used by this directory; the i_blocks value
-	// is in 512-byte sectors, not blocks
+	if ((inode->i_mode & 0x4000) == 0) {
+		printk("warning, inode %u is not a directory! ignoring.\n");
+		kfree(inode);
+		return;
+	}
+
 	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
+	kfree(inode); inode = NULL;
 	assert(num_blocks > 0);
 
-	char *dir_buf = kmalloc(num_blocks * part->blocksize);
-	memset(dir_buf, 0, num_blocks * part->blocksize);
-
-	uint32 read_blocks = 0; 
-	
-	for (read_blocks = 0; read_blocks < min(12, num_blocks); read_blocks++) {
-		// Use direct blocks; there are only 12, though
-		assert(ata_read(part->dev, block_to_abs_lba(part, inode->i_direct[read_blocks]), dir_buf + read_blocks * part->blocksize, part->blocksize / 512));
-	}
-
-	if (num_blocks > read_blocks) {
-		// The 12 direct blocks weren't enough, so we'll have to use singly indirect ones.
-		uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4);
-		read_indirect_blocks(part, inode->i_singly, num_indir_blocks, dir_buf + read_blocks * part->blocksize);
-		read_blocks += num_indir_blocks;
-	}
-
-	if (num_blocks > read_blocks) {
-		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
-
-		// First, read the ARRAY of SINGLY indirect blocks from disk.
-		// The block pointer is stored in the doubly indirect entry of the inode (inode->i_doubly).
-		char *blocklist = kmalloc(part->blocksize);
-		uint32 *singly_blocks = (uint32 *)blocklist;
-		assert(ata_read(part->dev, block_to_abs_lba(part, inode->i_doubly), blocklist, part->blocksize / 512));
-
-		// Next, read through as many of these singly indirect blocks as required.
-		for (uint32 i = 0; num_blocks > read_blocks && i < part->blocksize/4 && *singly_blocks != 0; i++) {
-			uint32 singly = *singly_blocks;
-			uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4); // how many data blocks to read from THIS singly indir block
-
-			read_indirect_blocks(part, singly, num_indir_blocks, dir_buf + read_blocks * part->blocksize);
-			read_blocks += num_indir_blocks;
-		}
-		kfree(blocklist);
-	}
-
-	if (num_blocks > read_blocks) {
-		// THAT wasn't enough, EITHER! This likely won't happen, so I will wait to support this until required.
-		// Even with a 1 kB block size, we can store 12 + 256 + 256*256 = 65804 kB this way;
-		// a directory with over 64 MiB worth of data probably doesn't exist in the real world!
-		// Even if each file name was 255 bytes, you could fit over 260 000 files in there.
-		// Someone might do it on e.g. Linux, but I doubt anyone will on exscapeOS.
-		//
-		// With larger block sizes, the limits go up a lot. With 4 kB, we can store (12 + 1024 + 1024*1024) * 4 = 4 GIGABYTES
-		// worth of directory data, which clearly never ever happens; who stores >16 million files per directory (each with a 255 byte name)?
-		panic("TODO: support triply indirect blocks for directories");
-	}
-
-	ext2_direntry_t *dir = (ext2_direntry_t *)dir_buf;
+	ext2_direntry_t *dir = (ext2_direntry_t *)ext2_read_file(part, inode_num);
+	ext2_direntry_t *orig_ptr = dir; // required for kfree, as we modify dir() below, and thus can't pass it to kfree
 
 	uint32 i = 0;
 	uint32 num = 0;
 	do {
-		if (i < read_blocks * part->blocksize && dir->inode == 0) {
+		if (i < num_blocks * part->blocksize && dir->inode == 0) {
 			assert(i % part->blocksize == 0);
 			printk("\n\ndir->inode == 0 at i = %u, skipping ahead 1 block\n\n\n", i);
 			dir = (ext2_direntry_t *)( (char *)dir + part->blocksize);
 			i += part->blocksize;
 			continue;
 		}
-		else if (i >= read_blocks * part->blocksize) {
+		else if (i >= num_blocks * part->blocksize) {
 			printk("reading past directory, exiting!\n");
 			break;
 		}
@@ -181,15 +159,76 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 //			printk("old_dir = 0x%08x\n", old_dir);
 //		}
 		num++;
-//		printk("i=%u read_blocks*blsz = %u, dir->inode = %u\n", i, read_blocks * part->blocksize, dir->inode);
-	} while(i < read_blocks * part->blocksize);
-	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, read_blocks * part->blocksize);
+//		printk("i=%u num_blocks*blsz = %u, dir->inode = %u\n", i, num_blocks * part->blocksize, dir->inode);
+	} while(i < num_blocks * part->blocksize);
+	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, num_blocks * part->blocksize);
+
+	kfree(orig_ptr);
+}
+
+char *ext2_read_file(ext2_partition_t *part, uint32 inode_num) {
+	assert(part != NULL);
+	assert(inode_num >= EXT2_ROOT_INO);
+
+	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
+	ext2_read_inode(part, inode_num, inode);
+
+	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
+	assert(num_blocks > 0);
+
+	printk("file size = %u, i_blocks=%u, FS blocks = %u\n", inode->i_size, inode->i_blocks, num_blocks);
+
+	char *file_data = kmalloc(num_blocks * part->blocksize);
+	memset(file_data, 0, num_blocks * part->blocksize);
+
+	uint32 read_blocks = 0;
+
+	read_direct_blocks(part, &inode->i_direct[0], min(12, num_blocks), file_data);
+	read_blocks += min(12, num_blocks);
+
+	if (num_blocks > read_blocks) {
+		// The 12 direct blocks weren't enough, so we'll have to use singly indirect ones.
+		uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4);
+		printk("\n\nnum_indir_blocks = %u\n\n", num_indir_blocks);
+		read_indirect_blocks(part, inode->i_singly, num_indir_blocks, file_data + read_blocks * part->blocksize);
+		read_blocks += num_indir_blocks;
+	}
+
+	if (num_blocks > read_blocks) {
+		// The 12 direct + (blocksize/4) singly indirect ones weren't enough, either!
+
+		// First, read the ARRAY of SINGLY indirect blocks from disk.
+		// The block pointer is stored in the doubly indirect entry of the inode (inode->i_doubly).
+		uint32 *singly_blocks = kmalloc(part->blocksize);
+		assert(ata_read(part->dev, block_to_abs_lba(part, inode->i_doubly), singly_blocks, part->blocksize / 512));
+
+		// Next, read through as many of these singly indirect blocks as required.
+		for (uint32 i = 0; num_blocks > read_blocks && i < part->blocksize/4; i++) {
+			uint32 singly = *singly_blocks++;
+			assert(singly != 0);
+			uint32 num_indir_blocks = min(num_blocks - read_blocks, part->blocksize/4); // how many data blocks to read from THIS singly indir block
+
+			read_indirect_blocks(part, singly, num_indir_blocks, file_data + read_blocks * part->blocksize);
+			read_blocks += num_indir_blocks;
+		}
+		kfree(singly_blocks);
+	}
+
+	if (num_blocks > read_blocks) {
+		// THAT wasn't enough, EITHER! This likely won't happen, so I will wait to support this until required.
+		// Even with a 1 kB block size, we can store 12 + 256 + 256*256 = 65804 kB this way;
+		// a directory with over 64 MiB worth of data probably doesn't exist in the real world!
+		// Even if each file name was 255 bytes, you could fit over 260 000 files in there.
+		// Someone might do it on e.g. Linux, but I doubt anyone will on exscapeOS.
+		//
+		// With larger block sizes, the limits go up a lot. With 4 kB, we can store (12 + 1024 + 1024*1024) * 4 = 4 GIGABYTES
+		// worth of directory data, which clearly never ever happens; who stores >16 million files per directory (each with a 255 byte name)?
+		panic("TODO: support triply indirect blocks for files");
+	}
 
 	kfree(inode);
-	kfree(dir_buf);
 
-	// End read root directory
-	// TODO: remove this
+	return file_data;
 }
 
 bool ext2_detect(ata_device_t *dev, uint8 part) {
