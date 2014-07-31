@@ -20,6 +20,8 @@ list_t *ext2_partitions = NULL;
 
 int ext2_open(uint32 dev, const char *path, int mode);
 int ext2_getdents(int fd, void *dp, int count);
+int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st);
+
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size); // read an ENTIRE FILE and return a malloc'ed buffer with it
 
 static uint32 block_to_abs_lba(ext2_partition_t *part, uint32 block) {
@@ -210,7 +212,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 		}
 
 		char name[256] = {0};
-		
+
 		if (dir->name_len < 120) {
 			memcpy(name, dir->name, dir->name_len);
 		}
@@ -223,7 +225,7 @@ void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
 		i += dir->rec_len; // TODO: is this and the condition below correct?
 //		uint32 old_len = dir->rec_len;
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
-//		if (dir->inode == 0) { 
+//		if (dir->inode == 0) {
 //			ext2_direntry_t *old_dir = (ext2_direntry_t *)((char *)dir - old_len);
 //			printk("old_dir = 0x%08x\n", old_dir);
 //		}
@@ -334,7 +336,7 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	mp->path[0] = 0; // not set up here
 	mp->mpops.open     = ext2_open;
 //	mp->mpops.opendir  = ext2_opendir;
-//	mp->mpops.stat     = ext2_stat;
+	mp->mpops.stat     = ext2_stat;
 	mp->dev = next_dev; // increased below
 	list_append(mountpoints, mp);
 
@@ -349,7 +351,157 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	return true;
 }
 
+static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode) {
+	assert(part != NULL);
+	assert(path != NULL);
+	printk("in _inode_for_path; path = %s, parent_inode = %u\n", path, parent_inode);
+
+	char cur_entry[256] = {0};
+	strlcpy(cur_entry, path, 256);
+
+	if (strchr(cur_entry, '/'))
+		*strchr(cur_entry, '/') = 0;
+
+	printk("cur_entry = %s\n", cur_entry);
+
+	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
+	ext2_read_inode(part, parent_inode, inode);
+
+	if ((inode->i_mode & EXT2_S_IFDIR) == 0) {
+		printk("Invalid path specified to inode_for_path! Inode %u is not a directory, but the requested file is supposed to be a subdirectory!\n", parent_inode);
+		panic("Non-directory encountered in path");
+	}
+
+//	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
+//	assert(num_blocks > 0);
+	kfree(inode); inode = NULL;
+
+	uint32 size;
+	ext2_direntry_t *dir = (ext2_direntry_t *)ext2_read_file(part, parent_inode, &size);
+	ext2_direntry_t *orig_ptr = dir; // required for kfree, as we modify dir() below, and thus can't pass it to kfree
+
+	uint32 i = 0;
+	uint32 num = 0;
+	do {
+		if (i < size && dir->inode == 0) {
+			assert(i % part->blocksize == 0);
+			printk("\n\ndir->inode == 0 at i = %u, skipping ahead 1 block\n\n\n", i);
+			dir = (ext2_direntry_t *)( (char *)dir + part->blocksize);
+			i += part->blocksize;
+			continue;
+		}
+		else if (i >= size) {
+			printk("reading past directory, exiting!\n");
+			break;
+		}
+
+		char name[256] = {0};
+
+		memcpy(name, dir->name, dir->name_len);
+		//printk("%s\n", name);
+
+		if (strncmp(cur_entry, name, dir->name_len) == 0) {
+			// Found it!
+			printk("found it! %s, inode %u; path=%s, cur_entry=%s\n", name, dir->inode, path, cur_entry);
+
+			if (strcmp(path, cur_entry) == 0) {
+				// Found the actual file!
+				return dir->inode;
+			}
+			else if (strchr(path, '/')) {
+				return _inode_for_path(part, strchr(path, '/') + 1, dir->inode);
+			}
+			else
+				panic("end of path, but file not found");
+		}
+
+		printk("inode %u for %s (rec_len %u, name_len %u), type: %u\n", dir->inode, name, dir->rec_len, dir->name_len, dir->file_type);
+		i += dir->rec_len; // TODO: is this and the condition below correct?
+//		uint32 old_len = dir->rec_len;
+		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
+//		if (dir->inode == 0) {
+//			ext2_direntry_t *old_dir = (ext2_direntry_t *)((char *)dir - old_len);
+//			printk("old_dir = 0x%08x\n", old_dir);
+//		}
+		num++;
+//		printk("i=%u num_blocks*blsz = %u, dir->inode = %u\n", i, num_blocks * part->blocksize, dir->inode);
+	} while(i < size);
+	printk("printed %u entries, %u bytes of records (out of %u read from disk)\n", num, i, size);
+
+	kfree(orig_ptr);
+
+
+
+
+
+
+
+
+	// TODO: read parent_inode and find the file
+	// test if it's a file or directory
+	// return _inode_for_path(part, ..., the inode number for the next dir/file);
+
+	panic("reached the end of _inode_for_path");
+	return 0;
+}
+
+static uint32 inode_for_path(ext2_partition_t *part, const char *path) {
+	assert(part != NULL);
+	assert(path != NULL);
+	printk("in inode_for_path; path = %s\n", path);
+
+	if (strcmp(path, "/") == 0)
+		return EXT2_ROOT_INO;
+	else if (*path == '/') {
+		return _inode_for_path(part, path + 1, EXT2_ROOT_INO);
+	}
+	else
+		panic("Invalid path in inode_for_path");
+}
+
+int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
+	assert(mp != NULL);
+	assert(path != NULL);
+	assert(st != NULL);
+
+	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
+	assert(part != NULL);
+
+	uint32 inode_num = inode_for_path(part, path);
+	if (inode_num == 0)
+		return -ENOENT; // TODO: this is the correct errno, right?
+
+	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
+	ext2_read_inode(part, inode_num, inode);
+
+	memset(st, 0, sizeof(struct stat));
+
+	st->st_dev = (short)0xffff; // invalid ID, correct is set in loop below
+	for (int i=0; i < MAX_DEVS; i++) {
+		if ((ext2_partition_t *)devtable[i] == part) {
+			st->st_dev = i;
+			break;
+		}
+	}
+	assert(st->st_dev != (short)0xffff);
+
+	st->st_ino = inode_num;
+	st->st_mode = inode->i_mode; // TODO: are the flags correct, or is some sort of conversion required?
+	st->st_nlink = inode->i_links_count;
+	st->st_size = (inode->i_mode & EXT2_S_IFDIR) ? 0 : inode->i_size;
+	st->st_mtime = inode->i_mtime;
+	st->st_ctime = inode->i_ctime;
+	st->st_atime = inode->i_atime;
+	st->st_blksize = part->blocksize;
+	st->st_blocks = inode->i_blocks;
+
+	kfree(inode);
+
+	return 0;
+}
+
 int ext2_open(uint32 dev, const char *path, int mode) {
+	printk("ext2_open(dev=%u, path=%s, mode=%u)\n", dev, path, mode);
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] != NULL);
 	assert(path != NULL);
@@ -363,25 +515,30 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 	ext2_partition_t *part = (ext2_partition_t *)devtable[dev];
 	assert(part != NULL);
 
-	//uint32 cluster = ext2_cluster_for_path(part, path, 0 /* any type */);
-
 	//
 	// TODO: find inode for path
 	//
-	uint32 inode = EXT2_ROOT_INO;
+	uint32 inode_num = inode_for_path(part, path);
 
-	if (inode <= EXT2_ROOT_INO) {
+	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
+	ext2_read_inode(part, inode_num, inode);
+
+	printk("inode = %u returned to ext2_open for path %s\n", inode_num, path);
+
+	printk("file mode = %u, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
+
+	if (inode_num >= EXT2_ROOT_INO) {
 		file->dev = dev;
-		file->ino = inode;
-		file->_cur_ino = inode; // TODO: this won't do for ext2
+		file->ino = inode_num;
+		file->_cur_ino = inode_num; // TODO: this won't do for ext2
 		file->offset = 0;
-		file->size = 0; // TODO: should this be kept or not?
-		file->mp = NULL;
-//		file->fops.read  = ext2_read;
+		file->size = inode->i_size;
+		file->mp = NULL; // set below
+		file->fops.read  = NULL; //ext2_read;
 		file->fops.write = NULL;
-//		file->fops.close = ext2_close;
-//		file->fops.lseek = ext2_lseek;
-//		file->fops.fstat = ext2_fstat;
+		file->fops.close = NULL; //ext2_close;
+		file->fops.lseek = NULL; //ext2_lseek;
+		file->fops.fstat = NULL; //ext2_fstat;
 		file->fops.getdents = ext2_getdents;
 		list_foreach(mountpoints, it) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
@@ -392,7 +549,7 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 		}
 		file->path = strdup(path);
 		file->count++;
-		assert(file->count == 1); // We have no dup, dup2 etc. yet
+		assert(file->count == 1);
 
 		assert(file->mp != NULL);
 
@@ -418,6 +575,8 @@ int ext2_getdents(int fd, void *dp, int count) {
 
 	struct open_file *file = get_filp(fd);
 
+	panic("ext2_getdents");
+
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
 		assert(file->dev < MAX_DEVS);
@@ -431,7 +590,7 @@ int ext2_getdents(int fd, void *dp, int count) {
 
 //		file->data = ext2_opendir_cluster(part, file->ino, file->mp);
 		if (file->data == NULL) {
-			return -ENOTDIR; // TODO - this can't happen at the moment, though (ext2_opendir_cluster always succeds)
+			return -ENOTDIR;
 		}
 	}
 
