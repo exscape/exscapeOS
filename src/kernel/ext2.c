@@ -439,6 +439,17 @@ int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
 	return 0;
 }
 
+// Same as used for FAT. I mean, it works, so... eh.
+// TODO: rewrite this to use file->inode instead (and perhaps make stat() use that code, too)
+int ext2_fstat(int fd, struct stat *buf) {
+    struct open_file *file = get_filp(fd);
+
+    char relpath[PATH_MAX+1] = {0};
+    find_relpath(file->path, relpath, NULL);
+
+    return ext2_stat(file->mp, relpath, buf);
+}
+
 int ext2_open(uint32 dev, const char *path, int mode) {
 	printk("ext2_open(dev=%u, path=%s, mode=%u)\n", dev, path, mode);
 	assert(dev <= MAX_DEVS - 1);
@@ -478,7 +489,7 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 		file->fops.write = NULL;
 		file->fops.close = NULL; //ext2_close;
 		file->fops.lseek = NULL; //ext2_lseek;
-		file->fops.fstat = NULL; //ext2_fstat;
+		file->fops.fstat = ext2_fstat;
 		file->fops.getdents = ext2_getdents;
 		list_foreach(mountpoints, it) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
@@ -515,18 +526,18 @@ int ext2_getdents(int fd, void *dp, int count) {
 
 	struct open_file *file = get_filp(fd);
 
-	panic("ext2_getdents");
-
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
 		assert(file->dev < MAX_DEVS);
 		ext2_partition_t *part = (ext2_partition_t *)devtable[file->dev];
 		assert(part != NULL);
 
-//		struct stat st;
-//		fstat(fd, &st);
-//		if (!S_ISDIR(st.st_mode))
-//			return -ENOTDIR;
+		struct stat st;
+		fstat(fd, &st);
+		if (!S_ISDIR(st.st_mode))
+			return -ENOTDIR;
+
+		panic("done");
 
 //		file->data = ext2_opendir_cluster(part, file->ino, file->mp);
 		if (file->data == NULL) {
