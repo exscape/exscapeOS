@@ -399,17 +399,13 @@ static uint32 inode_for_path(ext2_partition_t *part, const char *path) {
 		panic("Invalid path in inode_for_path");
 }
 
-int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
-	assert(mp != NULL);
-	assert(path != NULL);
-	assert(st != NULL);
-
-	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
+// Used by ext2_stat and ext2_fstat to avoid code duplication.
+// Those two simply find the inode number, and call this.
+static int ext2_stat_inode(ext2_partition_t *part, mountpoint_t *mp, struct stat *st, uint32 inode_num) {
 	assert(part != NULL);
-
-	uint32 inode_num = inode_for_path(part, path);
-	if (inode_num == 0)
-		return -ENOENT; // TODO: this is the correct errno, right?
+	assert(mp != NULL);
+	assert(st != NULL);
+	assert(inode_num >= EXT2_ROOT_INO);
 
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
@@ -440,15 +436,27 @@ int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
 	return 0;
 }
 
-// Same as used for FAT. I mean, it works, so... eh.
-// TODO: rewrite this to use file->inode instead (and perhaps make stat() use that code, too)
-int ext2_fstat(int fd, struct stat *buf) {
+static int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
+	assert(mp != NULL);
+	assert(path != NULL);
+	assert(st != NULL);
+
+	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
+	assert(part != NULL);
+
+	uint32 inode_num = inode_for_path(part, path);
+	if (inode_num == 0)
+		return -ENOENT;
+
+	return ext2_stat_inode(part, mp, st, inode_num);
+}
+
+static int ext2_fstat(int fd, struct stat *buf) {
+	assert(fd >= 0);
+	assert(buf != NULL);
+
     struct open_file *file = get_filp(fd);
-
-    char relpath[PATH_MAX+1] = {0};
-    find_relpath(file->path, relpath, NULL);
-
-    return ext2_stat(file->mp, relpath, buf);
+	return ext2_stat_inode(devtable[file->dev], file->mp, buf, file->ino);
 }
 
 int ext2_open(uint32 dev, const char *path, int mode) {
