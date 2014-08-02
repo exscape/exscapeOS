@@ -512,6 +512,18 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 	}
 }
 
+int ext2_close(int fd, struct open_file *file) {
+	printk("TODO: implement ext2_close()\n");
+
+	return 0;
+}
+
+struct ext2_getdents_info {
+	char *dir_buf;
+	uint32 len;
+	uint32 pos;
+};
+
 int ext2_getdents(int fd, void *dp, int count) {
 	// Fill upp /dp/ with at most /count/ bytes of struct dirents, read from the
 	// open directory with descriptor /fd/. We need to keep track of where we are,
@@ -521,88 +533,169 @@ int ext2_getdents(int fd, void *dp, int count) {
 	// to deciding to use getdents() for user mode...
 
 	if (count < 128) {
+		// Buffer is too small to be useful.
 		return -EINVAL;
 	}
 
 	struct open_file *file = get_filp(fd);
+	assert(file->dev < MAX_DEVS);
+	ext2_partition_t *part = (ext2_partition_t *)devtable[file->dev];
+	assert(part != NULL);
+
+	struct ext2_getdents_info *info = NULL;
 
 	if (file->data == NULL) {
 		// This directory was just opened, and we haven't actually fetched any entries yet! Do so.
-		assert(file->dev < MAX_DEVS);
-		ext2_partition_t *part = (ext2_partition_t *)devtable[file->dev];
-		assert(part != NULL);
 
 		struct stat st;
 		fstat(fd, &st);
 		if (!S_ISDIR(st.st_mode))
 			return -ENOTDIR;
 
-		panic("done");
+		// TODO: free this in close(); how, though? Can we just free ->data if not NULL?
+		// Look through other code to find out.
+		info = kmalloc(sizeof(struct ext2_getdents_info));
+		memset(info, 0, sizeof(struct ext2_getdents_info));
+		file->data = info;
 
-//		file->data = ext2_opendir_cluster(part, file->ino, file->mp);
-		if (file->data == NULL) {
-			return -ENOTDIR;
-		}
+		info->dir_buf = ext2_read_file(part, st.st_ino, &info->len);
+		printk("read directory contents from disk; %u bytes\n", info->len);
+		assert(info->dir_buf != NULL);
+		assert(info->len > 0);
 	}
 
-	DIR *dir = file->data;
-	assert(dir != NULL);
+	memset(dp, 0, count);
 
-	if (dir->len != 0 && dir->pos >= dir->len) {
+	assert(file->data != NULL);
+
+	if (info == NULL)
+		info = file->data;
+
+	//
+	// TODO: does this exit condition work with ext2? there way be empty entries at the end!
+	//
+	if (info->len != 0 && info->pos >= info->len) {
 		// We're done!
-		assert(dir->pos == dir->len); // Anything but exactly equal is a bug
-//		closedir(dir); // TODO
-		file->data = NULL;
+		// TODO: cleanup?
 		return 0;
 	}
-/*
-	if (dir->buf == NULL) {
-		// Create the list of directory entries
-		ext2_parse_dir(dir, ext2_callback_create_dentries, NULL);
-	}
 
-	if (dir->buf == NULL) {
-		// If we get here, ext2_parse_dir failed
-		// TODO: error reporting
-		return -1;
-	}
-	*/
+	assert(info->len > info->pos);
+//	assert((info->pos & 3) == 0);
 
-//	assert(dir->len > dir->pos);
-//	assert((dir->pos & 3) == 0);
-//	assert(dir->_buflen > dir->len);
-
-	// Okay, time to get to work!
-	// buffer to copy to is /dp/, and at most /count/ bytes can be written safely
-	/*
 	int written = 0;
-	while (dir->pos < dir->len) {
-		struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
-		if (written + dent->d_reclen > count) {
-			if (dent->d_reclen > count) {
-				// Won't fit the next time around, either!
-				return -EINVAL; // TODO: memory leak if we don't clean up somewhere
-			}
-			else {
-				// This won't fit! Read it the next time around.
+	while (info->pos < info->len) {
+		ext2_direntry_t *dir = (ext2_direntry_t *)(info->dir_buf + info->pos);
+
+		// First of all, find the first valid directory entry on disk.
+		// The very FIRST one should be valid, but this is run in a loop,
+		// so we might stumble onto an unused entry here in a later iteration.
+
+		while (dir->inode == 0) {
+			if (info->pos >= info->len) {
+				// We're done!
+				// TODO: cleanup!
 				return written;
 			}
-		}
-		assert((char *)dp + written + dent->d_reclen <= (char *)dp + count);
 
-		// Okay, this entry fits; copy it over.
-		memcpy((char *)dp + written, dent, dent->d_reclen);
+			assert(info->pos % part->blocksize == 0);
+			//printk("\n\ngetdents(): dir->inode == 0 at position %u (len = %u), skipping ahead 1 block\n\n\n", info->pos, info->len);
+			info->pos += part->blocksize;
+			dir = (ext2_direntry_t *)( (char *)dir + info->pos);
+
+			continue;
+		}
+
+		// Once we get here, there must be data present.
+		assert(info->pos < info->len);
+		assert(dir->inode != 0);
+		assert(dir->name_len != 0);
+		assert(dir->rec_len > 8);
+
+		struct dirent *dent = (struct dirent *)((char *)dp + written);
+		//printk("dir=0x%p, dent=0x%p, written = %u\n", dir, dent, written);
+
+		// The name may not be as long as it can be, so the struct may be smaller than its maximum possible size.
+		// We subtract MAXNAMLEN to get the size of the *rest* of the struct,
+		// then add back the length of the actual name, plus 1 byte for NULL termination.
+		int entry_len = sizeof(struct dirent) - MAXNAMLEN + dir->name_len + 1;
+
+		int tmp = written + entry_len;
+		if ((written + entry_len) & 3) {
+			// This needs alignment
+			entry_len &= ~3;
+			entry_len += 4;
+		}
+		assert(written + entry_len - tmp <= 3);
+		assert(((written + entry_len) & 3) == 0);
+
+		if (written + entry_len > count) {
+			// This entry won't fit this time around!
+
+			if (entry_len > count) {
+				// Nor will it fit *next* time around (result buffer is too short).
+				// The Linux syscall returns EINVAL for this case, so I will do the same, to keep compatibility.
+				return -EINVAL;
+			}
+
+			// OK, so it *will* fit next time around.
+			return written;
+		}
+
+		// This entry should fit right now.
+		assert((char *)dp + written + entry_len <= (char *)dp + count);
+
+		dent->d_ino = dir->inode;
+		dent->d_dev = file->dev;
+		dent->d_reclen = entry_len;
+		dent->d_type = DT_UNKNOWN; // Set below, if we do know the type
+		dent->d_namlen = dir->name_len;
+		memcpy(dent->d_name, dir->name, dir->name_len);
+
+		switch (dir->file_type & EXT2_S_IFMT) {
+			case EXT2_S_IFSOCK:
+				dent->d_type = EXT2_FT_SOCK;
+				break;
+			case EXT2_S_IFLNK:
+				dent->d_type = EXT2_FT_SYMLINK;
+				break;
+			case EXT2_S_IFREG:
+				dent->d_type = EXT2_FT_REG_FILE;
+				break;
+			case EXT2_S_IFBLK:
+				dent->d_type = EXT2_FT_BLKDEV;
+				break;
+			case EXT2_S_IFDIR:
+				dent->d_type = EXT2_FT_DIR;
+				break;
+			case EXT2_S_IFCHR:
+				dent->d_type = EXT2_FT_CHRDEV;
+				break;
+			case EXT2_S_IFIFO:
+				dent->d_type = EXT2_FT_FIFO;
+				break;
+		}
+
+		info->pos += dir->rec_len;
 		written += dent->d_reclen;
 
-		dir->pos += dent->d_reclen;
-		assert((dir->pos & 3) == 0);
+		//printk("set info->pos=%u (len = %u) and written=%u (count = %u) before new loop\n", info->pos, info->len, written, count);
+
+		// TODO: should the struct dirents be DWORD aligned?
+
+
+	}
+
+/*
+		info->pos += dir->d_reclen;
+		assert((info->pos & 3) == 0);
 	}
 
 	// If we get here, the loop exited due to there being no more entries,
 	// though the caller can receive more still. Ensure the state is consistent,
 	// and return.
 	assert(written != 0); // we shouldn't get here if nothing was written
-	assert(dir->pos == dir->len);
+	assert(info->pos == info->len);
 */
-	return 0; // TODO: written;
+	return written;
 }

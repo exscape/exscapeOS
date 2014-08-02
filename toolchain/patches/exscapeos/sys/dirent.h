@@ -20,7 +20,7 @@ struct dirent {
 #define _DIRENT_HAVE_D_RECLEN
 #define _DIRENT_HAVE_D_TYPE
 
-// struct dirent.flags
+// struct dirent.d_type flags
 enum {
 	DT_UNKNOWN = 0,
 	DT_FIFO = 1,

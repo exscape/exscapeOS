@@ -171,7 +171,7 @@ fi # BUILD_GDB != 0
 fi # end $NEWLIB_ONLY != 1
 
 # Only necessary for Newlib, from the looks of it
-# That would make sense, since Newlb is the only part of this
+# That would make sense, since Newlib is the only part of this
 # that builds code *for* exscapeOS, not just code that *targets* it
 export PATH=$PATH:$PREFIX/bin
 export CFLAGS_FOR_TARGET="-O0 -gstabs+"
