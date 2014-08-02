@@ -19,6 +19,7 @@ list_t *ext2_partitions = NULL;
 #define min(a,b) ( (a < b ? a : b) )
 
 int ext2_open(uint32 dev, const char *path, int mode);
+int ext2_close(int fd, struct open_file *file);
 int ext2_getdents(int fd, void *dp, int count);
 int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st);
 
@@ -427,7 +428,7 @@ int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
 	st->st_ino = inode_num;
 	st->st_mode = inode->i_mode; // TODO: are the flags correct, or is some sort of conversion required?
 	st->st_nlink = inode->i_links_count;
-	st->st_size = (inode->i_mode & EXT2_S_IFDIR) ? 0 : inode->i_size;
+	st->st_size = inode->i_size; //(inode->i_mode & EXT2_S_IFDIR) ? 0 : inode->i_size;
 	st->st_mtime = inode->i_mtime;
 	st->st_ctime = inode->i_ctime;
 	st->st_atime = inode->i_atime;
@@ -487,7 +488,7 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 		file->mp = NULL; // set below
 		file->fops.read  = NULL; //ext2_read;
 		file->fops.write = NULL;
-		file->fops.close = NULL; //ext2_close;
+		file->fops.close = ext2_close;
 		file->fops.lseek = NULL; //ext2_lseek;
 		file->fops.fstat = ext2_fstat;
 		file->fops.getdents = ext2_getdents;
