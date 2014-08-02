@@ -68,7 +68,7 @@ int do_file(const char *fullname, const char *name) {
 		else
 			strftime(date_buf, 16, "%d %b  %Y", tm);
 
-		printf("%s 1 root  root %8u %s %s%s\n", perm_str, (uint32)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		printf("%s %2d root  root %8u %s %s%s\n", perm_str, st.st_nlink, (uint32)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
 	}
 	else {
 		// standard format
