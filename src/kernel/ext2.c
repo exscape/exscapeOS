@@ -18,10 +18,10 @@ list_t *ext2_partitions = NULL;
 
 #define min(a,b) ( (a < b ? a : b) )
 
-int ext2_open(uint32 dev, const char *path, int mode);
-int ext2_close(int fd, struct open_file *file);
-int ext2_getdents(int fd, void *dp, int count);
-int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st);
+static int ext2_open(uint32 dev, const char *path, int mode);
+static int ext2_close(int fd, struct open_file *file);
+static int ext2_getdents(int fd, void *dp, int count);
+static int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st);
 
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size); // read an ENTIRE FILE and return a malloc'ed buffer with it
 
@@ -41,7 +41,7 @@ static uint32 local_index_for_inode(ext2_partition_t *part, uint32 inode) {
 	return (inode - 1) % part->super.s_inodes_per_group;
 }
 
-bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
+static bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	assert(part != NULL);
 	assert(inode >= EXT2_ROOT_INO);
 	assert(buf != NULL);
@@ -459,7 +459,7 @@ static int ext2_fstat(int fd, struct stat *buf) {
 	return ext2_stat_inode(devtable[file->dev], file->mp, buf, file->ino);
 }
 
-int ext2_open(uint32 dev, const char *path, int mode) {
+static int ext2_open(uint32 dev, const char *path, int mode) {
 	printk("ext2_open(dev=%u, path=%s, mode=%u)\n", dev, path, mode);
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] != NULL);
@@ -521,7 +521,7 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 	}
 }
 
-int ext2_close(int fd, struct open_file *file) {
+static int ext2_close(int fd, struct open_file *file) {
 	printk("TODO: implement ext2_close()\n");
 
 	return 0;
@@ -533,7 +533,7 @@ struct ext2_getdents_info {
 	uint32 pos;
 };
 
-int ext2_getdents(int fd, void *dp, int count) {
+static int ext2_getdents(int fd, void *dp, int count) {
 	// Fill upp /dp/ with at most /count/ bytes of struct dirents, read from the
 	// open directory with descriptor /fd/. We need to keep track of where we are,
 	// since the caller doesn't do that via the parameters.
