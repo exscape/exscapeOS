@@ -317,7 +317,7 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode) {
 	assert(part != NULL);
 	assert(path != NULL);
-	printk("in _inode_for_path; path = %s, parent_inode = %u\n", path, parent_inode);
+	//printk("in _inode_for_path; path = %s, parent_inode = %u\n", path, parent_inode);
 
 	assert(strlen(path) <= 255 || strchr(path, '/') - path <= 255);
 	char cur_entry[256] = {0};
@@ -326,7 +326,7 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 	if (strchr(cur_entry, '/'))
 		*strchr(cur_entry, '/') = 0;
 
-	printk("cur_entry = %s\n", cur_entry);
+	//printk("cur_entry = %s\n", cur_entry);
 
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, parent_inode, inode);
@@ -359,7 +359,7 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 
 		if (strlen(cur_entry) == dir->name_len && memcmp(cur_entry, dir->name, dir->name_len) == 0) {
 			// Found it!
-			printk("found it! inode %u; path=%s, cur_entry==name==%s\n", dir->inode, path, cur_entry);
+			//printk("found it! inode %u; path=%s, cur_entry==name==%s\n", dir->inode, path, cur_entry);
 
 			if (strcmp(path, cur_entry) == 0) {
 				// Found the actual file!
@@ -388,7 +388,7 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 static uint32 inode_for_path(ext2_partition_t *part, const char *path) {
 	assert(part != NULL);
 	assert(path != NULL);
-	printk("in inode_for_path; path = %s\n", path);
+	//printk("in inode_for_path; path = %s\n", path);
 
 	if (strcmp(path, "/") == 0)
 		return EXT2_ROOT_INO;
@@ -476,8 +476,8 @@ int ext2_open(uint32 dev, const char *path, int mode) {
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
 
-	printk("inode = %u returned to ext2_open for path %s\n", inode_num, path);
-	printk("file mode = 0x%x, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
+	//printk("inode = %u returned to ext2_open for path %s\n", inode_num, path);
+	//printk("file mode = 0x%x, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
 
 	if (inode_num >= EXT2_ROOT_INO) {
 		file->dev = dev;
