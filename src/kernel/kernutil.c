@@ -72,8 +72,14 @@ void panic(const char *fmt, ...) {
 
 	kernel_paniced = true;
 	update_statusbar();
-	//asm volatile("cli; 0: hlt ; jmp 0b");
-	for(;;) { sleep(10000000); } // to allow scrollback
+
+	// Uncommenting cli+hlt makes scrollback after a panic impossible, but
+	// on the other hand, it gives useful backtraces and debugging possibilities
+	// in gdb post-panic.
+
+	// asm volatile("cli; 0: hlt ; jmp 0b");
+
+	for(;;) { sleep(10000000); }
 }
 
 extern void panic_assert(const char *file, uint32 line, const char *desc) {
