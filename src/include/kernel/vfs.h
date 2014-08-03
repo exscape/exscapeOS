@@ -25,10 +25,16 @@ typedef struct dir {
 	uint32 dev; // the partition associated with this DIR
 	uint32 ino;
 
+	// These four are used by FAT...
 	uint8 *buf;
-	uint32 _buflen; /* buffer's malloc'ed size */
-	uint32 pos;
-	uint32 len; /* number of valid data bytes in the buffer */
+	int _buflen; /* buffer's malloc'ed size */
+	int pos;
+	int len; /* number of valid data bytes in the buffer */
+
+	// ... while this is used by ext2, which uses getdents to implements readdir.
+	// Some of the above are still used, as getdents can return more that one entry at a time.
+	int fd;
+
 	struct mountpoint *mp;
 	struct dir_ops dops;
 } DIR;

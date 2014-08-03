@@ -106,7 +106,12 @@ bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	return true;
 }
 
+// Only used from within the kernel!
+// Userspace has these in Newlib, which uses the getdents() system call.
 DIR *opendir(const char *path) {
+	assert(path != NULL);
+	assert(*path != 0);
+
 	char relpath[PATH_MAX+1] = {0};
 	mountpoint_t *mp = NULL;
 	if (!find_relpath(path, relpath, &mp))
@@ -122,7 +127,7 @@ int open(const char *path, int mode) {
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
 
-	if (mode != O_RDONLY || mode != (O_RDONLY | O_DIRECTORY))
+	if (mode != O_RDONLY && mode != (O_RDONLY | O_DIRECTORY))
 		return -EACCES;
 
 	assert(mp->mpops.open != NULL);
@@ -270,12 +275,16 @@ int close(int fd) {
 	return do_close(fd, (task_t *)current_task);
 }
 
+// Only used from within the kernel!
+// Userspace has these in Newlib, which uses the getdents() system call.
 int closedir(DIR *dir) {
 	assert(dir != NULL);
 	assert(dir->dops.closedir != NULL);
 	return dir->dops.closedir(dir);
 }
 
+// Only used from within the kernel!
+// Userspace has these in Newlib, which uses the getdents() system call.
 struct dirent *readdir(DIR *dir) {
 	assert(dir != NULL);
 	assert(dir->dops.readdir != NULL);
