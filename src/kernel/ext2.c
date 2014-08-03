@@ -48,7 +48,7 @@ static uint32 local_index_for_inode(ext2_partition_t *part, uint32 inode) {
 	return (inode - 1) % part->super.s_inodes_per_group;
 }
 
-static bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
+static void ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	assert(part != NULL);
 	assert(inode >= EXT2_ROOT_INO);
 	assert(buf != NULL);
@@ -70,8 +70,6 @@ static bool ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	assert(ata_read(part->dev, block_to_abs_lba(part, inode_table_block + block_offset) + offset/512, inode_buf, 1));
 
 	memcpy(buf, inode_buf + (offset % 512), sizeof(ext2_inode_t));
-
-	return true; // TODO: make function void, or fix error handling
 }
 
 static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint32 num, void *buf) {
@@ -235,8 +233,9 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	memcpy(&part_info->super, buf, 1024);
 	part_info->blocksize = 1024 << part_info->super.s_log_block_size;
 
-	// TODO: Fix possible off-by-one errors
-	uint32 num_bgdt_sectors = 1 + ((part_info->super.s_blocks_count / part_info->super.s_blocks_per_group + 1) * sizeof(ext2_bgd_t)) / 512;
+	uint32 bgdt_size = (part_info->super.s_blocks_count / part_info->super.s_blocks_per_group + 1) * sizeof(ext2_bgd_t);
+	uint32 num_bgdt_sectors = (bgdt_size % 512 == 0) ? bgdt_size/512 : bgdt_size/512 + 1;
+
 	ext2_bgd_t *bgd = kmalloc(num_bgdt_sectors * 512);
 	assert(ata_read(dev, block_to_abs_lba(part_info, part_info->super.s_log_block_size == 0 ? 2 : 1), bgd, num_bgdt_sectors));
 	part_info->bgdt = bgd; // Array of block group descriptors
@@ -265,7 +264,6 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode) {
 	assert(part != NULL);
 	assert(path != NULL);
-	//printk("in _inode_for_path; path = %s, parent_inode = %u\n", path, parent_inode);
 
 	assert(strlen(path) <= 255 || strchr(path, '/') - path <= 255);
 	char cur_entry[256] = {0};
@@ -273,8 +271,6 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 
 	if (strchr(cur_entry, '/'))
 		*strchr(cur_entry, '/') = 0;
-
-	//printk("cur_entry = %s\n", cur_entry);
 
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, parent_inode, inode);
@@ -305,7 +301,6 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 
 		if (strlen(cur_entry) == dir->name_len && memcmp(cur_entry, dir->name, dir->name_len) == 0) {
 			// Found it!
-			//printk("found it! inode %u; path=%s, cur_entry==name==%s\n", dir->inode, path, cur_entry);
 
 			if (strcmp(path, cur_entry) == 0) {
 				// Found the actual file!
@@ -320,21 +315,19 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 				panic("end of path, but file not found");
 		}
 
-		i += dir->rec_len; // TODO: is this and the condition below correct?
+		i += dir->rec_len;
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
 		num++;
 	} while(i < size);
 
 	kfree(orig_ptr);
 
-//	printk("reached the end of _inode_for_path(%s) in dir with inode %u, returning 0 (not found)\n", path, parent_inode);
 	return 0;
 }
 
 static uint32 inode_for_path(ext2_partition_t *part, const char *path) {
 	assert(part != NULL);
 	assert(path != NULL);
-	//printk("in inode_for_path; path = %s\n", path);
 
 	if (strcmp(path, "/") == 0)
 		return EXT2_ROOT_INO;
@@ -368,9 +361,9 @@ static int ext2_stat_inode(ext2_partition_t *part, mountpoint_t *mp, struct stat
 	assert(st->st_dev != (short)0xffff);
 
 	st->st_ino = inode_num;
-	st->st_mode = inode->i_mode; // TODO: are the flags correct, or is some sort of conversion required?
+	st->st_mode = inode->i_mode; // these appear to be "compatible" (i.e. inode flags = stat flags)
 	st->st_nlink = inode->i_links_count;
-	st->st_size = inode->i_size; //(inode->i_mode & EXT2_S_IFDIR) ? 0 : inode->i_size;
+	st->st_size = inode->i_size;
 	st->st_mtime = inode->i_mtime;
 	st->st_ctime = inode->i_ctime;
 	st->st_atime = inode->i_atime;
@@ -406,7 +399,6 @@ static int ext2_fstat(int fd, struct stat *buf) {
 }
 
 static int ext2_open(uint32 dev, const char *path, int mode) {
-//	printk("ext2_open(dev=%u, path=%s, mode=%u)\n", dev, path, mode);
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] != NULL);
 	assert(path != NULL);
@@ -429,9 +421,6 @@ static int ext2_open(uint32 dev, const char *path, int mode) {
 
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, inode_num, inode);
-
-	//printk("inode = %u returned to ext2_open for path %s\n", inode_num, path);
-	//printk("file mode = 0x%x, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
 
 	if (inode_num >= EXT2_ROOT_INO) {
 		if ((mode & O_DIRECTORY) && (inode->i_mode & EXT2_S_IFDIR) == 0) {
@@ -514,10 +503,9 @@ static struct dirent *ext2_readdir(DIR *dir) {
 	assert(dir != NULL);
 	assert(dir->fd >= 0);
 
-
 	if (dir->buf == NULL) {
 		// This is the first invocation, so let's allocate a buffer.
-		dir->_buflen = sizeof(struct dirent); // TODO: increase once everything works
+		dir->_buflen = 2048;
 		dir->buf = kmalloc(dir->_buflen);
 	}
 
@@ -609,7 +597,6 @@ static int ext2_getdents(int fd, void *dp, int count) {
 		file->data = info;
 
 		info->dir_buf = ext2_read_file(part, st.st_ino, &info->len);
-//		printk("read directory contents from disk; %u bytes\n", info->len);
 		assert(info->dir_buf != NULL);
 		assert(info->len > 0);
 	}
@@ -642,7 +629,6 @@ static int ext2_getdents(int fd, void *dp, int count) {
 		while (dir->inode == 0) {
 			if (info->pos >= info->len) {
 				// We're done!
-				// TODO: cleanup!
 				return written;
 			}
 
