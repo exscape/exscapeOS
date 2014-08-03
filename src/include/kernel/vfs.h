@@ -66,6 +66,7 @@ mountpoint_t *find_mountpoint_for_path(const char *path);
 #define MAX_OPEN_FILES 128
 
 #define O_RDONLY 0
+#define O_DIRECTORY 0x10000
 
 #define MAX_DEVS 8
 extern void *devtable[MAX_DEVS];

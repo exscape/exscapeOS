@@ -488,6 +488,13 @@ static int ext2_open(uint32 dev, const char *path, int mode) {
 	//printk("file mode = 0x%x, size = %u, 512-byte blocks = %u\n", inode->i_mode, inode->i_size, inode->i_blocks);
 
 	if (inode_num >= EXT2_ROOT_INO) {
+		if ((mode & O_DIRECTORY) && (inode->i_mode & EXT2_S_IFDIR) == 0) {
+			// Caller wanted to open a directory, but this is something else.
+			destroy_filp(fd);
+			kfree(inode);
+			return -ENOTDIR;
+		}
+
 		file->dev = dev;
 		file->ino = inode_num;
 		file->_cur_ino = inode_num; // TODO: this won't do for ext2

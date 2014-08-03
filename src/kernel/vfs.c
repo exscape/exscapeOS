@@ -122,7 +122,7 @@ int open(const char *path, int mode) {
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
 
-	if (mode != O_RDONLY)
+	if (mode != O_RDONLY || mode != (O_RDONLY | O_DIRECTORY))
 		return -EACCES;
 
 	assert(mp->mpops.open != NULL);
