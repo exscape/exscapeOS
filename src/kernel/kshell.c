@@ -338,7 +338,6 @@ static void utime(void *data, uint32 length) {
 }
 
 extern list_t *ext2_partitions;
-void ext2_lsdir(ext2_partition_t *part_info, uint32 inode_num);
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size);
 uint16 internet_checksum(void *data, uint32 len);
 
@@ -620,12 +619,6 @@ void kshell(void *data, uint32 length) {
 			else {
 				printk("unable to kill task with PID %d; task not found?\n", pid);
 			}
-		}
-		else if (strncmp(p, "lsino ", 6) == 0) {
-			p += 6;
-			int inode = atoi(p);
-			ext2_partition_t *tmp = (ext2_partition_t *)ext2_partitions->head->data;
-			ext2_lsdir(tmp, inode);
 		}
 		else if (strncmp(p, "cksum ", 6) == 0) {
 			p += 6;

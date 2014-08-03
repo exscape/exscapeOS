@@ -158,63 +158,6 @@ static uint32 read_triply_indirect_blocks(ext2_partition_t *part, uint32 triply_
 }
 
 uint16 internet_checksum(void *ptr, uint32 length);
-
-// Test function, used for the early development (long before VFS integration) only.
-void ext2_lsdir(ext2_partition_t *part, uint32 inode_num) {
-	assert(part != NULL);
-	assert(inode_num >= EXT2_ROOT_INO);
-
-	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
-	ext2_read_inode(part, inode_num, inode);
-
-	if ((inode->i_mode & EXT2_S_IFDIR) == 0) {
-		printk("warning, inode %u is not a directory! ignoring.\n");
-		kfree(inode);
-		return;
-	}
-
-	uint32 num_blocks = inode->i_blocks/(2 << part->super.s_log_block_size);
-	kfree(inode); inode = NULL;
-	assert(num_blocks > 0);
-
-	ext2_direntry_t *dir = (ext2_direntry_t *)ext2_read_file(part, inode_num, NULL);
-	ext2_direntry_t *orig_ptr = dir; // required for kfree, as we modify dir() below, and thus can't pass it to kfree
-
-	uint32 i = 0;
-	uint32 num = 0;
-	do {
-		if (i < num_blocks * part->blocksize && dir->inode == 0) {
-			assert(i % part->blocksize == 0);
-			printk("\n\next2_lsdir: dir->inode == 0 at i = %u, skipping ahead 1 block\n\n\n", i);
-			dir = (ext2_direntry_t *)( (char *)dir + part->blocksize);
-			i += part->blocksize;
-			continue;
-		}
-		else if (i >= num_blocks * part->blocksize) {
-			printk("reading past directory, exiting!\n");
-			break;
-		}
-
-		char name[256] = {0};
-
-		if (dir->name_len < 120) {
-			memcpy(name, dir->name, dir->name_len);
-		}
-		else {
-			memcpy(name, dir->name + 120, dir->name_len - 120);
-		}
-
-		printk("inode %u for %s (rec_len %u, name_len %u), type: %u\n", dir->inode, name, dir->rec_len, dir->name_len, dir->file_type);
-		i += dir->rec_len; // TODO: is this and the condition below correct?
-		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
-		num++;
-	} while(i < num_blocks * part->blocksize);
-
-	printk("printed %u entries, %u bytes of records (out of %u read)\n", num, i, num_blocks * part->blocksize);
-
-	kfree(orig_ptr);
-}
-
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size /* out */) {
 	assert(part != NULL);
 	assert(inode_num >= EXT2_ROOT_INO);
@@ -313,8 +256,6 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 
 	/* Add the new partition entry to the list */
 	list_append(ext2_partitions, part_info);
-
-	ext2_lsdir(part_info, EXT2_ROOT_INO); // TODO: remove this
 
 	return true;
 }

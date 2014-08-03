@@ -13,13 +13,14 @@ void print_help(void) {
 	fprintf(stderr, "Usage: ls [-alh] [files...]\n");
 	fprintf(stderr, "-1: display one file per line, with no additional details\n");
 	fprintf(stderr, "-a: show hidden files (that begin with a dot)\n");
+	fprintf(stderr, "-i: print each file's inode number (implies -l)\n");
 	fprintf(stderr, "-l: show details, one file per line\n");
 	fprintf(stderr, "-F: show a / after directory names\n");
 	fprintf(stderr, "-h: display this help message\n");
 }
 
 // TODO: reduce amount of globals
-int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_type = 0;
+int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_type = 0, opt_inode = 0;
 int current_year = 0;
 int line_used = 0; // used for standard mode only
 
@@ -68,6 +69,9 @@ int do_file(const char *fullname, const char *name) {
 		else
 			strftime(date_buf, 16, "%d %b  %Y", tm);
 
+		if (opt_inode) {
+			printf("%7u ", (unsigned int)st.st_ino);
+		}
 		printf("%s %2d root  root %8u %s %s%s\n", perm_str, st.st_nlink, (uint32)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
 	}
 	else {
@@ -113,12 +117,17 @@ int main(int argc, char **argv) {
 	assert(argv[argc] == NULL);
 
 	int c;
-	while ((c = getopt(argc, argv, "1aFhl")) != -1) {
+	while ((c = getopt(argc, argv, "1aFhli")) != -1) {
 		switch(c) {
 			case 'a':
 				opt_all = 1;
 				break;
 			case 'l':
+				opt_list = 1;
+				opt_singlecol = 0;
+				break;
+			case 'i':
+				opt_inode = 1;
 				opt_list = 1;
 				opt_singlecol = 0;
 				break;
