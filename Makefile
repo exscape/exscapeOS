@@ -3,7 +3,7 @@ TARGET = build
 WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
                 -Wwrite-strings -Wredundant-decls -Wnested-externs -Winline \
 				-Wuninitialized -Wstrict-prototypes \
-				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function # TODO: re-add unused-function
+				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function
 
 PREFIX = /usr/local/cross
 GCCINC = $(PREFIX)/lib/gcc/i586-pc-exscapeos/4.7.2/include
@@ -75,20 +75,14 @@ nofat: all
 
 net: all
 	@bash net-scripts/prepare.sh
-#@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
 
 netdebug: all
 	@bash net-scripts/prepare.sh
-#@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -net nic,model=rtl8139,macaddr='10:20:30:40:50:60' -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=net-scripts/ifdown.sh -serial file:serial-output -d cpu_reset -m 64
 	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
 
 run: all
-#	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64
-#	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
 	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
 
 debug: all
-#	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64
-#	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -hdb ext2-4kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
 	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
