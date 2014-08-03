@@ -710,8 +710,7 @@ static void verify_area(void *in_p, uint32 size) {
 	for (ptr = in_p; ptr < ((unsigned char *)in_p + size); ptr++) {
 		if (*ptr != 0xaa) {
 			print_heap_index();
-			printk("ERROR: data at %p isn't 0xaa! Heap index for just now is above.\n", ptr);
-			panic("Data was overwritten!");
+			panic("Data at %p isn't 0xaa (memory corruption occured)! Heap index for just now is above.\n", ptr);
 		}
 	}
 }

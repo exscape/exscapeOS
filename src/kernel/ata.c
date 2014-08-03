@@ -172,8 +172,7 @@ static void ata_error(uint8 channel, uint8 status, uint8 cmd) {
 	   break;
 	}
 
-	printk("ATA error code: %02x\n", err);
-	panic("ATA error!");
+	panic("ATA error! Error code: %02x\n", err);
 }
 
 /* Initialize the driver, and IDENTIFY DEVICEs */

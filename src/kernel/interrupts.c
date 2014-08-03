@@ -348,8 +348,7 @@ uint32 irq_handler(uint32 esp) {
 	else if (regs->int_no > IRQ1) {
 		/* Make an exception for the timer (IRQ0), since it may fire before we set up the handler for it */
 		/* Also ignore the keyboard (IRQ1), just in case. */
-		printk("IRQ without handler: IRQ %d\n", regs->int_no - 32);
-		panic("See above");
+		panic("IRQ without handler: IRQ %d\n", regs->int_no - 32);
 	}
 
 	/* Return the console_task pointer to its correct state */

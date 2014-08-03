@@ -332,8 +332,7 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 	ext2_read_inode(part, parent_inode, inode);
 
 	if ((inode->i_mode & EXT2_S_IFDIR) == 0) {
-		printk("Invalid path specified to inode_for_path! Inode %u is not a directory, but the requested file is supposed to be a subdirectory!\n", parent_inode);
-		panic("Non-directory encountered in path");
+		panic("Invalid path specified to inode_for_path! Inode %u is not a directory, but the requested file is supposed to be a subdirectory!\n", parent_inode);
 	}
 
 	kfree(inode); inode = NULL;
