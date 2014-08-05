@@ -1,8 +1,10 @@
 #include <kernel/heap.h>
 #include <kernel/kernutil.h>
 #include <kernel/vmm.h>
+#include <kernel/timer.h>
 #include <kernel/console.h> /* for print_heap_index() */
 #include <kernel/interrupts.h>
+#include <kernel/serial.h>
 #include <stdio.h> /* sprintf */
 #include <string.h> /* memset */
 #include <kernel/backtrace.h>
@@ -20,6 +22,9 @@
 #if HEAP_DEBUG == 0
 #error Seriously, HEAP_DEBUG == 0 is a bad idea
 #endif
+
+// Print some basic info about allocations and frees to the serial console
+#define HEAP_SERIAL_DEBUG 0
 
 /* The kernel heap */
 heap_t *kheap = NULL;
@@ -63,7 +68,7 @@ void start_leak_trace(void) {
 	// We can use kmalloc since tracing hasn't started, and will have ended
 	// before we call kfree()
 	if (leak_info != NULL) {
-		printk("Warning: start_leak_trace() with trace already running\n");
+		printk("Warning: start_leak_trace() with trace already running; skipping this trace\n");
 		return;
 	}
 	assert(leak_info == NULL);
@@ -75,7 +80,10 @@ void start_leak_trace(void) {
 }
 
 void stop_leak_trace(void) {
-	assert(leak_info != NULL);
+	if (leak_info == NULL) {
+		printk("Warning: leak_info==NULL in stop_leak_trace(), possibly due to race condition\n");
+		return;
+	}
 
 	INTERRUPT_LOCK;
 #if HEAP_DEBUG >= 3
@@ -364,6 +372,17 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	printk("heap_contract, removing %d bytes\n", (old_size - new_size) );
 #endif
 
+#if HEAP_DEBUG >= 2
+	// Make sure NO used area is located past the new end address
+	for (uint32 i = 0; i < kheap->used_index.size; i++) {
+		area_header_t *found_header = (area_header_t *)lookup_ordered_array(i, &kheap->used_index);
+		if ((char *)found_header + found_header->size > (char *)new_end_address) {
+			panic("contract_heap with used area outside of the new heap end address!");
+		}
+	}
+	prints("contract_heap (ticks=%u): no areas outside new end address (0x%p)\n", gettickcount(), new_end_address);
+#endif
+
 	/* Make sure the address is still aligned */
 	assert(IS_PAGE_ALIGNED(new_end_address));
 
@@ -373,6 +392,10 @@ void heap_contract(uint32 bytes_to_shrink, heap_t *heap) {
 	}
 
 	heap->end_address = new_end_address;
+
+#if HEAP_SERIAL_DEBUG > 0
+	prints("heap_contract: heap now ends at 0x%p!\n", heap->end_address);
+#endif
 }
 
 void heap_destroy(heap_t *heap, page_directory_t *dir) {
@@ -875,6 +898,10 @@ void *kmalloc_int(uint32 size, bool align, uint32 *phys) {
 		if (align)
 			assert(IS_PAGE_ALIGNED(addr));
 
+#if HEAP_SERIAL_DEBUG > 0
+		prints("Allocated 0x%p (%u bytes), %spage-aligned\n", addr, size, align ? "" : "not ");
+#endif
+
 		return addr;
 	}
 	else {
@@ -955,7 +982,32 @@ void *krealloc(void *p, size_t new_size) {
 }
 
 void kfree(void *p) {
+	if (p >= (void *)kheap->end_address) {
+		panic("Attempted to free pointer past the heap!\n");
+	}
 	heap_free(p, kheap);
+#if HEAP_SERIAL_DEBUG > 0
+	prints("Freed 0x%p\n", p);
+#endif
+}
+
+bool kheap_is_valid(void *p) {
+	if (p == NULL)
+		return false;
+
+	INTERRUPT_LOCK;
+
+	area_header_t *header;
+	area_footer_t *footer;
+
+	if (!find_area_and_validate(p, &header, &footer, kheap)) {
+		// This address doesn't belong to the heap
+		INTERRUPT_UNLOCK;
+		return false;
+	}
+
+	INTERRUPT_UNLOCK;
+	return true;
 }
 
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */

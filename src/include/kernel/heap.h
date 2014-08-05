@@ -102,6 +102,12 @@ void free(void *);
  */
 void *kmalloc_int(uint32 size, bool align, uint32 *phys);
 
+/*
+ * Tests whether a pointer belongs to the kernel heap or not.
+ * Useful for checking use-after-free bugs.
+ */
+bool kheap_is_valid(void *p);
+
 /* Plain kmalloc; not page-aligned, doesn't return the physical address */
 void *kmalloc(uint32 size);
 
