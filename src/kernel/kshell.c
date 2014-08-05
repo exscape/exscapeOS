@@ -472,6 +472,13 @@ void kshell(void *data, uint32 length) {
 		else if (strcmp(p, "heaptest") == 0) {
 			task = create_task(&heaptest, "heaptest", con, NULL, 0);
 		}
+		else if (strcmp(p, "hloop") == 0) {
+			while (true) {
+				task = create_task(&heaptest, "heaptest", con, NULL, 0);
+				while (does_task_exist(task))
+					sleep(500);
+			}
+		}
 		else if (strcmp(p, "free") == 0) {
 			task = create_task(&free_mem, "free", con, NULL, 0);
 		}
@@ -773,13 +780,9 @@ void heaptest(void *data, uint32 length) {
 	/* The highest address allocated in the stress tests; stored for testing purposes, of course */
 	void *max_alloc = NULL;
 
-	/* stress test a little */
-//#define NUM 2750
-
 	/* account for the overhead and a tiny bit more */
 	uint32 free_ = pmm_bytes_free();
 	free_ -= ((free_/1024/128) + 24) * (sizeof(area_header_t) + sizeof(area_footer_t));
-
 
 	/* This MUST be const and MUST NOT change (especially not being INCREASED in size) later!
 	 * If this is increased, accessing p[] outside of NUM-1 will cause invalid memory accesses (duh!) */
@@ -798,39 +801,39 @@ void heaptest(void *data, uint32 length) {
 
 	uint32 total = 0;
 	for (int x=0; x < TEST_1_LOOPS; x++) {
-	total = 0;
+		total = 0;
 
-	for (uint32 i = 0; i < NUM; i++) {
-		uint32 sz = RAND_RANGE(4, 65535);
-		p[i] = kmalloc(sz);
-		assert(IS_DWORD_ALIGNED(p[i]));
-		if (p[i] > max_alloc) max_alloc = p[i];
-		total += sz;
-		printk("alloc #%d (%d bytes, data block starts at %p)\n", i, sz, p[i]);
+		for (uint32 i = 0; i < NUM; i++) {
+			uint32 sz = RAND_RANGE(4, 65535);
+			p[i] = kmalloc(sz);
+			assert(IS_DWORD_ALIGNED(p[i]));
+			if (p[i] > max_alloc) max_alloc = p[i];
+			total += sz;
+			printk("alloc #%d (%d bytes, data block starts at %p)\n", i, sz, p[i]);
+
+			validate_heap_index(false);
+			//print_heap_index();
+		}
+		printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
+
+		/* Free one in "the middle" */
+		if (NUM > 100) {
+			kfree((void *)p[100]);
+			p[100] = NULL;
+		}
 
 		validate_heap_index(false);
-		//print_heap_index();
+
+		for (uint32 i = 0; i < NUM; i++) {
+			kfree((void *)p[i]);
+			printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(area_header_t));
+			p[i] = 0;
+			validate_heap_index(false);
+			//print_heap_index();
+		}
+		printk("%d frees done\n", NUM);
+
 	}
-	printk("%d allocs done, in total %d bytes (%d kiB)\n", NUM, total, total/1024);
-
-	/* Free one in "the middle" */
-	if (NUM > 100) {
-		kfree((void *)p[100]);
-		p[100] = NULL;
-	}
-
-	validate_heap_index(false);
-
-	for (uint32 i = 0; i < NUM; i++) {
-		kfree((void *)p[i]);
-		printk("just freed block %d (header at 0x%p)\n", i, (uint32)p[i] - sizeof(area_header_t));
-		p[i] = 0;
-		validate_heap_index(false);
-		//print_heap_index();
-	}
-	printk("%d frees done\n", NUM);
-
-}
 	validate_heap_index(false);
 	print_heap_index();
 
@@ -839,102 +842,125 @@ void heaptest(void *data, uint32 length) {
   ***************************/
 
 	uint32 num_allocs = 0; /* just a stats variable, to print later */
-	uint32 kbytes_allocated = 0;
+	uint32 bytes_allocated = 0;
+	uint32 mbytes_allocated = 0;
+	uint32 mem_in_use = 0;
 
 	srand(1234567);
 	printk("Running the large stress test\n");
 
-	for(int outer=1; outer <= TEST_2_LOOPS ; outer++) {
+	for(int outer=1; outer <= TEST_2_LOOPS; outer++) {
 		printk("\nloop %d/%d\n", outer, TEST_2_LOOPS);
 
-	/*
-	 * This code is a damn mess, but i won't bother making this easily readable,
-	 * as it's temporary.
-	 * It randomizes whether it should allocate or free, and whether the allocations
-	 * should be page-aligned or not.
-	 * It then fills its allocated space with a bit pattern, and ensures that
-	 * it doesn't get overwritten.
-	 */
+		/*
+		 * This code is a damn mess, but i won't bother making this easily readable,
+		 * as it's temporary.
+		 * It randomizes whether it should allocate or free, and whether the allocations
+		 * should be page-aligned or not.
+		 * It then fills its allocated space with a bit pattern, and ensures that
+		 * it doesn't get overwritten.
+		 */
 
-	memset(p, 0, sizeof(void *) * NUM);
-	uint32 mem_in_use = 0;
-	for (uint32 i = 0; i < NUM; i++) {
+		for (uint32 i=0; i < NUM; i++) {
+			assert(p[i] == NULL);
+			assert(alloced_size[i] == 0);
+		}
 
-		if (num_allocs % 50 == 0)
-			printk(".");
-//		print_heap_index();
-		uint32 r = RAND_RANGE(1,10);
-		if (r >= 6) {
-			uint32 r2 =RAND_RANGE(0,NUM-1);
-			if (p[r2] != NULL) {
-				/* This area was used already; don't overwrite it, or we can't free it! */
-				continue;
-			}
-			uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
-			if (r3 > 3200)
-					r3 *= 200; /* test */
+		mem_in_use = 0;
+		for (uint32 i = 0; i < NUM; i++) {
+			//printk("inner, i = %u (out of %u)\n", i, NUM);
 
-			uint8 align = RAND_RANGE(1, 10); /* align ~1/10 allocs */
-			//printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
-			if (align == 1) {
-				p[r2] = kmalloc_a(r3);
-				assert(IS_PAGE_ALIGNED(p[r2]));
+			if (num_allocs % 50 == 0)
+				printk(".");
+	//		print_heap_index();
+			uint32 r = RAND_RANGE(1,10);
+			if (r >= 6) {
+				//printk("r>=6, allocating\n");
+				uint32 r2 =RAND_RANGE(0,NUM-1);
+				if (p[r2] != NULL) {
+					/* This area was used already; don't overwrite it, or we can't free it! */
+					//printk("p[r2=%u] = %p, skipping\n", r2, p[r2]);
+					continue;
+				}
+				uint32 r3 = RAND_RANGE(8,3268); // bytes to allocate
+				if (r3 > 3200)
+						r3 *= 200; /* test */
+
+				uint8 align = RAND_RANGE(1, 10); /* align ~1/10 allocs */
+				//printk("alloc %d bytes%s", r3, align == 1 ? ", page aligned" : "");
+				if (align == 1) {
+					p[r2] = kmalloc_a(r3);
+					assert(IS_PAGE_ALIGNED(p[r2]));
+				}
+				else {
+					p[r2] = kmalloc(r3);
+					assert(IS_DWORD_ALIGNED(p[r2]));
+				}
+				//printk(" at 0x%p\n", p[r2]);
+
+				/* store the alloc size */
+				assert(r3 > 0);
+				alloced_size[r2] = r3;
+
+				num_allocs++;
+				bytes_allocated += r3;
+				if (bytes_allocated >= 1024*1024) {
+					mbytes_allocated += bytes_allocated/(1024*1024);
+					bytes_allocated %= 1024*1024;
+				}
+
+				assert(r3 != 0 && alloced_size[r2] != 0);
+
+				/* fill the allocation with a bit pattern, to ensure that nothing overwrites it */
+				//printk("memsetting p[r2]=%p to p[r2]+r3=%p to 0xaa; p itself is %p\n", p[r2], (char*)p[r2] + r3, p);
+				memset(p[r2], 0xaa, r3);
+
+				if (p[r2] > max_alloc) max_alloc = p[r2];
+
+				mem_in_use += r3 + sizeof(area_header_t) + sizeof(area_footer_t);
+				//printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
 			}
 			else {
-				p[r2] = kmalloc(r3);
-				assert(IS_DWORD_ALIGNED(p[r2]));
+				//printk("r < 6, freeing (if possible)\n");
+				uint32 r2 = RAND_RANGE(0, NUM-1);
+				if (p[r2] != NULL) {
+					//printk("p[r2] != NULL ( p[r2=%u] = %p, alloced_size[r2] = %u, trying free\n", r2, p[r2], alloced_size[r2]);
+					mem_in_use -= alloced_size[r2];
+
+					assert(alloced_size[r2] != 0);
+					verify_area(p[r2], alloced_size[r2]);
+					//printk("freeing memory at %p (%d bytes)\n", p[r2], alloced_size[r2]);
+					//printk("mem in use: %d bytes (after free)\n", mem_in_use);
+					alloced_size[r2] = 0;
+					kfree((void *)p[r2]);
+					p[r2] = 0;
+				}
 			}
-			//printk(" at 0x%p\n", p[r2]);
+			validate_heap_index(false);
+		} // end inner loop
 
-			/* store the alloc size */
-			alloced_size[r2] = r3;
-
-			num_allocs++;
-			kbytes_allocated += r3/1024;
-
-			assert(r3 != 0 && alloced_size[r2] != 0);
-
-			/* fill the allocation with a bit pattern, to ensure that nothing overwrites it */
-			memset(p[r2], 0xaa, r3);
-
-		if (p[r2] > max_alloc) max_alloc = p[r2];
-			mem_in_use += r3 + sizeof(area_header_t) + sizeof(area_footer_t);
-			//printk("mem in use: %d bytes (after alloc)\n", mem_in_use);
-		}
-		else {
-			uint32 r2 = RAND_RANGE(0, NUM-1);
-			if (p[r2] != NULL) {
-				mem_in_use -= alloced_size[r2];
-
-				assert(alloced_size[r2] != 0);
-				verify_area(p[r2], alloced_size[r2]);
+		// Clean up
+		for (uint32 i = 0; i < NUM; i++) {
+			if (p[i] != NULL) {
+				assert(alloced_size[i] != 0);
+				mem_in_use -= alloced_size[i];
+				//printk("mem in use: %d bytes (after free)\n", mem_in_use);
+				verify_area(p[i], alloced_size[i]);
+				kfree((void *)p[i]);
+				p[i] = 0;
+				alloced_size[i] = 0;
 			}
-			//printk("freeing memory at %p (%d bytes)\n", p[r2], alloced_size[r2]);
-			alloced_size[r2] = 0;
-			kfree((void *)p[r2]);
-			p[r2] = 0;
-			//printk("mem in use: %d bytes (after free)\n", mem_in_use);
 		}
 		validate_heap_index(false);
-	}
+	} // end outer loop
 
-	// Clean up
-	for (uint32 i = 0; i < NUM; i++) {
-		if (p[i] != NULL) {
-			mem_in_use -= alloced_size[i];
-			//printk("mem in use: %d bytes (after free)\n", mem_in_use);
-			assert(alloced_size[i] != 0);
-			verify_area(p[i], alloced_size[i]);
-			kfree((void *)p[i]);
-			p[i] = 0;
-		}
-	}
-	validate_heap_index(false);
-}
-printk("\n");
-//print_heap_index();
+	kfree(p);
+	kfree(alloced_size);
+
+	printk("\n");
+	//print_heap_index();
 	printk("ALL DONE! max_alloc = %p; total number of allocations: %d\n", max_alloc, num_allocs);
-	printk("Total allocated: (approx.) %u kiB (%u MiB)\n", kbytes_allocated, kbytes_allocated >> 10);
+	printk("Total allocated: (approx.) %u MiB\n", mbytes_allocated);
 	printk("heaptest took %u ticks\n", gettickcount() - start_time);
 
 #if 0
@@ -956,16 +982,3 @@ printk("\n");
 	printk("Time taken: %d ticks (%d ms)\n", end_ticks - start_ticks, (end_ticks - start_ticks) * 10);
 #endif
 }
-
-/*
-void ls_initrd(void *data, uint32 length) {
-	int ctr = 0;
-	struct dirent *node = NULL;
-	while ( (node = readdir_fs(fs_root, ctr)) != 0) {
-		fs_node_t *fsnode = finddir_fs(fs_root, node->d_name);
-		printk("Found %s: %s\n", ((fsnode->flags & 0x7) == FS_DIRECTORY) ? "directory" : "file", node->d_name);
-
-		ctr++;
-	}
-}
-*/
