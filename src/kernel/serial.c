@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
+#include <sys/types.h>
 #include <kernel/serial.h>
 #include <kernel/console.h>
 #include <kernel/kernutil.h>
@@ -54,7 +58,36 @@ void serial_send(const char *str) {
 	if (!serial_set_up)
 		return;
 	const char *p = str;
+	INTERRUPT_LOCK;
 	while (*p != 0) {
 		serial_send_byte(*p++);
 	}
+	INTERRUPT_UNLOCK;
+}
+
+static char _prints_buf[1024];
+
+// Like printk, but prints to the serial console
+size_t prints(const char *fmt, ...) {
+	va_list args;
+	int i;
+
+	//mutex_lock(printk_mutex);
+
+	va_start(args, fmt);
+	i = vsprintf(_prints_buf, fmt, args);
+	va_end(args);
+
+	if (i > 0) {
+		INTERRUPT_LOCK;
+		size_t len = strlen(_prints_buf);
+		for (size_t j = 0; j < len; j++) {
+			serial_send_byte(_prints_buf[j]);
+		}
+		INTERRUPT_UNLOCK;
+	}
+
+	//mutex_unlock(printk_mutex);
+
+	return i;
 }

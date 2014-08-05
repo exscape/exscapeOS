@@ -20,5 +20,6 @@ void init_serial(void);
 
 void serial_send_byte(char c);
 void serial_send(const char *str);
+size_t prints(const char *fmt, ...);
 
 #endif
