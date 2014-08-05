@@ -720,8 +720,8 @@ void heaptest(void *data, uint32 length) {
 	 *** HEAP DEBUGGING AND TESTING ***
 	 **********************************/
 
-#define TEST_1_LOOPS 1
-#define TEST_2_LOOPS 50
+#define TEST_1_LOOPS 0
+#define TEST_2_LOOPS 10
 
 	uint32 start_time = gettickcount();
 
@@ -743,39 +743,39 @@ void heaptest(void *data, uint32 length) {
 	printk("c: %p\n", c);
 
 	printk("\n");
-	print_heap_index();
+	//print_heap_index();
 
 	printk("Freeing c...\n");
 	kfree(c);
-	print_heap_index();
+	//print_heap_index();
 	printk("Freeing a...\n");
 	kfree(a);
-	print_heap_index();
+	//print_heap_index();
 	printk("Freeing b...\n");
 	kfree(b);
-	print_heap_index();
+	//print_heap_index();
 
 	printk("Testing page alignment...");
 
 	void *initial = kmalloc(15); /* to make sure the allocations aren't aligned by chance */
 	assert(IS_DWORD_ALIGNED(initial));
 	printk("Initial: %p\n", initial);
-	print_heap_index();
+//	print_heap_index();
 	void *unaligned = kmalloc(14);
 	printk("Unaligned: %p\n", unaligned);
 	assert(IS_DWORD_ALIGNED(unaligned));
-	print_heap_index();
+//	print_heap_index();
 	void *aligned = kmalloc_a(16);
 	assert(IS_PAGE_ALIGNED(aligned));
 
 	printk("Aligned: %p\n", aligned);
-	print_heap_index();
+//	print_heap_index();
 
 	printk("Freeing them all...\n");
 	kfree(initial);
 	kfree(unaligned);
 	kfree(aligned);
-	print_heap_index();
+//	print_heap_index();
 
 	/* The highest address allocated in the stress tests; stored for testing purposes, of course */
 	void *max_alloc = NULL;
@@ -835,7 +835,7 @@ void heaptest(void *data, uint32 length) {
 
 	}
 	validate_heap_index(false);
-	print_heap_index();
+//	print_heap_index();
 
 /****************************
   *** STRESS TEST PART II ***

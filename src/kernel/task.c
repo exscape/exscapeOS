@@ -103,13 +103,11 @@ static int do_wait_one(task_t *parent, task_t *child, int *status) {
 
 	int child_pid = child->id;
 	int a = parent->children->count;
+	list_remove_first((list_t *)&ready_queue, child);
 	list_remove_first(parent->children, child);
 	memset(child, 0, sizeof(task_t));
 	kfree(child);
 	assert(parent->children->count == (uint32)(a - 1));
-
-	// Delete this task from the queue
-	list_remove_first((list_t *)&ready_queue, child);
 
 	return child_pid;
 }
@@ -216,6 +214,7 @@ void reaper_func(void *data, uint32 length) {
 			task_t *p = (task_t *)it->data;
 			if (p->state == TASK_EXITING) {
 				destroy_task(p);
+				break; // We need to restart this loop, as the iterator may now be invalid! This solves a rare crash.
 			}
 			else if (p->state == TASK_DEAD) {
 				uint32 o = current_task->children->count;
@@ -251,7 +250,7 @@ bool kill_pid(int pid) {
 void kill(task_t *task) {
 	INTERRUPT_LOCK;
 	task->state = TASK_EXITING;
-	current_task->exit_code = (1 << 8); // TODO: store signal (SIGKILL?) number + status; this is a normal exit with status 1!
+	current_task->exit_code = (1 << 8);
 
 	if (task->console != NULL) {
 		/* Remove this task from the console chain */
