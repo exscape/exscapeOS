@@ -76,8 +76,10 @@ void panic(const char *fmt, ...) {
 	// Uncommenting cli+hlt makes scrollback after a panic impossible, but
 	// on the other hand, it gives useful backtraces and debugging possibilities
 	// in gdb post-panic.
+	// HOWEVER, it also makes it a not-really-true panic, since interrupts are still working,
+	// and tasks don't stop...!
 
-	// asm volatile("cli; 0: hlt ; jmp 0b");
+	asm volatile("cli; 0: hlt ; jmp 0b");
 
 	for(;;) { sleep(10000000); }
 }
