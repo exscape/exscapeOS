@@ -38,9 +38,6 @@ volatile bool task_switching = false;
 task_t *next_task = NULL;
 task_t *idle_task = NULL;
 
-/* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
-#define KERNEL_STACK_SIZE 8192
-
 uint32 next_pid = 1; /* kernel_task has PID 1 */
 
 task_t kernel_task = {
