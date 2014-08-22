@@ -1,2 +1,2 @@
-ext2 /
-initrd /initrd
+initrd /
+ext2 /ext2

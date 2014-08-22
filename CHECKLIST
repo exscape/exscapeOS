@@ -24,6 +24,6 @@
 [x] User-mode libc (wohoo!)
 [x] fork + execve
 [x] User-mode shell
+[x] Pipes
 [ ] Signals
-[ ] Pipes
 [ ] FPU/SSE/AVX state saving during context switches

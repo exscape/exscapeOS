@@ -43,7 +43,8 @@ void mutex_lock(mutex_t *mutex) {
 		}
 		else {
 			//sleep(10);
-			if (task_switching)
+			assert(task_switching == true);
+//			if (task_switching)
 				YIELD;
 		}
 	}
