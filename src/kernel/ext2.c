@@ -432,11 +432,11 @@ static int ext2_open(uint32 dev, const char *path, int mode) {
 
 		file->dev = dev;
 		file->ino = inode_num;
-		file->_cur_ino = inode_num; // TODO: this won't do for ext2
+		file->cur_block = (uint32)NULL; // pointer to the current block path
 		file->offset = 0;
 		file->size = inode->i_size;
 		file->mp = NULL; // set below
-		file->fops.read  = NULL; //ext2_read;
+		file->fops.read  = ext2_read;
 		file->fops.write = NULL;
 		file->fops.close = ext2_close;
 		file->fops.lseek = NULL; //ext2_lseek;

@@ -84,7 +84,7 @@ typedef struct open_file {
 	int count; // number of fds that link to this file
 	dev_t dev;
 	ino_t ino;
-	ino_t _cur_ino; // current cluster number, i.e. when offset != 0. implementation specific
+	ino_t cur_block; // current cluster number for FAT
 	off_t offset;
 	off_t size;
 	mountpoint_t *mp;

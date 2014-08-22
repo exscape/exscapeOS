@@ -177,7 +177,7 @@ off_t fat_lseek(int fd, off_t offset, int whence) {
 	assert(file->offset >= 0);
 
 	if (file->offset < file_size) {
-		// We can seek to this location; update _cur_ino (which stores the inode to read from at the current offset)
+		// We can seek to this location; update cur_block (which stores the inode to read from at the current offset)
 
 		fat32_partition_t *part = devtable[file->dev];
 		assert(part != NULL);
@@ -188,11 +188,11 @@ off_t fat_lseek(int fd, off_t offset, int whence) {
 
 		uint32 local_offset = (uint32)file->offset;
 
-		file->_cur_ino = file->ino; // TODO: only start from the first cluster/inode if truly necessary
+		file->cur_block = file->ino; // TODO: only start from the first cluster/inode if truly necessary
 
 		while (local_offset >= part->cluster_size) {
-			file->_cur_ino = fat_next_cluster(part, file->_cur_ino);
-			if (file->_cur_ino >= 0x0ffffff8) {
+			file->cur_block = fat_next_cluster(part, file->cur_block);
+			if (file->cur_block >= 0x0ffffff8) {
 				// End of cluster chain
 				panic("lseek: seek beyond file ending despite checks to make this impossible - bug in fat_lseek");
 				return -EINVAL; // not reached
@@ -224,7 +224,7 @@ int fat_open(uint32 dev, const char *path, int mode) {
 	if (cluster <= 0x0ffffff6) {
 		file->dev = dev;
 		file->ino = cluster;
-		file->_cur_ino = cluster;
+		file->cur_block = cluster;
 		file->offset = 0;
 		file->size = 0; // TODO: should this be kept or not?
 		file->mp = NULL;
@@ -307,7 +307,7 @@ int fat_read(int fd, void *buf, size_t length) {
 			// The request is for more than one cluster, so at least two need to be
 			// read from disk; if they are continuous on disk, we can read them faster
 			// by coalescing them into a single disk request.
-			uint32 next = 0, cur = file->_cur_ino;
+			uint32 next = 0, cur = file->cur_block;
 			while ((next = fat_next_cluster(part, cur)) == cur + 1 && \
 					continuous_clusters * part->cluster_size < length && \
 					continuous_clusters < max_clusters)
@@ -319,8 +319,8 @@ int fat_read(int fd, void *buf, size_t length) {
 
 		uint32 nbytes_read_from_disk = continuous_clusters * part->cluster_size;
 
-		assert(disk_read(part->dev, fat_lba_from_cluster(part, file->_cur_ino), nbytes_read_from_disk, cluster_buf));
-		file->_cur_ino += continuous_clusters - 1; // the last one is taken care of later in all cases
+		assert(disk_read(part->dev, fat_lba_from_cluster(part, file->cur_block), nbytes_read_from_disk, cluster_buf));
+		file->cur_block += continuous_clusters - 1; // the last one is taken care of later in all cases
 
 		// We need to stop if either the file size is up, or if the user didn't want more bytes.
 		uint32 bytes_copied = min(min(file->size - file->offset, length), nbytes_read_from_disk);
@@ -343,14 +343,14 @@ int fat_read(int fd, void *buf, size_t length) {
 		length -= bytes_copied;
 
 		if (local_offset >= part->cluster_size) {
-			ino_t next = fat_next_cluster(part, file->_cur_ino);
-			if (file->_cur_ino >= 0x0ffffff8 || file->_cur_ino < 2) {
+			ino_t next = fat_next_cluster(part, file->cur_block);
+			if (file->cur_block >= 0x0ffffff8 || file->cur_block < 2) {
 				// End of cluster chain / no data
 				assert(file->offset == file->size);
 				goto done;
 			}
 			else
-				file->_cur_ino = next;
+				file->cur_block = next;
 		}
 		while (local_offset >= part->cluster_size) {
 			local_offset -= part->cluster_size;

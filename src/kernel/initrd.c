@@ -227,7 +227,7 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 			// Found it!
 			file->ino = i;
 			file->dev = dev;
-			file->_cur_ino = i;
+			file->cur_block = i;
 			file->offset = 0;
 			file->size = initrd_files[i].length;
 			file->mp = initrd_mp;
