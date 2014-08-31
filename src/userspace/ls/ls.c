@@ -72,7 +72,7 @@ int do_file(const char *fullname, const char *name) {
 		if (opt_inode) {
 			printf("%7u ", (unsigned int)st.st_ino);
 		}
-		printf("%s %2d root  root %8u %s %s%s\n", perm_str, st.st_nlink, (uint32)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		printf("%s %2d root  root %8u %s %s%s\n", perm_str, st.st_nlink, (unsigned int)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
 	}
 	else {
 		// standard format
