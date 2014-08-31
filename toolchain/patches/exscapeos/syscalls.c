@@ -9,6 +9,7 @@
 #include <limits.h>
 #include <reent.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 typedef signed   char  sint8;
 typedef unsigned char  uint8;
