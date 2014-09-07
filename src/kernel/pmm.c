@@ -65,6 +65,54 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 	/* Ignore the last few bytes of RAM to align, if necessary */
 	mem_end_page &= 0xfffff000;
 
+	/*
+	 * Check the GRUB memory map a first pass, to see if there are higher addresses
+	 * than mem_end_page.
+	 * This happens for me in VMware Fusion, but not in QEMU. With 256 MB RAM, QEMU
+	 * gives two regions: a small one at below 1 MB, and then 0x100000 - 0x0FEF0000.
+	 * VMWare fusion with 256 MB gives an area below 1 MB, 0x100000 - 0x0FEF0000,
+	 * but ALSO 0x0FF00000 to 0x10000000.
+	 *
+	 * Because mem_end_page = 0x0FEF0000 (as it's based on the **continous** size),
+	 * nframes is allocated too small, and we get a buffer overflow (or, rather,
+	 * the assertions that prevent that fail, and we get a kernel panic).
+	 *
+	 * To solve this, we first check how high the largest physical address is, and
+	 * then allocate based on that. Finally, we make a second pass through the map
+	 * to actually set things up. This pass is only to find out how many frames
+	 * there will be.
+	 */
+	if (mbd_mmap_addr != 0 && mbd_mmap_length != 0) {
+		// We got a memory map from GRUB
+
+		for (memory_map_t *memmap = (memory_map_t *)mbd_mmap_addr; (uint32)memmap < mbd_mmap_addr + mbd_mmap_length; memmap++) {
+			if (memmap->type != 1) {
+				continue;
+			}
+
+			if (memmap->base_addr_high != 0) {
+				continue;
+			}
+
+			/* Page align addresses etc. */
+			uint32 addr_lo = memmap->base_addr_low;
+			if (addr_lo < PAGE_SIZE) // ignore the first page
+				addr_lo = PAGE_SIZE;
+			if (addr_lo & 0xfff) {
+				addr_lo &= 0xfffff000;
+				addr_lo += PAGE_SIZE;
+			}
+
+			uint32 addr_hi = addr_lo + (memmap->length_low);
+			if (addr_hi & 0xfff)
+				addr_hi &= 0xfffff000;
+
+			if (addr_hi > mem_end_page) {
+				mem_end_page = addr_hi;
+			}
+		}
+	}
+
 	/* The size of the bitmap is one bit per page */
 	nframes = mem_end_page / PAGE_SIZE;
 
@@ -91,63 +139,61 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 	 */
 	if (mbd_mmap_addr != 0 && mbd_mmap_length != 0) {
 		// We got a memory map from GRUB
-		memory_map_t *memmap = (memory_map_t *)mbd_mmap_addr;
 
-		while ((uint32)memmap < mbd_mmap_addr + mbd_mmap_length) {
-			if (memmap->type == 1) {
+		for (memory_map_t *memmap = (memory_map_t *)mbd_mmap_addr; (uint32)memmap < mbd_mmap_addr + mbd_mmap_length; memmap++) {
+			if (memmap->type != 1) {
 				// type == 1 means this area is free; all other types are reserved
 				// and not available for use
+				continue;
+			}
 #if 0
-				printk("entry 0x%p: base 0x%p%p length 0x%p%p (free)\n", memmap,
-					memmap->base_addr_high,
-					memmap->base_addr_low,
-					memmap->length_high,
-					memmap->length_low);
+			printk("entry 0x%p: base 0x%p%p length 0x%p%p (free)\n", memmap,
+				memmap->base_addr_high,
+				memmap->base_addr_low,
+				memmap->length_high,
+				memmap->length_low);
 #endif
 
-				if (memmap->base_addr_high != 0) {
-					printk("Warning: ignoring available RAM area above 4 GB\n");
-					memmap++;
-					continue;
-				}
-				if (memmap->length_high != 0) {
-					printk("Warning: ignoring part of available RAM (length > 4 GB)\n");
-					// no continue, let's use the low 32 bits
-				}
+			if (memmap->base_addr_high != 0) {
+				printk("Warning: ignoring available RAM area above 4 GB\n");
+				continue;
+			}
+			if (memmap->length_high != 0) {
+				printk("Warning: ignoring part of available RAM (length > 4 GB)\n");
+				// no continue, let's use the low 32 bits
+			}
 
-				/* Page align addresses etc. */
-				uint32 addr_lo = memmap->base_addr_low;
-				if (addr_lo < PAGE_SIZE) // ignore the first page
-					addr_lo = PAGE_SIZE;
-				if (addr_lo & 0xfff) {
-					addr_lo &= 0xfffff000;
-					addr_lo += PAGE_SIZE;
-				}
+			/* Page align addresses etc. */
+			uint32 addr_lo = memmap->base_addr_low;
+			if (addr_lo < PAGE_SIZE) // ignore the first page
+				addr_lo = PAGE_SIZE;
+			if (addr_lo & 0xfff) {
+				addr_lo &= 0xfffff000;
+				addr_lo += PAGE_SIZE;
+			}
 
-				uint32 addr_hi = addr_lo + (memmap->length_low);
-				if (addr_hi & 0xfff)
-					addr_hi &= 0xfffff000;
+			uint32 addr_hi = addr_lo + (memmap->length_low);
+			if (addr_hi & 0xfff)
+				addr_hi &= 0xfffff000;
 
-				if (addr_lo >= addr_hi) {
-					// TODO: is this logic correct?
-					// This is probably very unlikely, but not impossible; we used up this area in alignment
-					continue;
-				}
+			if (addr_lo >= addr_hi) {
+				// TODO: is this logic correct?
+				// This is probably very unlikely, but not impossible; we used up this area in alignment
+				continue;
+			}
 
-				// Make sure the alignment worked and won't cause us to
-				// access memory outside the area
-				assert(IS_PAGE_ALIGNED(addr_lo));
-				assert(IS_PAGE_ALIGNED(addr_hi));
-				assert(addr_lo >= memmap->base_addr_low);
+			// Make sure the alignment worked and won't cause us to
+			// access memory outside the area
+			assert(IS_PAGE_ALIGNED(addr_lo));
+			assert(IS_PAGE_ALIGNED(addr_hi));
+			assert(addr_lo >= memmap->base_addr_low);
 
-				// Clear the addresses in this area
-				uint32 addr;
-				for (addr = addr_lo; addr < addr_hi; addr += PAGE_SIZE) {
-					assert(addr < memmap->base_addr_low + memmap->length_low);
-					_pmm_clear_frame(addr);
-				}
-			} // if type == 1 (free)
-			memmap++;
+			// Clear the addresses in this area
+			uint32 addr;
+			for (addr = addr_lo; addr < addr_hi; addr += PAGE_SIZE) {
+				assert(addr < memmap->base_addr_low + memmap->length_low);
+				_pmm_clear_frame(addr);
+			}
 		}
 	}
 	else {
