@@ -6,7 +6,7 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wno-unused-parameter -Wno-cast-align -Werror -Wno-unused-function
 
 PREFIX = /usr/local/cross
-GCCINC = $(PREFIX)/lib/gcc/i586-pc-exscapeos/4.7.2/include
+GCCINC = $(PREFIX)/lib/gcc/i586-pc-exscapeos/4.8.2/include
 TOOLCHAININC = $(PREFIX)/i586-pc-exscapeos/include
 
 CC = i586-pc-exscapeos-gcc
