@@ -27,6 +27,26 @@ err() {
 	exit 1
 }
 
+cleanupandexit() {
+unset CFLAGS_FOR_TARGET
+unset CFLAGS
+unset CFLAGS_FOR_BUILD
+
+if [[ $MAC -eq 1 ]]; then
+	unset CC
+	unset CXX
+	unset CPP
+	unset LD
+	unset MAC
+fi
+}
+
+# These MUST point to files from automake 1.12.x OR OLDER!
+# Newlib unfortunately requires features that were removed in 1.13.
+#
+export AUTOMAKE=$PREFIX/bin/automake
+export ACLOCAL=$PREFIX/bin/aclocal
+
 if [[ $MAC -eq 1 ]]; then
 	if [[ ! -f "/usr/bin/gcc-4.2" || ! -f "/usr/bin/g++-4.2" || ! -f "/usr/bin/cpp-4.2" ]]; then
 		echo "/usr/bin{gcc,g++,cpp}-4.2 not found! These are required for Mac OS X builds."
@@ -178,6 +198,11 @@ export CFLAGS_FOR_TARGET="-O0 -gstabs+"
 export CFLAGS="-O0 -gstabs+"
 export CFLAGS_FOR_BUILD="-O0 -gstabs+"
 
+# These MUST point to files from automake 1.12.x OR OLDER!
+# 
+export AUTOMAKE=$PREFIX/bin/automake
+export ACLOCAL=$PREFIX/bin/aclocal
+
 echo
 echo Patching Newlib...
 echo
@@ -212,17 +237,8 @@ make install || err
 
 cd ..
 
-if [[ $MAC -eq 1 ]]; then
-	unset CC
-	unset CXX
-	unset CPP
-	unset LD
-fi
-
-unset CFLAGS_FOR_TARGET
-unset CFLAGS
-unset CFLAGS_FOR_BUILD
-
 echo
 echo Successfully build and installed exscapeOS toolchain to $PREFIX'!'
 echo
+
+cleanupandexit

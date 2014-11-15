@@ -5,5 +5,5 @@ P=$(pwd)
 popd >/dev/null
 
 export NEWLIB_ONLY=1
-bash $P/build.sh 
+bash -x $P/build.sh
 unset NEWLIB_ONLY
