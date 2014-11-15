@@ -173,6 +173,13 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 			}
 
 			uint32 addr_hi = addr_lo + (memmap->length_low);
+
+			if (memmap->base_addr_low < PAGE_SIZE) {
+				// We adjusted the start of addr_lo above, without adjusting the length.
+				// Since changing memmap-> seems like a bad idea, adjust addr_hi here instead.
+				addr_hi -= PAGE_SIZE;
+			}
+
 			if (addr_hi & 0xfff)
 				addr_hi &= 0xfffff000;
 
