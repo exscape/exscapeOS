@@ -31,6 +31,8 @@ cleanupandexit() {
 unset CFLAGS_FOR_TARGET
 unset CFLAGS
 unset CFLAGS_FOR_BUILD
+unset AUTOMAKE
+unset ACLOCAL
 
 if [[ $MAC -eq 1 ]]; then
 	unset CC
@@ -40,12 +42,6 @@ if [[ $MAC -eq 1 ]]; then
 	unset MAC
 fi
 }
-
-# These MUST point to files from automake 1.12.x OR OLDER!
-# Newlib unfortunately requires features that were removed in 1.13.
-#
-export AUTOMAKE=$PREFIX/bin/automake
-export ACLOCAL=$PREFIX/bin/aclocal
 
 if [[ $MAC -eq 1 ]]; then
 	if [[ ! -f "/usr/bin/gcc-4.2" || ! -f "/usr/bin/g++-4.2" || ! -f "/usr/bin/cpp-4.2" ]]; then
@@ -199,7 +195,7 @@ export CFLAGS="-O0 -gstabs+"
 export CFLAGS_FOR_BUILD="-O0 -gstabs+"
 
 # These MUST point to files from automake 1.12.x OR OLDER!
-# 
+# Newlib unfortunately requires features that were removed in 1.13.
 export AUTOMAKE=$PREFIX/bin/automake
 export ACLOCAL=$PREFIX/bin/aclocal
 
