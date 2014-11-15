@@ -27,6 +27,7 @@
 #include <kernel/net/ipicmp.h>
 #include <kernel/serial.h>
 #include <kernel/elf.h>
+#include <kernel/fpu.h>
 
 /* kheap.c */
 extern uint32 placement_address;
@@ -101,6 +102,26 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		panic("mbd->flags bit 0 is unset!");
 
+	// Ensure that the CPU has the necessary features: FPU and MMX support.
+	// Since there are no CPUs with MMX but withut x87 FPU as far as I know,
+	// this only checks for MMX support.
+	// CPUID support is assumed; it was added in the Pentium (and some 486 CPUs),
+	// which is about as far back as I'm willing to go. I've always had the Pentium
+	// in mind when developing.
+	int edx;
+	asm volatile("movl $1, %%eax;"
+			     "cpuid;"
+				 " mov %%edx, %[edxout]"
+				 : [edxout] "=m"(edx)
+				 :
+				 : "eax", "ebx", "ecx", "edx");
+
+	if ((edx & (1 << 23)) == 0)
+		panic("exscapeOS requires MMX support! Halting.");
+
+	if ((edx & (1 << 24)) == 0)
+		panic("Your CPU doesn't support the FXSAVE/FXRSTOR instructions!");
+
 	printk("Initializing serial port... ");
 	init_serial();
 	printc(BLACK, GREEN, "done\n");
@@ -148,6 +169,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	/* Set up the PIT and start counting ticks */
 	printk("Initializing the PIT... ");
 	timer_install();
+	printc(BLACK, GREEN, "done\n");
+
+	printk("Initializing the FPU... ");
+	fpu_init();
 	printc(BLACK, GREEN, "done\n");
 
 	/* Initialize the initrd */
