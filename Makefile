@@ -43,12 +43,12 @@ all: $(OBJFILES)
 	@set -e; if [ ! -f "initrd/bin/lua" ]; then \
 		cd contrib && bash lua.sh ; cd ..; \
 	fi
-	@python misc/create_initrd.py > /dev/null # let stderr through!
-	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles 2>&1 | grep -vP 'GNU xorriso|^\s*$$' || true
 #	@/opt/local/bin/ctags -R *
 	@if [ -f "initrd/bin/eshell" ]; then \
 		mv initrd/bin/eshell initrd/bin/sh; \
 	fi
+	@python2 misc/create_initrd.py > /dev/null # let stderr through!
+	@mkisofs -quiet -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o bootable.iso isofiles 2>&1 | grep -vP 'GNU xorriso|^\s*$$' || true
 
 clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
