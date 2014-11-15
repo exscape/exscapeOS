@@ -345,9 +345,10 @@ uint32 irq_handler(uint32 esp) {
 			esp = handler(esp);
 		}
 	}
-	else if (regs->int_no > IRQ1) {
+	else if (regs->int_no > IRQ1 && regs->int_no != IRQ13) {
 		/* Make an exception for the timer (IRQ0), since it may fire before we set up the handler for it */
 		/* Also ignore the keyboard (IRQ1), just in case. */
+		/* IRQ13 is additionally ignored due to Bochs panics, possibly because of use as an FPU error interrupt. */
 		panic("IRQ without handler: IRQ %d\n", regs->int_no - 32);
 	}
 
