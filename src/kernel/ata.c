@@ -283,19 +283,17 @@ void ata_init(void) {
 			/* Send the identify command */
 			ata_reg_write(ch, ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 
-			/* check the status reg */
-			uint8 status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+			/* wait for the busy flag to clear */
+			uint8 status;
+			do {
+				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
+			} while (status & ATA_SR_BSY);
 
 			if (status == 0 || status == 0xff) {
 				/* drive does not exist */
 				devices[dev].exists = false;
 				continue;
 			}
-
-			/* wait for the busy flag to clear */
-			do {
-				status = ata_reg_read(ch, ATA_REG_ALT_STATUS);
-			} while (status & ATA_SR_BSY);
 
 			/* check for ATAPI/SATA drives */
 			uint8 lo = ata_reg_read(ch, ATA_REG_LBA_MID);
@@ -313,14 +311,6 @@ void ata_init(void) {
 			}
 			else {
 				printk("WARNING: device at ch=%u drive=%u is not supported! (Probably Serial ATA/Serial ATAPI)\n");
-				devices[dev].exists = false;
-				continue;
-			}
-
-			/* ATAPI devices appear to set ERR on IDENTIFY DEVICE, so we can't check this
-			 * before the test above. */
-			if (status & ATA_SR_ERR) {
-				devices[dev].exists = false;
 				printk("An error occured on IDENTIFY device for channel %u, drive %u. Ignoring drive!\n", ch, drive);
 				continue;
 			}
