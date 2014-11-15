@@ -56,12 +56,12 @@ extern list_t *pci_devices;
 static void lspci(void *data, uint32 length) {
 	assert(pci_devices != NULL);
 
-	printk("VENDOR DEVICE IRQ BAR0     BAR1     BAR2     BAR3     BAR4     BAR5\n");
+	printk("VENDOR DEVICE CLASS IRQ BAR0     BAR1     BAR2     BAR3     BAR4     BAR5\n");
 	list_foreach(pci_devices, it) {
 		pci_device_t *dev = (pci_device_t *)it->data;
-		printk("0x%04x 0x%04x %02d  %08x %08x %08x %08x %08x %08x\n",
-				dev->vendor_id, dev->device_id, dev->irq,
-				dev->bar[0], dev->bar[1], dev->bar[2], dev->bar[3], dev->bar[4], dev->bar[5]);
+		printk("0x%04x 0x%04x %02x/%02x %02d  %08x %08x %08x %08x %08x %08x\n",
+				dev->vendor_id, dev->device_id, dev->classcode, dev->subclasscode, dev->irq,
+				dev->bar[0].address, dev->bar[1].address, dev->bar[2].address, dev->bar[3].address, dev->bar[4].address, dev->bar[5].address);
 	}
 }
 

@@ -11,6 +11,8 @@ typedef struct {
 	uint16 device_id;
 	bar_t bar[6];
 	uint8 irq;
+	uint8 classcode;
+	uint8 subclasscode;
 } pci_device_t;
 
 // Looks through the PCI database to find the details (BARs, IRQ etc.)

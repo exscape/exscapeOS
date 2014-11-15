@@ -49,6 +49,10 @@ void init_pci(void) {
 					continue;
 
 				device_id = (pci_read_config(bus, slot, func, PCI_CONF_DEVICE) & 0xffff0000) >> 16;
+				uint32 class_tmp = pci_read_config(bus, slot, func, PCI_CONF_CLASS);
+
+				uint32 classcode = (class_tmp >> 24);
+				uint32 subclasscode = (class_tmp >> 16) & 0xff;
 
 				//printk("device found at bus %u, slot %u, func %u: vendor 0x%04x, device 0x%04x\n", bus, slot, func, vendor_id, device_id);
 				uint8 type = (pci_read_config(bus, slot, func, PCI_CONF_HEADER_TYPE) & 0x00ff0000) >> 24;
@@ -71,6 +75,8 @@ void init_pci(void) {
 				dev->vendor_id = vendor_id;
 				dev->device_id = device_id;
 				dev->irq = interrupt;
+				dev->classcode = classcode;
+				dev->subclasscode = subclasscode;
 
 				list_append(pci_devices, dev);
 				// BARs are filled in below
