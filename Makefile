@@ -29,7 +29,10 @@ DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 
 #QEMU := /usr/local/bin/qemu-system-i386
-QEMU := /usr/local/cross/bin/qemu # qemu 0.14.1, new versions don't work with networking for me; not sure why!
+QEMU := qemu-system-i386
+
+# Make sure this is blank if the host OS is not Linux / KVM is not supported
+KVM := -machine accel=kvm
 
 all: $(OBJFILES)
 	@set -e; if [ ! -d "initrd/bin" ]; then \
@@ -74,20 +77,23 @@ nofat: all
 	-@rm -f serial-output
 	$(QEMU) -cdrom bootable.iso -monitor stdio -s -serial file:serial-output -m 64
 
-net: all
-	-@rm -f serial-output
-	@bash net-scripts/prepare.sh
-	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
+#net: all
+	#-@rm -f serial-output
+	#@bash net-scripts/prepare.sh
+	#@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no $(KVM)
 
-netdebug: all
-	-@rm -f serial-output
-	@bash net-scripts/prepare.sh
-	@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no
+#netdebug: all
+	#-@rm -f serial-output
+	#@bash net-scripts/prepare.sh
+	#@sudo $(QEMU) -cdrom bootable.iso -hda hdd.img -hdb fat32.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -net nic,vlan=0,macaddr=00:aa:00:18:6c:00,model=rtl8139 -net tap,ifname=tap2,script=net-scripts/ifup.sh,downscript=no $(KVM)
 
 run: all
 	-@rm -f serial-output
-	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -serial file:serial-output -d cpu_reset -m 64 -boot d $(KVM)
+
+bochs: all
+	-@bochs -f exscapeos.bochs -q
 
 debug: all
 	-@rm -f serial-output
-	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d
+	@sudo $(QEMU) -cdrom bootable.iso -hda ext2-1kb.img -monitor stdio -s -S -serial file:serial-output -d cpu_reset -m 64 -boot d $(KVM)
