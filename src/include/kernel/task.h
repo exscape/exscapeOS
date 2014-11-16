@@ -6,6 +6,7 @@
 #include <kernel/console.h>
 #include <kernel/vfs.h> /* struct open_file */
 #include <kernel/heap.h>
+#include <kernel/fpu.h>
 #include <reent.h>
 
 #define TASK_NAME_LEN 64
@@ -25,6 +26,9 @@ typedef struct task {
 	struct open_file **fdtable;
 	char *pwd;
 	struct _reent *reent; // Used by Newlib
+
+	fpu_mmx_state_t *fpu_state;
+	bool has_used_fpu;
 
 	// used by execve
 	bool did_execve;

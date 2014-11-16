@@ -11,6 +11,7 @@
 #include <kernel/syscall.h>
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
+#include <kernel/fpu.h>
 #include <path.h>
 #include <kernel/stdio.h>
 #include <reent.h>
@@ -37,6 +38,8 @@ volatile bool task_switching = false;
 
 task_t *next_task = NULL;
 task_t *idle_task = NULL;
+
+extern task_t *last_fpu_task;
 
 uint32 next_pid = 1; /* kernel_task has PID 1 */
 
@@ -539,6 +542,10 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	else
 		panic("Task privilege isn't 0 or 3!");
 
+	// Set up FPU stuff
+	task->fpu_state = kmalloc_a(sizeof(fpu_mmx_state_t));
+	task->has_used_fpu = false;
+
 	task->children = list_create();
 
 	/* All tasks are running by default */
@@ -625,6 +632,11 @@ int fork(void) {
 			child->fdtable[i]->count++;
 		}
 	}
+
+	// Clone the FPU state
+	child->fpu_state = kmalloc_a(sizeof(fpu_mmx_state_t));
+	memcpy(child->fpu_state, parent->fpu_state, sizeof(fpu_mmx_state_t));
+	child->has_used_fpu = parent->has_used_fpu;
 
 	// Keep track of the tasks
 	assert(parent->children != NULL);
@@ -856,6 +868,21 @@ uint32 switch_task(task_t *new_task, uint32 esp) {
 	}
 
 	assert(new_task->state != TASK_SLEEPING);
+
+	// Take care of the TS flag for lazy FPU context saving
+	if (new_task != last_fpu_task) {
+		// Set TS bit, to cause no_fpu_interrupt_handler to fire on FPU/MMX/SSE* instructions
+		asm volatile("mov %%cr0, %%eax;"
+					 "or $0x00000008, %%eax;" /* TS = 1 */
+					 "mov %%eax, %%cr0;"
+					 : /* no outputs */
+					 : /* no inputs */
+					 : "%eax", "cc");
+	}
+	else {
+		// Clear TS bit
+		asm volatile("clts");
+	}
 
 	if (new_task == current_task)
 		return esp;

@@ -263,7 +263,7 @@ uint32 isr_handler(uint32 esp) {
 
 	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
-	if (regs->int_no != 0x80) {
+	if (regs->int_no != 0x80 && regs->int_no != 0x07 /* #NM, see fpu.c */) {
 		/* Don't print all this if the interrupt is the syscall vector */
 		printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
 
