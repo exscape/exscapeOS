@@ -12,7 +12,7 @@ SRCFILES := $(shell find . -type f -name '*.c')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
 DEPFILES := $(patsubst %.c,%.d,$(SRCFILES))
 
-OUTNAME := $(shell basename `pwd`)
+OUTNAME := $(shell basename "`pwd`")
 
 all: $(OBJFILES)
 	@$(LD) $(LDFLAGS) -o $(OUTNAME) $(OBJFILES)

@@ -8,6 +8,7 @@
 #include <kernel/list.h>
 #include <kernel/timer.h>
 #include <kernel/time.h>
+#include <kernel/serial.h>
 
 /* A character representing empty space on the screen */
 static const uint16 blank = (0x7 << 8 /* grey on black */) | 0x20 /* space */;
@@ -464,6 +465,8 @@ int putchar(int c) {
 
 	cursor = &con->cursor;
 	assert(cursor != NULL);
+
+	serial_send_byte(c);
 
 	if (c == '\n') {
 		// c == newline

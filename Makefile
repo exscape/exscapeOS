@@ -32,7 +32,8 @@ ALLFILES := $(SRCFILES) $(HDRFILES) $(AUXFILES) $(ASMFILES)
 QEMU := qemu-system-i386
 
 # Make sure this is blank if the host OS is not Linux / KVM is not supported
-KVM := -machine accel=kvm
+#KVM := -machine accel=kvm
+KVM :=
 
 all: $(OBJFILES)
 	@set -e; if [ ! -d "initrd/bin" ]; then \
@@ -57,7 +58,7 @@ clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 	@for prog in $(USERSPACEPROG); do \
 		make -C $$prog clean; \
-		rm -f initrd/bin/`basename $$prog` ; \
+		rm -f initrd/bin/`basename "$$prog"` ; \
 	done
 	@rm -f initrd/bin/sh
 
