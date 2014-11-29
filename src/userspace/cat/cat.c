@@ -23,6 +23,7 @@ int main(int argc, char **argv) {
 		if (fd < 0) {
 			fprintf(stderr, "%s: %s: %s\n", argv[0], argv[i], strerror(errno));
 			error = true;
+			continue;
 		}
 
 		int r = 0;
