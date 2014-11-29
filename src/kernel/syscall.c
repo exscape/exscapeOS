@@ -8,7 +8,7 @@
 #include <sys/time.h>
 
 // strace-like mechanism that prints all syscalls and their parameters
-#define SYSCALL_DEBUG 1
+#define SYSCALL_DEBUG 0
 
 static uint32 syscall_handler(uint32);
 
@@ -102,7 +102,7 @@ uint32 syscall_handler(uint32 esp) {
 
 #if SYSCALL_DEBUG > 0
 	struct symbol *sym = addr_to_func((uint32)func);
-	if (sym && sym->name) {
+	if (sym && sym->name && regs->eax != 13 /* lseek is a special case */) {
 		printk("syscall: %s(", sym->name);
 
 		switch (syscalls[regs->eax].num_args) {
@@ -128,6 +128,11 @@ uint32 syscall_handler(uint32 esp) {
 		}
 
 		printk(")\n");
+	} else if (sym && sym->name && regs->eax == 13) { // lseek
+		if (regs->edx != 0)
+			printk("syscall: lseek(0x%x, 0x%x%x, 0x%x)\n", regs->ebx, regs->edx, regs->ecx, regs->esi);
+		else
+			printk("syscall: lseek(0x%x, 0x%x, 0x%x)\n", regs->ebx, regs->ecx, regs->esi);
 	}
 	else
 		printk("syscall: <unknown function>(0x%x, 0x%x, 0x%x, 0x%x, 0x%x) (unknown # of args)\n",
