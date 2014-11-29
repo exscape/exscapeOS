@@ -86,8 +86,10 @@ extern volatile bool in_isr;
 uint32 syscall_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
 	/* Make sure this is a valid syscall */
-	if (regs->eax >= num_syscalls)
-		return esp;
+	if (regs->eax >= num_syscalls) {
+		panic("syscall_handler: syscall index %d out of range (no such syscall)", regs->eax);
+		return esp; // silence warnings
+	}
 
 	/* Get the function */
 	void *func = syscalls[regs->eax].func;
