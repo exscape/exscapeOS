@@ -1,6 +1,7 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -26,7 +27,7 @@ int line_used = 0; // used for standard mode only
 
 int do_file(const char *fullname, const char *name) {
 	struct stat st;
-	if (stat(fullname, &st) != 0) {
+	if (lstat(fullname, &st) != 0) {
 		fprintf(stderr, "ls: ");
 		perror(name);
 		return 1;
@@ -65,14 +66,26 @@ int do_file(const char *fullname, const char *name) {
 		struct tm *tm = localtime(&tmp);
 		char date_buf[16] = {0};
 		if (tm->tm_year + 1900 == current_year)
-			strftime(date_buf,  16, "%d %b %H:%M", tm);
+			strftime(date_buf, 16, "%d %b %H:%M", tm);
 		else
 			strftime(date_buf, 16, "%d %b  %Y", tm);
 
 		if (opt_inode) {
 			printf("%7u ", (unsigned int)st.st_ino);
 		}
-		printf("%s %2d root  root %8u %s %s%s\n", perm_str, st.st_nlink, (unsigned int)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		printf("%s %2d root  root %8u %s %s%s", perm_str, st.st_nlink, (unsigned int)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
+
+		if (S_ISLNK(st.st_mode)) {
+			char link_target[PATH_MAX+1] = {0};
+			readlink(fullname, link_target, PATH_MAX);
+			printf(" -> %s", link_target);
+		}
+
+		printf("\n");
 	}
 	else {
 		// standard format
