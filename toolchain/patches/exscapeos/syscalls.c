@@ -109,6 +109,7 @@ void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
 }
 
+/* exit above is syscall 0 */
 DEFN_SYSCALL1(puts, int, 1, const char *);
 DEFN_SYSCALL1(sleep, int, 2,uint32);
 DEFN_SYSCALL0(getchar, int, 3);
@@ -121,7 +122,7 @@ DEFN_SYSCALL1(close, int, 7, int);
 DEFN_SYSCALL2(stat, int, 10, const char *, struct stat *);
 DEFN_SYSCALL1(chdir, int, 11, const char *);
 DEFN_SYSCALL3(write, int, 12, int, const char *, int);
-/* lseek is syscall 13! */
+/* lseek is syscall 13, see below */
 DEFN_SYSCALL2(fstat, int, 14, int, struct stat *);
 DEFN_SYSCALL0(getpid, int, 15);
 DEFN_SYSCALL1(sbrk, void *, 16, ptrdiff_t);
@@ -138,6 +139,7 @@ DEFN_SYSCALL2(getcwd, char *, 26, char *, size_t);
 DEFN_SYSCALL1(dup, int, 27, int);
 DEFN_SYSCALL2(dup2, int, 28, int, int);
 DEFN_SYSCALL1(pipe, int, 29, int *);
+// When adding a syscall, don't forget to also add it to src/kernel/syscall.c!
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
 	union {

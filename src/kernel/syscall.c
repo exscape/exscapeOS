@@ -4,7 +4,11 @@
 #include <kernel/task.h>
 #include <kernel/kernutil.h>
 #include <kernel/vfs.h>
+#include <kernel/backtrace.h>
 #include <sys/time.h>
+
+// strace-like mechanism that prints all syscalls and their parameters
+#define SYSCALL_DEBUG 1
 
 static uint32 syscall_handler(uint32);
 
@@ -12,6 +16,7 @@ void _exit(int); // task.c
 
 struct syscall_entry {
 	void *func;
+	uint8 num_args; // number of arguments, 0 to 5
 	uint8 return_size; // 32 or 64
 };
 
@@ -32,37 +37,37 @@ char *sys_getcwd(char *buf, size_t size);
 int sys_pipe(int fildes[2]);
 
 struct syscall_entry syscalls[] = {
-/*  { &function, return_size }, */
-	{ &_exit, 32 },   /* 0 */
-	{ &puts, 32 },
-	{ &sleep, 32 },
-	{ &getchar, 32 },
-	{ &putchar, 32 },
-	{ &sys_open, 32 },   /* 5 */
-	{ &sys_read, 32 },
-	{ &close, 32 },
-	{ NULL, 32 }, // old malloc
-	{ NULL, 32 }, // old free
-	{ &sys_stat, 32 },   /* 10 */
-	{ &sys_chdir, 32 },
-	{ &sys_write, 32 },
-	{ &lseek, 64 },
-	{ &sys_fstat, 32 },
-	{ &getpid, 32 }, /* 15 */
-	{ &sbrk, 32 },
-	{ &__getreent, 32 },
-	{ &sys_getdents, 32 },
-	{ &sys_gettimeofday, 32 },
-	{ &fork, 32},
-	{ &sys_nanosleep, 32},
-	{ &sys_wait, 32 },
-	{ &getppid, 32 },
-	{ &sys_waitpid, 32 },
-	{ &sys_execve, 32},
-	{ &sys_getcwd, 32},
-	{ &dup, 32},
-	{ &dup2, 32},
-	{ &sys_pipe, 32},
+/*  { &function, num_args, return_size }, */
+	{ &_exit, 1, 32 },   /* 0 */
+	{ &puts, 1, 32 },
+	{ &sleep, 1, 32 },
+	{ &getchar, 0, 32 },
+	{ &putchar, 1, 32 },
+	{ &sys_open, 2, 32 },   /* 5 */
+	{ &sys_read, 3, 32 },
+	{ &close, 1, 32 },
+	{ NULL, 1, 32 }, // old malloc
+	{ NULL, 1, 32 }, // old free
+	{ &sys_stat, 2, 32 },   /* 10 */
+	{ &sys_chdir, 1, 32 },
+	{ &sys_write, 3, 32 },
+	{ &lseek, 4, 64 }, // 3 arguments, but one is a 64-bit arg split in two
+	{ &sys_fstat, 2, 32 },
+	{ &getpid, 0, 32 }, /* 15 */
+	{ &sbrk, 1, 32 },
+	{ &__getreent, 0, 32 },
+	{ &sys_getdents, 3, 32 },
+	{ &sys_gettimeofday, 2, 32 },
+	{ &fork, 0, 32},
+	{ &sys_nanosleep, 2, 32},
+	{ &sys_wait, 1, 32 },
+	{ &getppid, 0, 32 },
+	{ &sys_waitpid, 3, 32 },
+	{ &sys_execve, 3, 32 },
+	{ &sys_getcwd, 2, 32 },
+	{ &dup, 1, 32 },
+	{ &dup2, 2, 32 },
+	{ &sys_pipe, 1, 32 },
 };
 
 uint32 num_syscalls = 0;
@@ -94,6 +99,40 @@ uint32 syscall_handler(uint32 esp) {
 	 * them all, and let it use however many it needs to. */
 	int ret;
 	uint32 ret64[2] = {0};
+
+#if SYSCALL_DEBUG > 0
+	struct symbol *sym = addr_to_func((uint32)func);
+	if (sym && sym->name) {
+		printk("syscall: %s(", sym->name);
+
+		switch (syscalls[regs->eax].num_args) {
+			case 0:
+				break;
+			case 1:
+				printk("0x%x", regs->ebx);
+				break;
+			case 2:
+				printk("0x%x, 0x%x", regs->ebx, regs->ecx);
+				break;
+			case 3:
+				printk("0x%x, 0x%x, 0x%x", regs->ebx, regs->ecx, regs->edx);
+				break;
+			case 4:
+				printk("0x%x, 0x%x, 0x%x, 0x%x", regs->ebx, regs->ecx, regs->edx, regs->esi);
+				break;
+			case 5:
+				printk("0x%x, 0x%x, 0x%x, 0x%x, 0x%x", regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
+				break;
+			default:
+				panic("\?\?\?)\nsyscall %s has >5 args in syscall table, which is not supported\n", sym->name);
+		}
+
+		printk(")\n");
+	}
+	else
+		printk("syscall: <unknown function>(0x%x, 0x%x, 0x%x, 0x%x, 0x%x) (unknown # of args)\n",
+			   regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
+#endif
 
 	if (syscalls[regs->eax].return_size == 32) {
 	asm volatile("push %1;"
