@@ -25,6 +25,7 @@ int sys_open(const char *path, int mode);
 int sys_write(int fd, const void *buf, int length);
 int sys_read(int fd, void *buf, int length);
 int sys_stat(const char *path, struct stat *buf);
+int sys_lstat(const char *path, struct stat *buf);
 int sys_chdir(const char *in_path);
 int sys_fstat(int fd, struct stat *buf);
 int sys_getdents(int fd, void *dp, int count);
@@ -35,6 +36,7 @@ int sys_waitpid(int pid, int *status, int options);
 int sys_execve(const char *path, char **argv, char **envp);
 char *sys_getcwd(char *buf, size_t size);
 int sys_pipe(int fildes[2]);
+ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz);
 
 struct syscall_entry syscalls[] = {
 /*  { &function, num_args, return_size }, */
@@ -58,16 +60,18 @@ struct syscall_entry syscalls[] = {
 	{ &__getreent, 0, 32 },
 	{ &sys_getdents, 3, 32 },
 	{ &sys_gettimeofday, 2, 32 },
-	{ &fork, 0, 32},
+	{ &fork, 0, 32}, /* 20 */
 	{ &sys_nanosleep, 2, 32},
 	{ &sys_wait, 1, 32 },
 	{ &getppid, 0, 32 },
 	{ &sys_waitpid, 3, 32 },
-	{ &sys_execve, 3, 32 },
+	{ &sys_execve, 3, 32 }, /* 25 */
 	{ &sys_getcwd, 2, 32 },
 	{ &dup, 1, 32 },
 	{ &dup2, 2, 32 },
 	{ &sys_pipe, 1, 32 },
+	{ &sys_lstat, 2, 32 }, /* 30 */
+	{ &sys_readlink, 3, 32 }
 };
 
 uint32 num_syscalls = 0;

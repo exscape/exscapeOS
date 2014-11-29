@@ -159,6 +159,56 @@ int sys_stat(const char *path, struct stat *buf) {
 	return stat(path, buf);
 }
 
+int lstat(const char *path, struct stat *buf) {
+	if (path == NULL || buf == NULL)
+		return -EFAULT;
+
+	char relpath[PATH_MAX+1] = {0};
+	mountpoint_t *mp = NULL;
+	if (!find_relpath(path, relpath, &mp))
+		return -1;
+
+	if (mp->mpops.lstat != NULL)
+		return mp->mpops.lstat(mp, relpath, buf);
+	else if (mp->mpops.stat != NULL) {
+		// TODO: untested workaround/hack or no lstat support for FAT and initrd
+		return mp->mpops.stat(mp, relpath, buf);
+	}
+	else
+		panic("lstat and stat not supported");
+
+}
+
+int sys_lstat(const char *path, struct stat *buf) {
+	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS_WRITE(buf, sizeof(struct stat)))
+		return -EFAULT;
+	return lstat(path, buf);
+}
+
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
+	if (pathname == NULL || buf == NULL)
+		return -EFAULT;
+	if (bufsiz == 0)
+		return -EINVAL;
+
+	char relpath[PATH_MAX+1] = {0};
+	mountpoint_t *mp = NULL;
+	if (!find_relpath(pathname, relpath, &mp))
+		return -1;
+
+	if (mp->mpops.readlink != NULL)
+		return mp->mpops.readlink(mp, relpath, buf, bufsiz);
+	else
+		panic("readlink not supported on this mountpoint (%s)", mp->path);
+
+}
+
+ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz) {
+	if (!CHECK_ACCESS_STR(pathname) || !CHECK_ACCESS_WRITE(buf, bufsiz))
+		return -EFAULT;
+	return readlink(pathname, buf, bufsiz);
+}
+
 int read(int fd, void *buf, int length) {
 	struct open_file *file = get_filp(fd);
 	if (file == NULL)
@@ -331,6 +381,9 @@ int chdir(const char *in_path) {
 			if (len == dent->d_namlen && stricmp(dent->d_name, token) == 0) {
 				// This is the token
 				if (dent->d_type != DT_DIR) {
+					if (dent->d_type == DT_LNK) {
+						printk("chdir: warning: path subpart %s is a symlink, which is not yet supported\n", token);
+					}
 					closedir(dir);
 					err = -ENOTDIR;
 					goto error;

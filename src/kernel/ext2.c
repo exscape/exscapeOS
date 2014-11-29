@@ -19,16 +19,50 @@ list_t *ext2_partitions = NULL;
 #define min(a,b) ( (a < b ? a : b) )
 
 static int ext2_open(uint32 dev, const char *path, int mode);
+static int ext2_read(int fd, void *buf, size_t length);
 static int ext2_close(int fd, struct open_file *file);
+static int ext2_fstat(int fd, struct stat *buf);
 static int ext2_getdents(int fd, void *dp, int count);
 static int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st);
+static int ext2_lstat(mountpoint_t *mp, const char *path, struct stat *st);
 static DIR *ext2_opendir(mountpoint_t *mp, const char *path);
+ssize_t ext2_readlink(mountpoint_t *mp, const char *pathname, char *buf, size_t bufsiz);
 
+static struct inode_ret inode_for_path(ext2_partition_t *part, const char *path, int operation, uint32 op_param);
+
+// TODO: O_NOFOLLOW, i.e. fail open() on a symbolic link if O_NOFOLLOW is set; in this case, return -ELOOP.
+// TODO: remember to return the proper error value; not sure what that is when the entire FS doesn't support symlinks
+// TODO: test and support ELOOP conditions
+// TODO: (low priority?) O_SYMLINK, to allow opening a symlink, rather than whatever it points to
+// TODO: .. in paths with symlinked dirs doesn't work; the symlinked path is not expanded, so .. just removes the link, instead of going backwards one step from the symlinked directory
+
+// Used by ext2_getdents to store state, as we only have a single void* in struct open_file to store state in
 struct ext2_getdents_info {
 	char *dir_buf;
 	uint32 len;
 	uint32 pos;
 };
+
+// Used by inode_for_path and functions that use it (currently ext2_open and ext2_stat).
+// If inode_for_path encounters a symlink, it needs to re-call open() or stat(), VFS-wide
+// (since the symlink may be to a different and even non-ext2 partition).
+// It does this by setting setting "value" to the result of open() or stat(), and
+// setting type to indicate this.
+//
+// In cases without symlinks, "value" is simply the inode number.
+#define TYPE_INODE  1
+#define TYPE_RETVAL 2
+struct inode_ret {
+	uint32 value; // only valid if type == TYPE_INODE
+	uint32 parent; // only valid if type == TYPE_INODE
+	int type;
+};
+#define OPERATION_OPEN 1
+#define OPERATION_STAT 2
+#define OPERATION_LSTAT 3
+#define OPERATION_READLINK 4
+
+static int ext2_stat_inode(ext2_partition_t *part, mountpoint_t *mp, struct stat *st, uint32 inode_num);
 
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size); // read an ENTIRE FILE and return a malloc'ed buffer with it
 
@@ -247,6 +281,8 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	mp->mpops.open     = ext2_open;
 	mp->mpops.opendir  = ext2_opendir;
 	mp->mpops.stat     = ext2_stat;
+	mp->mpops.lstat     = ext2_lstat;
+	mp->mpops.readlink     = ext2_readlink;
 	mp->dev = next_dev; // increased below
 	list_append(mountpoints, mp);
 
@@ -259,9 +295,78 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	return true;
 }
 
-// Find the inode number for a given path, by looking recursively, starting at,
+static size_t ext2_readlink_inode(ext2_partition_t *part, uint32 inode_num, ext2_inode_t *inode, char *link_path, uint32 bufsize) {
+	// Given a partition and an inode struct, figures out the link path and writes it to the link_path buffer.
+	assert(part != NULL);
+	assert(inode_num >= EXT2_ROOT_INO);
+	assert(inode != NULL);
+	assert(link_path != NULL);
+	assert(bufsize != 0);
+
+	if (inode->i_size + 1 > bufsize) {
+		panic("TODO: ext2_readlink_inode: support proper error handling");
+	}
+
+	if (inode->i_size <= 60 && inode->i_blocks == 0) {
+		// This is a "fast symbolic link", which is stored in the inode itself,
+		// where the block pointers would otherwise be. Awesome, because that
+		// makes our job extremely simple.
+		memcpy(link_path, (char *)&inode->i_direct[0], inode->i_size);
+		link_path[inode->i_size] = 0;
+		return inode->i_size;
+	}
+
+	assert(inode->i_blocks > 0);
+	assert(inode->i_direct[0] > EXT2_ROOT_INO);
+
+	// No such luck... but we still have a relatively easy job, thanks to helper functions.
+	uint32 size = 0;
+	char *buf = ext2_read_file(part, inode_num, &size);
+	assert(inode->i_size == size);
+
+	memcpy(link_path, buf, inode->i_size);
+	link_path[inode->i_size] = 0;
+	kfree(buf);
+
+	return size;
+}
+
+ssize_t ext2_readlink(struct mountpoint *mp, const char *pathname, char *buf, size_t bufsiz) {
+	assert(mp != NULL);
+	assert(pathname != NULL);
+	assert(buf != NULL);
+	assert(bufsiz > 0);
+
+	// Note: This function must NOT null terminate, as per the spec.
+	// ext2_readlink_node does, and also doesn't handle small buffers gracefully.
+	// (It was written prior to ext2_readlink, for internal use only.)
+
+	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
+	assert(part != NULL);
+
+	struct inode_ret _ino = inode_for_path(part, pathname, OPERATION_READLINK, 0);
+	assert(_ino.type == TYPE_INODE);
+
+	// OK, we have _ino.value; use it to read the inode data for this inode number
+	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
+	ext2_read_inode(part, _ino.value, inode);
+
+	char *link = kmalloc(PATH_MAX + 1);
+	memset(link, 0, PATH_MAX+1);
+	size_t size = ext2_readlink_inode(part, _ino.value, inode, link, PATH_MAX);
+
+	// There! We can now finally copy this back to userspace.
+	// We need to make sure to NOT null terminate here.
+	memcpy(buf, link, min(size, bufsiz));
+
+	kfree(link);
+
+	return min(size, bufsiz);
+}
+
+// Find the inode number for a given path by looking recursively, starting at,
 // with help from inode_for_path(), the root directory.
-static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode) {
+static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path, uint32 parent_inode, int operation, uint32 op_param) {
 	assert(part != NULL);
 	assert(path != NULL);
 
@@ -275,7 +380,90 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, parent_inode, inode);
 
+	if (inode->i_mode & EXT2_S_IFLNK) {
+		// This is a symbolic link, used as a directory in a sub-path (e.g. /a/b/c where the symlink is a or b, but *not* c).
+		char *link_path = kmalloc(PATH_MAX+1);
+		ext2_readlink_inode(part, parent_inode, inode, link_path, PATH_MAX+1);
+		printk("Symlink in dir path: %s; path = %s\n", link_path, path);
+
+		char *full_path = kmalloc(PATH_MAX+1);
+		memset(full_path, 0, PATH_MAX+1);
+
+		if (*link_path == '/') {
+			// Absolute path
+			strcpy(full_path, link_path);
+		}
+		else {
+			strcpy(full_path, part->mp->path);
+			path_join(full_path, link_path);
+		}
+
+		path_join(full_path, path);
+		kfree(link_path);
+		kfree(inode);
+
+		// TODO: This path joining is incorrect!!! It works in most cases, but IS strictly wrong.
+		// TODO: Example: a symlink named "etclink" (located in some directory) pointing to "/etc".
+		// TODO: ls etclink works as it should, but ls etclink/.. should be the same as ls /, 
+		// TODO: but instead it is the same as "ls ." -- the path is built up as "etclink/../",
+		// TODO: and the .. causes the path code to simply remove the last part of the path,
+		// TODO: WITHOUT expanding the symlink first.
+
+		printk("Full path for symlink: %s operation = %d\n", full_path, operation);
+
+		if (operation == OPERATION_OPEN) {
+			struct inode_ret ret;
+			ret.value = open(full_path, (int)op_param);
+			ret.type = TYPE_RETVAL;
+			return ret;
+		}
+		else if (operation == OPERATION_STAT) {
+			struct inode_ret ret;
+			ret.value = stat(full_path, (struct stat *)op_param);
+			ret.type = TYPE_RETVAL;
+			return ret;
+		}
+		else if (operation == OPERATION_LSTAT) {
+			// This is a symlink, and we want to stat *it*, not whatever it points to
+			struct inode_ret ret;
+			ret.value = lstat(full_path, (struct stat *)op_param);
+			ret.type = TYPE_RETVAL;
+			return ret;
+		}
+		else if (operation == OPERATION_READLINK) {
+			// Simply return the value of the inode *to this link*
+			panic("TODO: should this case remain?");
+		}
+		else
+			panic("Unsupported operation in _inode_for_file");
+
+		// TODO: Test different types of symlinks, including (but maybe not limited to):
+		// TODO: * Relative within directory, e.g. linkname -> some_dir/some_subdir
+		// TODO: * Relative with .. e.g. linkname -> ../some_dir/some_subdir
+		// TODO: * Absolute within ext2 FS
+		// TODO: * Absolute pointing to outside ext2 FS
+
+		// TODO TODO TODO TODO TODO
+		// link_path may still be a relative path! It's literally exactly what the symlink contained, no more, no less.
+		// Keep in mind(!!!) that "path" is NOT the absolute path!!!
+		//
+		// TODO: modify _inode_for_path to take a type parameter (e.g. dir, file, symlink); if symlink, don't follow it.
+		// Otherwise, return the inode we found (the link's inode), and ALWAYS TEST the mode in the calling function..?
+		//
+		// 1) Read the inode and/or blocks to find the new path
+		// 2) Replace THE PART of the path that is required. For example,
+		//    /ext2/bin/subdir/ls, where /ext2/bin is a symlink to /initrd/bin.
+		//    In this case, we want to replace /ext2/bin with /initrd/bin, but LEAVE /subdir/ls at the end.
+		// 3.1) if operation==OPERATION_OPEN, return
+		//    return open(calculated_path, (int)op_param);
+		// 3.2) if operation==OPERATION_STAT, return
+		//    return stat(calculated_path, (struct stat *)op_param);
+		// 4) Free any memory allocated during this.
+
+	}
+
 	if ((inode->i_mode & EXT2_S_IFDIR) == 0) {
+		// TODO: this should probably return nicely
 		panic("Invalid path specified to inode_for_path! Inode %u is not a directory, but the requested file is supposed to be a subdirectory!\n", parent_inode);
 	}
 
@@ -304,12 +492,70 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 
 			if (strcmp(path, cur_entry) == 0) {
 				// Found the actual file!
+
+				// It could still be a symlink, though.
+				if (dir->file_type == EXT2_FT_SYMLINK) {
+					ext2_inode_t *tmp_inode = kmalloc(sizeof(ext2_inode_t));
+					ext2_read_inode(part, dir->inode, tmp_inode);
+
+					// OK, so we now have the inode info. Find out where it points.
+					char *path_buf = kmalloc(PATH_MAX+1);
+					memset(path_buf, 0, PATH_MAX+1);
+					ext2_readlink_inode(part, dir->inode, tmp_inode, path_buf, PATH_MAX+1);
+
+					if (operation == OPERATION_OPEN) {
+						struct inode_ret ret;
+						ret.value = open(path_buf, (int)op_param);
+						ret.type = TYPE_RETVAL;
+						kfree(tmp_inode);
+						kfree(orig_ptr);
+						kfree(path_buf);
+						return ret;
+					}
+					else if (operation == OPERATION_STAT) {
+						struct inode_ret ret;
+						ret.value = stat(path_buf, (struct stat *)op_param);
+						ret.type = TYPE_RETVAL;
+						kfree(tmp_inode);
+						kfree(orig_ptr);
+						kfree(path_buf);
+						return ret;
+					}
+					else if (operation == OPERATION_LSTAT) {
+						// This is a symlink, and we want to stat *it*, not whatever it points to
+						struct inode_ret ret;
+						ret.value = ext2_stat_inode(part, part->mp, (struct stat *)op_param, dir->inode);
+						ret.type = TYPE_RETVAL;
+						kfree(tmp_inode);
+						kfree(orig_ptr);
+						kfree(path_buf);
+						return ret;
+					}
+					else if (operation == OPERATION_READLINK) {
+						// Simply return the value of the inode *to this link*
+						struct inode_ret ret;
+						ret.type = TYPE_INODE;
+						ret.value = dir->inode;
+						ret.parent = parent_inode; // TODO: test this
+						kfree(tmp_inode);
+						kfree(orig_ptr);
+						kfree(path_buf);
+						return ret;
+					}
+					else
+						panic("Unsupported operation in _inode_for_file");
+				}
+
+				struct inode_ret ret = {0};
+				ret.value = dir->inode;
+				ret.parent = parent_inode; // TODO: test this
+				ret.type = TYPE_INODE;
 				kfree(orig_ptr);
-				return dir->inode;
+				return ret;
 			}
 			else if (strchr(path, '/')) {
 				kfree(orig_ptr);
-				return _inode_for_path(part, strchr(path, '/') + 1, dir->inode);
+				return _inode_for_path(part, strchr(path, '/') + 1, dir->inode, operation, op_param);
 			}
 			else
 				panic("end of path, but file not found");
@@ -322,17 +568,24 @@ static uint32 _inode_for_path(ext2_partition_t *part, const char *path, uint32 p
 
 	kfree(orig_ptr);
 
-	return 0;
+	struct inode_ret ret;
+	ret.value = 0; // not found
+	ret.type = TYPE_INODE;
+	return ret;
 }
 
-static uint32 inode_for_path(ext2_partition_t *part, const char *path) {
+static struct inode_ret inode_for_path(ext2_partition_t *part, const char *path, int operation, uint32 op_param) {
 	assert(part != NULL);
 	assert(path != NULL);
 
-	if (strcmp(path, "/") == 0)
-		return EXT2_ROOT_INO;
+	if (strcmp(path, "/") == 0) {
+		struct inode_ret ret = {0};
+		ret.value = EXT2_ROOT_INO;
+		ret.type = TYPE_INODE;
+		return ret;
+	}
 	else if (*path == '/') {
-		return _inode_for_path(part, path + 1, EXT2_ROOT_INO);
+		return _inode_for_path(part, path + 1, EXT2_ROOT_INO, operation, op_param);
 	}
 	else
 		panic("Invalid path in inode_for_path");
@@ -383,11 +636,168 @@ static int ext2_stat(mountpoint_t *mp, const char *path, struct stat *st) {
 	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
 	assert(part != NULL);
 
-	uint32 inode_num = inode_for_path(part, path);
-	if (inode_num == 0)
+	struct inode_ret _ino = inode_for_path(part, path, OPERATION_STAT, (uint32)st);
+	if (_ino.type == TYPE_INODE && _ino.value == 0)
 		return -ENOENT;
+	else if (_ino.type == TYPE_RETVAL)
+		return _ino.value;
 
-	return ext2_stat_inode(part, mp, st, inode_num);
+	assert(_ino.type == TYPE_INODE);
+	return ext2_stat_inode(part, mp, st, _ino.value);
+}
+
+static int ext2_lstat(mountpoint_t *mp, const char *path, struct stat *st) {
+	assert(mp != NULL);
+	assert(path != NULL);
+	assert(st != NULL);
+
+	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
+	assert(part != NULL);
+
+	struct inode_ret _ino = inode_for_path(part, path, OPERATION_LSTAT, (uint32)st);
+	if (_ino.type == TYPE_INODE && _ino.value == 0)
+		return -ENOENT;
+	else if (_ino.type == TYPE_RETVAL)
+		return _ino.value;
+
+	assert(_ino.type == TYPE_INODE);
+	return ext2_stat_inode(part, mp, st, _ino.value);
+}
+
+// Block path example:
+// Say we've read far into a file, and (to avoid needing a ton of examples) are
+// far into the triply indirect data.
+// If so, we might have read the 12 direct blocks, the e.g. 256 (more with larger blocksizes)
+// indirect data blocks, and the e.g. 256*256 doubly indirect blocks.
+// Moreover, inside the triply block, we've read the first two (0 and 1) doubly blocks and all their contents,
+// and we're now inside the one with index 2. That block specifies 256 singly blocks; we're at index 240.
+// Finally, inside that singly indirect block is a list of 256 direct blocks, and we're at index 30.
+// We could specify this with:
+
+// .redir_level = TRIPLY_INDIRECT;
+// .triply_block = 1234;
+// .doubly_block = 2345;
+// .singly_block = 3456;
+// .direct_index = -1; // only used for redir_level == DIRECT
+// .singly_index = 30;
+// .doubly_index = 240;
+// .triply_index = 2; // index into the triply indirect blocklist, stored at block[15]
+
+typedef struct ext2_blockpath {
+
+} ext2_blockpath_t;
+
+static int ext2_read_block(ext2_partition_t *part, uint32 block, char *buffer) {
+	// TODO 
+	panic("ext2_read_block called");
+	return 0;
+}
+
+static int ext2_read(int fd, void *buf, size_t length) {
+	struct open_file *file = get_filp(fd);
+	if (file == NULL)
+		return -EBADF;
+
+	struct stat st;
+	int status;
+	if ((status = ext2_fstat(fd, &st)) != 0) {
+		printk("Warning: fstat failed on opened file in ext2_read; return status = %d on fd %d\n", status, fd);
+		return 0;
+	}
+
+	if (S_ISDIR(st.st_mode))
+		return -EISDIR;
+	if (st.st_size == 0)
+		return 0;
+	if (file->offset >= file->size)
+		goto done;
+
+//	if (file->cur_block == (uint32)NULL) {
+		// This is the first read; set up the block path
+		// This is used to figure out where to read next.
+		// For example, the file's offset may be past all the direct and indirect blocks,
+		// and somewhere inside the doubly indirect blocks. We need to know exactly where,
+		// since it would be far too slow to re-calculate that on every call to read().
+		// TODO: design this
+//	}
+
+	ext2_partition_t *part = devtable[file->dev];
+	assert(part != NULL);
+
+	uint32 bytes_read = 0; // this call to read() only
+	const uint32 max_blocks = 32; // How many blocks to read at once (to keep the buffer size down)
+
+	uint8 *block_buf = kmalloc(part->blocksize * max_blocks);
+
+	assert(file->offset >= 0);
+//	uint32 local_offset = (uint32)file->offset % part->blocksize;
+
+//	uint32 continuous_blocks = 1;
+
+	/*
+	do {
+		if (length > part->blocksize) {
+			// The request is for more than one block, so at least two need to be
+			// read from disk; if they are continuous on disk, we can read them faster
+			// by coalescing them into a single disk request.
+			uint32 next = 0, cur = file->cur_block;
+			while ((next = ext2_next_block(part, cur)) == cur + 1 && \
+					continuous_blocks * part->blocksize < length && \
+					continuous_blocks < max_blocks)
+			{
+				cur = next;
+				continuous_blocks++;
+			}
+		}
+
+		uint32 nbytes_read_from_disk = continuous_blocks * part->blocksize;
+
+		assert(disk_read(part->dev, ext2_lba_from_block(part, file->cur_block), nbytes_read_from_disk, block_buf));
+		file->cur_block += continuous_blocks - 1; // the last one is taken care of later in all cases
+
+		// We need to stop if either the file size is up, or if the user didn't want more bytes.
+		uint32 bytes_copied = min(min(file->size - file->offset, length), nbytes_read_from_disk);
+
+		if (bytes_copied >= nbytes_read_from_disk - local_offset) {
+			// We'd read outside the buffer we've read from disk! Limit this read size.
+			bytes_copied = nbytes_read_from_disk - local_offset;
+		}
+
+		// Copy the data to the buffer
+		memcpy((void *)( (uint8 *)buf + bytes_read), block_buf + local_offset, bytes_copied);
+
+		bytes_read += bytes_copied;
+		file->offset += bytes_copied;
+		local_offset += bytes_copied;
+
+		assert(file->offset <= file->size);
+
+		assert(length >= bytes_copied);
+		length -= bytes_copied;
+
+		if (local_offset >= part->blocksize) {
+			ino_t next = ext2_next_block(part, file->cur_block);
+			if (file->cur_block >= 0x0ffffff8 || file->cur_block < 2) {
+				// End of block chain / no data
+				assert(file->offset == file->size);
+				goto done;
+			}
+			else
+				file->cur_block = next;
+		}
+		while (local_offset >= part->blocksize) {
+			local_offset -= part->blocksize;
+		}
+
+		if (length == 0 || file->offset >= file->size)
+			break;
+
+	} while (length > 0);
+	*/
+
+done:
+	kfree(block_buf);
+	return bytes_read;
 }
 
 static int ext2_fstat(int fd, struct stat *buf) {
@@ -412,7 +822,21 @@ static int ext2_open(uint32 dev, const char *path, int mode) {
 	ext2_partition_t *part = (ext2_partition_t *)devtable[dev];
 	assert(part != NULL);
 
-	uint32 inode_num = inode_for_path(part, path);
+	uint32 inode_num = 0;
+	struct inode_ret _ino = inode_for_path(part, path, OPERATION_OPEN, mode);
+	if (_ino.type == TYPE_RETVAL) {
+		// This instance of ext2_open was pointed towards a symbolic link.
+		// _inode_for_path above called open on the actual file,
+		// so we can destroy this filp and use that one.
+		// TODO: this might break in that it may now appears as if we've opened the file
+		// directly, rather than via the symlink.
+		destroy_filp(fd);
+		return _ino.value;
+	}
+	else {
+		assert(_ino.type == TYPE_INODE);
+		inode_num = _ino.value;
+	}
 
 	if (inode_num < EXT2_ROOT_INO) {
 		destroy_filp(fd);

@@ -104,6 +104,8 @@ DECL_SYSCALL2(getcwd, char *, char *, size_t);
 DECL_SYSCALL1(dup, int, int);
 DECL_SYSCALL2(dup2, int, int, int);
 DECL_SYSCALL1(pipe, int, int *);
+DECL_SYSCALL2(lstat, int, const char *, struct stat *);
+//DECL_SYSCALL3(readlink, ssize_t, const char *, char *, size_t);
 
 void sys__exit(int status) {
 	asm volatile("int $0x80" : : "a" (0), "b" ((int)status));
@@ -139,6 +141,9 @@ DEFN_SYSCALL2(getcwd, char *, 26, char *, size_t);
 DEFN_SYSCALL1(dup, int, 27, int);
 DEFN_SYSCALL2(dup2, int, 28, int, int);
 DEFN_SYSCALL1(pipe, int, 29, int *);
+DEFN_SYSCALL2(lstat, int, 30, const char *, struct stat *);
+DEFN_SYSCALL3(readlink, ssize_t, 31, const char *, char *, size_t);
+
 // When adding a syscall, don't forget to also add it to src/kernel/syscall.c!
 
 sint64 sys_lseek(int fd, sint64 offset, int whence) {
@@ -205,6 +210,17 @@ int execve(const char *name, char * const *argv, char * const *env) {
 		errno = -r;
 		return -1;
 	}
+}
+
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
+	int r = sys_readlink(pathname, buf, bufsiz);
+	if (r <= 0) {
+		errno = -r;
+		return -1;
+	}
+	else
+		return r;
+
 }
 
 int fstat(int file, struct stat *st) {
@@ -304,6 +320,21 @@ int stat(const char *file, struct stat *st) {
 	}
 
 	int ret = sys_stat(file, st);
+	if (ret == 0)
+		return 0;
+	else {
+		errno = -ret;
+		return -1;
+	}
+}
+
+int lstat(const char *file, struct stat *st) {
+	if (st == NULL) {
+		errno = EFAULT;
+		return -1;
+	}
+
+	int ret = sys_lstat(file, st);
 	if (ret == 0)
 		return 0;
 	else {

@@ -43,6 +43,8 @@ typedef struct mp_ops {
 	int (*open)(uint32 /* dev */, const char * /* absolute path */, int /* mode */);
 	DIR *(*opendir)(struct mountpoint *, const char * /* absolute path */);
 	int (*stat)(struct mountpoint *, const char * /* path */, struct stat *);
+	int (*lstat)(struct mountpoint *, const char * /* path */, struct stat *);
+	ssize_t (*readlink)(struct mountpoint *, const char *, char *, size_t);
 } mp_ops_t;
 
 struct open_file;
@@ -112,12 +114,11 @@ int closedir(DIR *dir);
 int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
 int getdents (int fd, void *dp, int count);
+int lstat(const char *path, struct stat *buf);
 
 int dup(int);
 int dup2(int, int);
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out);
-
-#define lstat stat
 
 #endif
