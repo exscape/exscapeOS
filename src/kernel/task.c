@@ -166,6 +166,8 @@ void destroy_task(task_t *task) {
 		}
 	}
 
+	kfree(task->fpu_state);
+
 	// Free the table itself
 	kfree(task->fdtable);
 	task->fdtable = NULL;

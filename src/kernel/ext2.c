@@ -360,6 +360,7 @@ ssize_t ext2_readlink(struct mountpoint *mp, const char *pathname, char *buf, si
 	memcpy(buf, link, min(size, bufsiz));
 
 	kfree(link);
+	kfree(inode);
 
 	return min(size, bufsiz);
 }
@@ -415,12 +416,14 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 			struct inode_ret ret;
 			ret.value = open(full_path, (int)op_param);
 			ret.type = TYPE_RETVAL;
+			kfree(full_path);
 			return ret;
 		}
 		else if (operation == OPERATION_STAT) {
 			struct inode_ret ret;
 			ret.value = stat(full_path, (struct stat *)op_param);
 			ret.type = TYPE_RETVAL;
+			kfree(full_path);
 			return ret;
 		}
 		else if (operation == OPERATION_LSTAT) {
@@ -428,10 +431,12 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 			struct inode_ret ret;
 			ret.value = lstat(full_path, (struct stat *)op_param);
 			ret.type = TYPE_RETVAL;
+			kfree(full_path);
 			return ret;
 		}
 		else if (operation == OPERATION_READLINK) {
 			// Simply return the value of the inode *to this link*
+			kfree(full_path);
 			panic("TODO: should this case remain?");
 		}
 		else
