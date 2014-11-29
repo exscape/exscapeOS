@@ -44,7 +44,7 @@ void double_fault_handler(void) {
 	printk("CS  =%08x    DS =%08x    EIP=%08x    EFLAGS=%08x\n", tss_entry.cs, tss_entry.ds, tss_entry.eip, tss_entry.eflags);
 	printk("ESP0=%08x\n", tss_entry.esp0);
 
-	panic("Double fault!");
+	panic("Double fault! Kernel stack overflow?");
 }
 
 uint8 *stack = NULL;

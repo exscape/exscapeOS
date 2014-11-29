@@ -72,6 +72,7 @@ void pmm_init(uint32 mbd_mmap_addr, uint32 mbd_mmap_length, uint32 upper_mem) {
 	 * gives two regions: a small one at below 1 MB, and then 0x100000 - 0x0FEF0000.
 	 * VMWare fusion with 256 MB gives an area below 1 MB, 0x100000 - 0x0FEF0000,
 	 * but ALSO 0x0FF00000 to 0x10000000.
+
 	 *
 	 * Because mem_end_page = 0x0FEF0000 (as it's based on the **continous** size),
 	 * nframes is allocated too small, and we get a buffer overflow (or, rather,
