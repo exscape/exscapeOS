@@ -25,5 +25,6 @@
 [x] fork + execve
 [x] User-mode shell
 [x] Pipes
+[X] FPU/SSE/AVX state saving during context switches
+[ ] SSE/2/3/4.x/AVX support
 [ ] Signals
-[ ] FPU/SSE/AVX state saving during context switches

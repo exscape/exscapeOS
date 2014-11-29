@@ -81,7 +81,7 @@ There is a fair amount of userspace support, but the user mode shell was added l
 (The kernel mode "shell" is even worse, but it was never meant to be permanent, so little time is spent on it!)
 
 Either way... "help" works (in the kernel mode shell, kshell, only), as does "ls".
-"eshell" starts the user mode shell.
+"eshell" (or "sh") starts the user mode shell. Don't let the new name fool you; it's not at all POSIX compatible yet. It does support very basic redirects and such, but the parsing is very sub-par.
 
 The OS has basic FAT32 support - read-only, however. The VFS is barely existent and
 needs a rewrite from the ground up, but that shouldn't be overly obvious from a user's
