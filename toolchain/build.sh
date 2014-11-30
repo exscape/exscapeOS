@@ -67,8 +67,8 @@ if [[ $DL -eq 1 ]]; then
 			wget 'http://ftp.gnu.org/gnu/binutils/binutils-2.23.1.tar.bz2' || err
 		fi
 
-		if [[ ! -f "gcc-4.8.2.tar.bz2" ]]; then
-			wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.8.2/gcc-4.8.2.tar.bz2' || err
+		if [[ ! -f "gcc-4.9.2.tar.bz2" ]]; then
+			wget 'ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-4.9.2/gcc-4.9.2.tar.bz2' || err
 		fi
 
 		if [[ $BUILD_GDB -ne 0 && ! -f "gdb-7.6.2.tar.bz2" ]]; then
@@ -89,7 +89,7 @@ if [[ $FORCE_CLEAN -eq 1 ]]; then
 	echo
 	echo Unpacking sources...
 	if [[ $NEWLIB_ONLY -ne 1 ]]; then
-		for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.8.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
+		for FILE in distfiles/{binutils-2.23.1.tar.bz2,gcc-4.9.2.tar.bz2,newlib-1.20.0.tar.gz}; do echo "$FILE ..."; tar xf $FILE || err; done
 		if [[ $BUILD_GDB -ne 0 ]]; then
 			tar xf distfiles/gdb-7.6.2.tar.bz2 || er
 		fi
@@ -133,15 +133,15 @@ cd ..
 echo
 echo Patching GCC...
 echo
-cd gcc-4.8.2
-patch -p1 < ../patches/gcc-4.8.2-exscapeos.patch || err
+cd gcc-4.9.2
+patch -p1 < ../patches/gcc-4.9.2-exscapeos.patch || err
 cd ..
 
 echo 
 echo Configuring GCC...
 echo
 cd build-gcc
-../gcc-4.8.2/configure --target=$TARGET --prefix=$PREFIX --disable-nls --enable-languages=c --with-gmp=/opt/local --with-mpfr=/opt/local --with-mpc=/opt/local || err
+../gcc-4.9.2/configure --target=$TARGET --prefix=$PREFIX --disable-nls --enable-languages=c --with-gmp=/opt/local --with-mpfr=/opt/local --with-mpc=/opt/local || err
 
 echo
 echo Building GCC and libgcc...
