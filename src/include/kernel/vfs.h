@@ -114,7 +114,7 @@ int closedir(DIR *dir);
 int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
 int getdents (int fd, void *dp, int count);
-int lstat(const char *path, struct stat *buf);
+//int lstat(const char *path, struct stat *buf);
 
 int dup(int);
 int dup2(int, int);
