@@ -34,6 +34,8 @@ void disable_interrupts(void);
 void enable_interrupts(void);
 bool interrupts_enabled(void);
 
+void dump_regs_and_bt(uint32 esp);
+
 struct idt_entry {
 	uint16 base_lo;
 	uint16 sel;

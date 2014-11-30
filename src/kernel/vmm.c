@@ -401,6 +401,9 @@ struct task_mm *vmm_create_user_mm(void) {
 	/* Set a guard page */
 	vmm_set_guard(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), mm->page_directory);
 
+	/* This is used by the code that expands the user stack on page fault, up to a limit */
+	mm->user_stack_guard_page = USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE);
+
 	return mm;
 }
 
@@ -661,6 +664,7 @@ static void _vmm_invalidate(void *addr) {
 /* The page fault interrupt handler. */
 uint32 page_fault_handler(uint32 esp) {
 	registers_t *regs = (registers_t *)esp;
+
 	/* Whenever a page fault occurs, the CR2 register contains the fault address. */
 	uint32 faulting_address;
 	asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
@@ -671,6 +675,39 @@ uint32 page_fault_handler(uint32 esp) {
 	bool user_bit = regs->err_code & (1 << 2);		// did the access happen from user mode (ring 3) or kernel mode (ring 0)?   
 	bool reserved_bit = regs->err_code & (1 << 3);	// was the fault caused by us setting a reserved bit to 1 in entry?
 	bool int_fetch_bit = regs->err_code & (1 << 4);   // was the fault caused by an instruction fetch?
+
+	// If the conditions are right, grow the userspace stack, if this page fault occurred on the guard page.
+	struct task_mm *mm = current_task->mm;
+	if (current_task->privilege != 3 || current_task-> mm == NULL)
+		goto fail; /* Heh... should I use brackets here, perhaps? :-) */
+	if (!(faulting_address >= mm->user_stack_guard_page && faulting_address <= mm->user_stack_guard_page + PAGE_SIZE))
+		goto fail;
+
+	// OK, so it did fail on the guard page.
+	// Is the stack size already at the maximum limit (rather, will we *exceed* the limit if we grow?)?
+	uint32 old_size = USER_STACK_START - mm->user_stack_guard_page - PAGE_SIZE;
+	uint32 new_size = old_size + USER_STACK_GROW_SIZE;
+	assert((old_size & 0xfff) == 0);
+	assert((new_size & 0xfff) == 0);
+	if (new_size >= USER_STACK_SIZE_MAX)
+		goto fail;
+
+	// OK, we should grow it!
+	printk("Growing userspace stack! Old size: %d, new size: %d\n", old_size, new_size);
+	printk("                         Old top: %p, new top: %p\n", USER_STACK_START - old_size, USER_STACK_START - new_size);
+
+	/* Actually grow the area; vmm_alloc_user updates/grows the area metadata for us, also */
+	vmm_alloc_user(USER_STACK_START - (new_size + PAGE_SIZE), USER_STACK_START - (old_size + PAGE_SIZE), mm, PAGE_RW);
+
+	/* Move the guard page */
+	vmm_clear_guard(USER_STACK_START - (old_size + PAGE_SIZE), mm->page_directory);
+	vmm_set_guard(USER_STACK_START - (new_size + PAGE_SIZE), mm->page_directory);
+	mm->user_stack_guard_page = USER_STACK_START - (new_size + PAGE_SIZE);
+
+	return esp;
+
+fail:
+	dump_regs_and_bt(esp);
 
 	/* Print a message and panic */
 	printk("Page fault!\n"

@@ -58,8 +58,9 @@ void user_exit(void); // called from user mode
 #define KERNEL_STACK_SIZE 8192
 
 #define USER_STACK_START 0xbffff000
-#define USER_STACK_SIZE 16384 // TODO: allow automatic increase on page fault, up to USER_STACK_SIZE_MAX
-#define USER_STACK_SIZE_MAX (8*1024*1024) // currently unused
+#define USER_STACK_SIZE 16384
+#define USER_STACK_SIZE_MAX (8*1024*1024)
+#define USER_STACK_GROW_SIZE 16384 // How much to grow the stack by on a guard page PF. Note that if cur_size + this >= max size, the stack will not grow, even through there may still be SOME room to grow.
 
 char **parse_command_line(const char *cmdline, uint32 *argc, task_t *task);
 void set_entry_point(task_t *task, uint32 addr);

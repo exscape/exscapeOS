@@ -252,39 +252,45 @@ const char *exception_name[] = {
     "Reserved" // 31
 };
 
+void dump_regs_and_bt(uint32 esp) {
+	registers_t *regs = (registers_t *)esp;
+
+	printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
+
+	printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+	printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
+	printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
+	printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
+	printk("\n");
+
+	printk("Backtrace:\n");
+
+	struct symbol *sym = addr_to_func(regs->eip);
+	if (sym) {
+		printk("0x%08x in %s+0x%x (function that crashed)\n", regs->eip, sym->name, regs->eip - sym->eip);
+	}
+	else
+		printk("EIP not in any known kernel function\n");
+
+	print_backtrace_ebp(regs->ebp);
+	printk("\n");
+	//printk("WARNING: esp value may be unreliable at the moment\n");
+}
+
 /* Called from the assembly code in kernel.s */
 uint32 isr_handler(uint32 esp) {
-	/* Make sure all output goes to the kernel console */
 	registers_t *regs = (registers_t *)esp;
+	assert(regs->int_no <= 31 || regs->int_no == 0x80);
 
 	/* Send all output to the kernel console, unless this is a syscall */
 	if (regs->int_no != 0x80)
 		console_task = &kernel_task;
 
-	assert(regs->int_no <= 31 || regs->int_no == 0x80);
-
-	if (regs->int_no != 0x80 && regs->int_no != 0x07 /* #NM, see fpu.c */) {
-		/* Don't print all this if the interrupt is the syscall vector */
-		printk("Received interrupt: %d (%s)\n", regs->int_no, exception_name[regs->int_no]);
-
-		printk("EAX=%08x    EBX=%08x    ECX=%08x    EDX=%08x\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
-		printk("ESI=%08x    EDI=%08x    ESP=%08x    EBP=%08x\n", regs->esi, regs->edi, esp, regs->ebp);
-		printk("CS =%08x    EIP=%08x    EFLAGS=%08x USERESP=%08x\n", regs->cs, regs->eip, regs->eflags, regs->useresp);
-		printk("INT=%02dd         ERR_CODE=0x%04x   DS=%08x\n", regs->int_no, regs->err_code, regs->ds);
-		printk("\n");
-
-		printk("Backtrace:\n");
-
-		struct symbol *sym = addr_to_func(regs->eip);
-		if (sym) {
-			printk("0x%08x in %s+0x%x (function that crashed)\n", regs->eip, sym->name, regs->eip - sym->eip);
-		}
-		else
-			printk("EIP not in any known kernel function\n");
-
-		print_backtrace_ebp(regs->ebp);
-		printk("\n");
-		//printk("WARNING: esp value may be unreliable at the moment\n");
+	// Dump debug info, unless this is a syscall (0x80), #NM (0x07, see fpu.c) or a page fault
+	// The PF handler prints this unless the PF is a valid one (to grow a userspace stack,
+	// or perhaps in the future (as of this writing) when a page is currently on disk)
+	if (regs->int_no != 0x80 && regs->int_no != 0x07 && regs->int_no != 14) {
+		dump_regs_and_bt(esp);
 	}
 
 	if (interrupt_handlers[regs->int_no] != 0) {

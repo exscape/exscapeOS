@@ -82,6 +82,7 @@ struct task_mm {
 	uint32 brk_start;
 	uint32 brk;
 	page_directory_t *page_directory;
+	uint32 user_stack_guard_page; // Lowest address of the user stack (the lowest usable is this + PAGE_SIZE)
 };
 
 typedef struct vm_area {
