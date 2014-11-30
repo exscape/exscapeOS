@@ -659,7 +659,7 @@ void kshell(void *data, uint32 length) {
 			task = create_task(&kshell, "kshell (nested)", con, NULL, 0);
 		}
 		else {
-			static const char _PATH[] = "/bin:/initrd/bin:/fat/bin:/";
+			static const char _PATH[] = "/bin:/bin/tests:/initrd/bin:/initrd/bin/tests:/fat/bin:/";
 			char PATH[sizeof(_PATH)] = {0};
 
 			strcpy(PATH, _PATH); // strtok_r will modify this!

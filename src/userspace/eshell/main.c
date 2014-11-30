@@ -612,7 +612,7 @@ int process_input(char *cmd) {
 
 int main(int my_argc, char **my_argv) {
 	if (getenv("PATH") == NULL)
-		setenv("PATH", "/bin:/initrd/bin:/initrd:/", 1);
+		setenv("PATH", "/bin:/bin/tests:/initrd/bin:/initrd/bin/tests:/initrd:/", 1);
 	char buf[1024] = {0};
 	//int last_exit = 0;
 

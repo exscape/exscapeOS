@@ -21,7 +21,7 @@ ASMFILES := $(shell find $(PROJDIRS) -type f -name '*.s')
 OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
 OBJFILES += $(patsubst %.s,%.o,$(ASMFILES))
 
-USERSPACEPROG := $(shell find src/userspace/ -maxdepth 2 -name 'Makefile' -exec dirname {} \;)
+USERSPACEPROG := $(shell find src/userspace/ -maxdepth 3 -name 'Makefile' -exec dirname {} \;)
 
 DEPFILES    := $(patsubst %.c,%.d,$(SRCFILES))
 
@@ -58,7 +58,7 @@ clean:
 	-$(RM) $(wildcard $(OBJFILES) $(DEPFILES) kernel.bin bootable.iso misc/initrd.img)
 	@for prog in $(USERSPACEPROG); do \
 		make -C $$prog clean; \
-		rm -f initrd/bin/`basename "$$prog"` ; \
+		rm -f initrd/bin/`basename "$$prog"` initrd/bin/tests/`basename "$$prog"`; \
 	done
 	@rm -f initrd/bin/sh
 
