@@ -689,8 +689,10 @@ uint32 page_fault_handler(uint32 esp) {
 	uint32 new_size = old_size + USER_STACK_GROW_SIZE;
 	assert((old_size & 0xfff) == 0);
 	assert((new_size & 0xfff) == 0);
-	if (new_size >= USER_STACK_SIZE_MAX)
+	if (new_size >= USER_STACK_SIZE_MAX) {
+		printk("Warning: userspace stack overflow, with no further space to grow!\n");
 		goto fail;
+	}
 
 	// OK, we should grow it!
 	printk("Growing userspace stack! Old size: %d, new size: %d\n", old_size, new_size);
