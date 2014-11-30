@@ -707,8 +707,6 @@ uint32 page_fault_handler(uint32 esp) {
 	return esp;
 
 fail:
-	dump_regs_and_bt(esp);
-
 	/* Print a message and panic */
 	printk("Page fault!\n"
 		   "Flags set: %s %s %s %s %s\n"
@@ -719,6 +717,8 @@ fail:
 		   (reserved_bit? "reserved_bits_trampled" : ""),
 		   (int_fetch_bit?"int_fetch" : ""),
 		   faulting_address);
+
+	dump_regs_and_bt(esp);
 
 	printk("Heap end address is %p\n", kheap->end_address);
 
