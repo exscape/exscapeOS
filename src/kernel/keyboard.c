@@ -161,7 +161,7 @@ uint32 keyboard_callback(uint32 esp) {
 	 */
 
 	unsigned char scancode = inb(0x60);
-	unsigned char c;
+	unsigned char c = 0;
 	if (scancode == 0xe0)
 		return esp; // For now
 

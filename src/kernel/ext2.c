@@ -710,12 +710,14 @@ static int ext2_read(int fd, void *buf, size_t length) {
 		return 0;
 	}
 
+	uint32 bytes_read = 0; // this call to read() only
+
 	if (S_ISDIR(st.st_mode))
 		return -EISDIR;
 	if (st.st_size == 0)
 		return 0;
 	if (file->offset >= file->size)
-		goto done;
+		goto out;
 
 //	if (file->cur_block == (uint32)NULL) {
 		// This is the first read; set up the block path
@@ -729,13 +731,16 @@ static int ext2_read(int fd, void *buf, size_t length) {
 	ext2_partition_t *part = devtable[file->dev];
 	assert(part != NULL);
 
-	uint32 bytes_read = 0; // this call to read() only
 	const uint32 max_blocks = 32; // How many blocks to read at once (to keep the buffer size down)
 
 	uint8 *block_buf = kmalloc(part->blocksize * max_blocks);
 
 	assert(file->offset >= 0);
 //	uint32 local_offset = (uint32)file->offset % part->blocksize;
+
+	// TODO: REMOVE THIS; this is just to shut up a warning temporarily, until this function is implemented
+	if (file->offset == 1234)
+		goto done;
 
 //	uint32 continuous_blocks = 1;
 
@@ -802,6 +807,7 @@ static int ext2_read(int fd, void *buf, size_t length) {
 
 done:
 	kfree(block_buf);
+out:
 	return bytes_read;
 }
 

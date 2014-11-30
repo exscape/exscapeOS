@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <stdbool.h>
 
 #ifndef O_RDONLY
 #define O_RDONLY 0

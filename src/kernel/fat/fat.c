@@ -323,7 +323,7 @@ int fat_read(int fd, void *buf, size_t length) {
 		file->cur_block += continuous_clusters - 1; // the last one is taken care of later in all cases
 
 		// We need to stop if either the file size is up, or if the user didn't want more bytes.
-		uint32 bytes_copied = min(min(file->size - file->offset, length), nbytes_read_from_disk);
+		uint32 bytes_copied = min(min(file->size - file->offset, (off_t)length), nbytes_read_from_disk);
 
 		if (bytes_copied >= nbytes_read_from_disk - local_offset) {
 			// We'd read outside the buffer we've read from disk! Limit this read size.
