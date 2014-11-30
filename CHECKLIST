@@ -12,14 +12,17 @@
 	[x] Basic kernel mode multitasking (shared page directory)
 	[x] User mode support
 [x] Syscalls
-	[ ] More are always needed, though...
-[ ] ATA driver
+[-] ATA driver
 	[x] Basic reading (PIO)
 	[x] Basic writing (PIO)
 	[ ] Decent error handling
 [-] File system
-	[x] Read-only FAT
-	[ ] Write suppport
+	[-] FAT
+		[x] Read support
+		[ ] Write support
+	[-] ext2
+		[-] Read support
+		[ ] Write support
 [x] Executable loading (ELF parsing, etc.)
 [x] User-mode libc (wohoo!)
 [x] fork + execve
