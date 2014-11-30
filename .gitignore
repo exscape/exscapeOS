@@ -4,18 +4,16 @@
 *.swp
 *.pyc
 kernel.bin
+initrd.img
 bootable.iso
 
 testing_area
-misc/create_initrd*
 *.dSYM
-isofiles/boot/initrd.img
 tags
 
 serial-output
-misc/initrd.img
 
-initrd/
+initrd/bin/*
 
 toolchain/distfiles
 toolchain/build-*
@@ -23,11 +21,3 @@ toolchain/gcc-4.*
 toolchain/newlib-1.*
 toolchain/gdb-7.*
 toolchain/binutils-2.*
-src/userspace/misc_test/
-src/userspace/daemon
-src/userspace/env_test
-src/userspace/execve
-src/userspace/execve_child
-src/userspace/fenv
-src/userspace/fork2
-src/userspace/waitpid
