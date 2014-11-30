@@ -16,6 +16,8 @@ static initrd_file_header_t *initrd_files; /* array of headers, one for each fil
 
 mountpoint_t *initrd_mp = NULL;
 
+#define INITRD_ROOT_INODE 1
+
 /*
  * This function USES the initrd, but doesn't *really* belong here.
  * It does however use internal functions, so it'll be allowed to stay
@@ -30,7 +32,7 @@ bool fs_mount(void) {
 	for (uint32 i=0; i < initrd_header->nfiles; i++) {
 		if (strcmp(initrd_files[i].name, "mounts") == 0) {
 			int parent = initrd_files[i].parent;
-			if (initrd_files[parent].parent == 0 && strcmp(initrd_files[parent].name, "etc") == 0) {
+			if (initrd_files[parent].parent == INITRD_ROOT_INODE && strcmp(initrd_files[parent].name, "etc") == 0) {
 				// Ugly, but this can't use the real initrd code.
 				// Checks that this is indeed /etc/mounts and not some other file named "mounts".
 				ino = i;
@@ -109,11 +111,11 @@ bool fs_mount(void) {
 
 	if (!root_mounted) {
 		putchar('\n');
-		panic("No root file system was mounted! Make sure initrd/mounts is correct: with no FAT filesystems, it should contain the lone line \"initrd /\" (without quotes).");
+		panic("No root file system was mounted! Make sure initrd/mounts is correct: with no FAT or ext2 filesystems, it should contain the lone line \"initrd /\" (without quotes).");
 	}
 
 	if (initrd_mp == NULL) {
-		panic("initrd not mounted! Make sure there's an entry such as \"initrd /initrd\" in initrd/mounts (on the building system).");
+		panic("initrd not mounted! Make sure there's an entry such as \"initrd /initrd\" in initrd/etc/mounts (on the build system).");
 	}
 
 	printk("\b\b: ");
@@ -222,7 +224,7 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 	}
 
 	assert(dir->ino < initrd_header->nfiles);
-	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
+	for (uint32 i = INITRD_ROOT_INODE; i < initrd_header->nfiles; i++) {
 		if (initrd_files[i].parent == (int)dir->ino && strcmp(initrd_files[i].name, basename) == 0) {
 			// Found it!
 			file->ino = i;
@@ -277,16 +279,18 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 	// Find the correct inode, by looping through all the tokens in the path
 	char *tmp;
 	char *token = NULL;
-	int dir_inode = 0; // root dir
+	int dir_inode = INITRD_ROOT_INODE;
+	int parent_inode = INITRD_ROOT_INODE;
 	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
 		// Did we find this token?
 		// E.g. in the second loop for path="/etc/dir/file", we must find a "dir" that S_ISDIR() and is a child of etc
 		bool found = false; 
-		for (uint32 i=0; i < initrd_header->nfiles; i++) {
+		for (uint32 i = INITRD_ROOT_INODE; i < initrd_header->nfiles; i++) {
 			if (initrd_files[i].parent == dir_inode && strcmp(initrd_files[i].name, token) == 0) {
 				if (S_ISDIR(initrd_files[i].mode)) {
 					found = true;
 					dir_inode = initrd_files[i].inode;
+					parent_inode = initrd_files[i].parent;
 					break;
 				}
 				else {
@@ -300,8 +304,8 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 
 	// struct dirent has space for (currently) 256 chars in the path; the initrd only supports 64,
 	// so we can cut back a bit. Add 4 bytes for padding, and the rest to ensure that the last dirent
-	// is all within the buffer.
-	dir->_buflen = initrd_files[dir_inode].length * (sizeof(struct dirent) - MAXNAMLEN + 64 + 4) + sizeof(struct dirent);
+	// is all within the buffer. Plus a bit more (32) for . and .. and a extra, just in case.
+	dir->_buflen = initrd_files[dir_inode].length * (sizeof(struct dirent) - MAXNAMLEN + 64 + 4 + 32) + sizeof(struct dirent);
 	dir->buf = kmalloc(dir->_buflen);
 	memset(dir->buf, 0, dir->_buflen);
 
@@ -312,11 +316,53 @@ DIR *initrd_opendir(mountpoint_t *mp, const char *in_path) {
 	dir->len = 0;
 	dir->ino = dir_inode;
 
-	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
+	// Add . and ..; very ugly, but it needs to be done...
+	// The entire initrd is a bit of a hack anyway.
+
+	struct dirent *dent = (struct dirent *)(dir->buf + dir->len);
+	dent->d_ino = dir_inode;
+	dent->d_dev = dir->dev;
+	dent->d_type = DT_DIR;
+
+	strcpy(dent->d_name, ".");
+	dent->d_namlen = 1;
+	dent->d_reclen = 12 /* fixed fields */ + dent->d_namlen + 1 /* NULL */;
+
+	if (dent->d_reclen & 3) {
+		// Pad such that the record length is divisible by 4
+		dent->d_reclen &= ~3;
+		dent->d_reclen += 4;
+	}
+	assert(dent->d_reclen <= sizeof(struct dirent));
+
+	// Move the directory buffer pointer forward
+	dir->len += dent->d_reclen;
+
+	dent = (struct dirent *)(dir->buf + dir->len);
+	dent->d_ino = parent_inode;
+	dent->d_dev = dir->dev;
+	dent->d_type = DT_DIR;
+
+	strcpy(dent->d_name, "..");
+	dent->d_namlen = 2;
+	dent->d_reclen = 12 /* fixed fields */ + dent->d_namlen + 1 /* NULL */;
+
+	if (dent->d_reclen & 3) {
+		// Pad such that the record length is divisible by 4
+		dent->d_reclen &= ~3;
+		dent->d_reclen += 4;
+	}
+	assert(dent->d_reclen <= sizeof(struct dirent));
+
+	// Move the directory buffer pointer forward
+	dir->len += dent->d_reclen;
+
+	// Add all of the files and folders
+	for (uint32 i = INITRD_ROOT_INODE + 1; i < initrd_header->nfiles; i++) {
 		if (initrd_files[i].parent != dir_inode)
 			continue;
 
-		struct dirent *dent = (struct dirent *)(dir->buf + dir->len);
+		dent = (struct dirent *)(dir->buf + dir->len);
 		// It's already zeroed out, above
 		dent->d_ino = i;
 		dent->d_dev = dir->dev;
@@ -538,7 +584,7 @@ void init_initrd(uint32 location) {
 	devtable[next_dev++] = (void *)0xffffffff; // We don't need a useful pointer, just something to mark the entry as used
 
 	/* Set up each individual file */
-	for (uint32 i = 0; i < initrd_header->nfiles; i++) {
+	for (uint32 i = INITRD_ROOT_INODE; i < initrd_header->nfiles; i++) {
 		/* Change the offset value to be relative to the start of memory, 
 		 * rather than the start of the ramdisk/initrd image */
 		initrd_files[i].offset += location;

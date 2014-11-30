@@ -95,7 +95,7 @@ def create_image(output_path, files):
 	f.close()
 
 def inode_gen():
-	i = 0
+	i = 1
 	while True:
 		yield i
 		i += 1
@@ -103,8 +103,8 @@ def inode_gen():
 def parent_inode(path, files):
 	dir = os.path.dirname(path)
 	if len(dir) == 1 or dir == 'initrd':
-		# root directory, inode 0
-		return 0
+		# root directory, inode 1
+		return 1
 
 	for file in files:
 		if file.path == dir:
@@ -128,6 +128,7 @@ if __name__ == '__main__':
 	found = []
 	inode = inode_gen()
 
+	found.append(File(0, 0, "", _IFDIR, 0, "", 0)) # Add the null entry (inode 0 is invalid in many utils)
 	# add the root dir
 	add_entry(found, 'initrd', '/')
 
