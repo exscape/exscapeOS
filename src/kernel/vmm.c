@@ -374,17 +374,17 @@ static void _vmm_create_page_table(uint32 pt_index, page_directory_t *dir) {
 
 	if (IS_KERNEL_SPACE(pt_index * 4096 * 1024)) {
 		assert(dir == kernel_directory);
-		  // This belongs to kernel space, and needs to be in sync across
-			// *ALL* user mode tasks as well
-			list_foreach(pagedirs, it) {
-				page_directory_t *d = (page_directory_t *)it->data;
-				if (d != kernel_directory && d != 0 && d != dir) {
-					d->tables[pt_index] = dir->tables[pt_index];
-					d->tables_physical[pt_index] = dir->tables_physical[pt_index];
+		// This belongs to kernel space, and needs to be in sync across
+		// *ALL* user mode tasks as well
+		list_foreach(pagedirs, it) {
+			page_directory_t *d = (page_directory_t *)it->data;
+			if (d != kernel_directory && d != 0 && d != dir) {
+				d->tables[pt_index] = dir->tables[pt_index];
+				d->tables_physical[pt_index] = dir->tables_physical[pt_index];
 
-					panic("updated task's page dir (dir 0x%08x); page table = 0x%08x - TODO: test this!\n", d, dir->tables);
-				}
+				panic("updated task's page dir (dir 0x%08x); page table = 0x%08x - TODO: test this!\n", d, dir->tables);
 			}
+		}
 	}
 }
 
