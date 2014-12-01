@@ -69,7 +69,8 @@ bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	// just "/mounts" if the initrd is mounted under /initrd, and the initrd would then
 	// open /mounts seen from the "initrd root".
 
-	char path[PATH_MAX+1] = {0};
+	char *path = kmalloc(PATH_MAX+1);
+	memset(path, 0, PATH_MAX+1);
 
 	assert(in_path != NULL);
 	if (in_path[0] != '/') {
@@ -103,6 +104,7 @@ bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	if (mp_out != NULL)
 		*mp_out = mp;
 
+	kfree(path);
 	return true;
 }
 
@@ -112,17 +114,23 @@ DIR *opendir(const char *path) {
 	assert(path != NULL);
 	assert(*path != 0);
 
-	char relpath[PATH_MAX+1] = {0};
+	char *relpath = kmalloc(PATH_MAX+1);
+	memset(relpath, 0, PATH_MAX+1);
 	mountpoint_t *mp = NULL;
-	if (!find_relpath(path, relpath, &mp))
+	if (!find_relpath(path, relpath, &mp)) {
+		kfree(relpath);
 		return NULL;
+	}
 
 	assert(mp->mpops.opendir != NULL);
-	return mp->mpops.opendir(mp, relpath);
+	DIR *ret = mp->mpops.opendir(mp, relpath);
+	kfree(relpath);
+	return ret;
 }
 
 int open(const char *path, int mode) {
-	char relpath[PATH_MAX+1] = {0};
+	char *relpath = kmalloc(PATH_MAX+1);
+	memset(relpath, 0, PATH_MAX+1);
 	mountpoint_t *mp = NULL;
 	if (!find_relpath(path, relpath, &mp))
 		return -1;
@@ -131,7 +139,9 @@ int open(const char *path, int mode) {
 		return -EACCES;
 
 	assert(mp->mpops.open != NULL);
-	return mp->mpops.open(mp->dev, relpath, mode);
+	int ret = mp->mpops.open(mp->dev, relpath, mode);
+	kfree(relpath);
+	return ret;
 }
 
 int sys_open(const char *path, int mode) {
@@ -144,13 +154,18 @@ int stat(const char *path, struct stat *buf) {
 	if (path == NULL || buf == NULL)
 		return -EFAULT;
 
-	char relpath[PATH_MAX+1] = {0};
+	char *relpath = kmalloc(PATH_MAX+1);
+	memset(relpath, 0, PATH_MAX+1);
 	mountpoint_t *mp = NULL;
-	if (!find_relpath(path, relpath, &mp))
+	if (!find_relpath(path, relpath, &mp)) {
+		kfree(relpath);
 		return -1;
+	}
 
 	assert(mp->mpops.stat != NULL);
-	return mp->mpops.stat(mp, relpath, buf);
+	int ret = mp->mpops.stat(mp, relpath, buf);
+	kfree(relpath);
+	return ret;
 }
 
 int sys_stat(const char *path, struct stat *buf) {
@@ -163,20 +178,26 @@ int lstat(const char *path, struct stat *buf) {
 	if (path == NULL || buf == NULL)
 		return -EFAULT;
 
-	char relpath[PATH_MAX+1] = {0};
+	char *relpath = kmalloc(PATH_MAX+1);
+	memset(relpath, 0, PATH_MAX+1);
 	mountpoint_t *mp = NULL;
-	if (!find_relpath(path, relpath, &mp))
+	if (!find_relpath(path, relpath, &mp)) {
+		kfree(relpath);
 		return -1;
+	}
 
+	int ret = -1;
 	if (mp->mpops.lstat != NULL)
-		return mp->mpops.lstat(mp, relpath, buf);
+		ret = mp->mpops.lstat(mp, relpath, buf);
 	else if (mp->mpops.stat != NULL) {
 		// TODO: untested workaround/hack or no lstat support for FAT and initrd
-		return mp->mpops.stat(mp, relpath, buf);
+		ret = mp->mpops.stat(mp, relpath, buf);
 	}
 	else
 		panic("lstat and stat not supported");
 
+	kfree(relpath);
+	return ret;
 }
 
 int sys_lstat(const char *path, struct stat *buf) {
@@ -191,16 +212,22 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
 	if (bufsiz == 0)
 		return -EINVAL;
 
-	char relpath[PATH_MAX+1] = {0};
+	char *relpath = kmalloc(PATH_MAX+1);
+	memset(relpath, 0, PATH_MAX+1);
 	mountpoint_t *mp = NULL;
-	if (!find_relpath(pathname, relpath, &mp))
+	if (!find_relpath(pathname, relpath, &mp)) {
+		kfree(relpath);
 		return -1;
+	}
 
+	ssize_t ret = -1;
 	if (mp->mpops.readlink != NULL)
-		return mp->mpops.readlink(mp, relpath, buf, bufsiz);
+		ret = mp->mpops.readlink(mp, relpath, buf, bufsiz);
 	else
 		panic("readlink not supported on this mountpoint (%s)", mp->path);
 
+	kfree(relpath);
+	return ret;
 }
 
 ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz) {
