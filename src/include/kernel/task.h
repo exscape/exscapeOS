@@ -57,7 +57,7 @@ extern task_t kernel_task;
 void user_exit(void); // called from user mode
 
 /* Size of the kernel stack for each task (except the main kernel task; that stack is set up in loader.s) */
-#define KERNEL_STACK_SIZE 8192
+#define KERNEL_STACK_SIZE 16384
 
 #define USER_STACK_START 0xbffff000
 #define USER_STACK_SIZE (64*1024)
