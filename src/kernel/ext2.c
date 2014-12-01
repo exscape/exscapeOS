@@ -30,11 +30,7 @@ ssize_t ext2_readlink(mountpoint_t *mp, const char *pathname, char *buf, size_t 
 
 static struct inode_ret inode_for_path(ext2_partition_t *part, const char *path, int operation, uint32 op_param);
 
-// TODO: O_NOFOLLOW, i.e. fail open() on a symbolic link if O_NOFOLLOW is set; in this case, return -ELOOP.
-// TODO: remember to return the proper error value; not sure what that is when the entire FS doesn't support symlinks
-// TODO: test and support ELOOP conditions
-// TODO: (low priority?) O_SYMLINK, to allow opening a symlink, rather than whatever it points to
-// TODO: .. in paths with symlinked dirs doesn't work; the symlinked path is not expanded, so .. just removes the link, instead of going backwards one step from the symlinked directory
+// TODO: Paths with symlinked dirs don't work; the symlinked path is not expanded, so .. just removes the link, instead of going backwards one step from the symlinked directory
 
 // Used by ext2_getdents to store state, as we only have a single void* in struct open_file to store state in
 struct ext2_getdents_info {
@@ -395,13 +391,13 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 			strcpy(full_path, link_path);
 		}
 		else {
-			strcpy(full_path, part->mp->path);
+			strcpy(full_path, current_task->pwd);
 			path_join(full_path, link_path);
 		}
 
 		path_join(full_path, path);
-		kfree(link_path);
-		kfree(inode);
+		kfree(link_path); link_path = NULL;
+		kfree(inode); inode = NULL;
 
 		// TODO: This path joining is incorrect!!! It works in most cases, but IS strictly wrong.
 		// TODO: Example: a symlink named "etclink" (located in some directory) pointing to "/etc".
@@ -412,16 +408,30 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 
 		printk("Full path for symlink: %s operation = %d\n", full_path, operation);
 
+		if (current_task->link_count >= 6) {
+			// Too many nested links; time to get out, before
+			// we get a double fault (due to a kernel stack overflow)
+			struct inode_ret ret;
+			ret.value = -ELOOP;
+			ret.type = TYPE_RETVAL;
+			current_task->link_count = 0;
+			kfree(full_path);
+			return ret;
+		}
 		if (operation == OPERATION_OPEN) {
 			struct inode_ret ret;
+			current_task->link_count++;
 			ret.value = open(full_path, (int)op_param);
+			current_task->link_count--;
 			ret.type = TYPE_RETVAL;
 			kfree(full_path);
 			return ret;
 		}
 		else if (operation == OPERATION_STAT) {
 			struct inode_ret ret;
+			current_task->link_count++;
 			ret.value = stat(full_path, (struct stat *)op_param);
+			current_task->link_count--;
 			ret.type = TYPE_RETVAL;
 			kfree(full_path);
 			return ret;
@@ -508,9 +518,24 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 					memset(path_buf, 0, PATH_MAX+1);
 					ext2_readlink_inode(part, dir->inode, tmp_inode, path_buf, PATH_MAX+1);
 
+					if (current_task->link_count >= 5) {
+						// Too many nested links; time to get out, before
+						// we get a double fault (due to a kernel stack overflow)
+						struct inode_ret ret;
+						ret.value = -ELOOP;
+						ret.type = TYPE_RETVAL;
+						current_task->link_count = 0;
+						kfree(tmp_inode);
+						kfree(orig_ptr);
+						kfree(path_buf);
+						return ret;
+					}
+
 					if (operation == OPERATION_OPEN) {
 						struct inode_ret ret;
+						current_task->link_count++;
 						ret.value = open(path_buf, (int)op_param);
+						current_task->link_count--;
 						ret.type = TYPE_RETVAL;
 						kfree(tmp_inode);
 						kfree(orig_ptr);
@@ -519,7 +544,9 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 					}
 					else if (operation == OPERATION_STAT) {
 						struct inode_ret ret;
+						current_task->link_count++;
 						ret.value = stat(path_buf, (struct stat *)op_param);
+						current_task->link_count--;
 						ret.type = TYPE_RETVAL;
 						kfree(tmp_inode);
 						kfree(orig_ptr);

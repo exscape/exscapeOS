@@ -16,7 +16,6 @@
 
 * initrd:
 	* Document the new initrd format (create_initrd.py, initrd.c)
-	* . and .. are nonexistent in initrd directories
 
 * Try to recreate and fix the OS not running under QEMU 1.0 (qemu-kvm-1.0/x86_64)
 
@@ -26,6 +25,10 @@
 	* ; && and ||
 	* !! and !cmd (and perhaps !-n) to look through history
 	* Better parsing, e.g. 2>&1 works the same as 2> &1 does now; echo a>b writes 'a' to the file 'b' even without the space in between, etc.
+
+* ext2:
+	* Further work on symlinks, especially in expanding them prior to applying .. etc
+	* ext2_read()
 
 * FAT: write support!
 * DMA for ATA transfers?

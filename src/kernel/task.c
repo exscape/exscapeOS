@@ -508,6 +508,8 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 
 	task->parent = NULL;
 
+	task->link_count = 0;
+
 	if (task->privilege == 3) {
 		task->mm = vmm_create_user_mm();
 		task->old_mm = NULL;
@@ -654,6 +656,9 @@ int fork(void) {
 	if (child->console) {
 		list_append(child->console->tasks, child);
 	}
+
+	assert(parent->link_count == 0);
+	child->link_count = 0;
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = child->stack;

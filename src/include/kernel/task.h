@@ -37,6 +37,8 @@ typedef struct task {
 	struct task *parent;
 	list_t *children;
 	int exit_code;
+
+	int link_count; // used to detect symlink loops
 } task_t;
 
 extern volatile task_t *current_task;

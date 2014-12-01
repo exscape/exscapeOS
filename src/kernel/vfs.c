@@ -145,6 +145,8 @@ int open(const char *path, int mode) {
 }
 
 int sys_open(const char *path, int mode) {
+	assert(current_task->link_count == 0);
+
 	if (!CHECK_ACCESS_STR(path))
 		return -EFAULT;
 	return open(path, mode);
@@ -169,6 +171,8 @@ int stat(const char *path, struct stat *buf) {
 }
 
 int sys_stat(const char *path, struct stat *buf) {
+	assert(current_task->link_count == 0);
+
 	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS_WRITE(buf, sizeof(struct stat)))
 		return -EFAULT;
 	return stat(path, buf);
@@ -201,6 +205,8 @@ int lstat(const char *path, struct stat *buf) {
 }
 
 int sys_lstat(const char *path, struct stat *buf) {
+	assert(current_task->link_count == 0);
+
 	if (!CHECK_ACCESS_STR(path) || !CHECK_ACCESS_WRITE(buf, sizeof(struct stat)))
 		return -EFAULT;
 	return lstat(path, buf);
@@ -231,6 +237,8 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
 }
 
 ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz) {
+	assert(current_task->link_count == 0);
+
 	if (!CHECK_ACCESS_STR(pathname) || !CHECK_ACCESS_WRITE(buf, bufsiz))
 		return -EFAULT;
 	return readlink(pathname, buf, bufsiz);
