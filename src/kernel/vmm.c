@@ -695,8 +695,8 @@ uint32 page_fault_handler(uint32 esp) {
 	}
 
 	// OK, we should grow it!
-	printk("Growing userspace stack! Old size: %d, new size: %d\n", old_size, new_size);
-	printk("                         Old top: %p, new top: %p\n", USER_STACK_START - old_size, USER_STACK_START - new_size);
+//	printk("Growing userspace stack! Old size: %d, new size: %d\n", old_size, new_size);
+//	printk("                         Old top: %p, new top: %p\n", USER_STACK_START - old_size, USER_STACK_START - new_size);
 
 	/* Actually grow the area; vmm_alloc_user updates/grows the area metadata for us, also */
 	vmm_alloc_user(USER_STACK_START - (new_size + PAGE_SIZE), USER_STACK_START - (old_size + PAGE_SIZE), mm, PAGE_RW);

@@ -1,30 +1,22 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <stdbool.h>
 
-static int MAX_ALLOC = 0;
-void recursive_stack(int i) {
-#define BUFSIZE 512
-	if (i > MAX_ALLOC/BUFSIZE)
-		return;
-
-	char buf[BUFSIZE];
-	memset(buf, 0, BUFSIZE);
-	printf("in recursive_stack #%d, approx. %d bytes used total\n", i, BUFSIZE * i);
-	recursive_stack(i + 1);
-
-}
+// Simple program to test on-demand (on #PF) stack growing
 
 int main(int argc, char **argv) {
-	if (argc != 2 || (MAX_ALLOC = 1024 * atoi(argv[1])) == 0) {
-		printf("Usage: %s <approximate number of kiB to allocate on userspace stack>\n", argv[0]);
+	unsigned int max;
+	if (argc != 2 || (max = 1024*atoi(argv[1])) == 0) {
+		fprintf(stderr, "Usage: %s <number of kiB to allocate>\n", argv[0]);
+		return 1;
 	}
-	recursive_stack(1);
+
+	char stack;
+	char *p = &stack - 4096; /* move away from the part of the stack that's populated */
+
+	unsigned int sum = 0; /* should remain 0, or memory wasn't zeroed properly */
+	while (p >= &stack - max) { sum += *p--; }
+	printf("Done, %d kbytes allocated/read\n", max/1024);
+	printf("Sum = %u\n", sum);
 
 	return 0;
 }
