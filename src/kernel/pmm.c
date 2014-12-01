@@ -245,6 +245,8 @@ static uint32 _pmm_first_free_frame(uint32 start_addr) {
 	return 0xffffffff;
 }
 
+void zero_page_physical(uint32 phys_addr);
+
 uint32 pmm_alloc(void) {
 	INTERRUPT_LOCK;
 	if (last_allocated_frame == 0xffffffff)
@@ -257,6 +259,9 @@ uint32 pmm_alloc(void) {
 	last_allocated_frame = phys_addr;
 
 	_pmm_set_frame(phys_addr); // also tests that it's actually free
+
+	zero_page_physical(phys_addr); // TODO: how much does this affect performance?
+
 	INTERRUPT_UNLOCK;
 	return phys_addr;
 }
