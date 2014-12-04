@@ -27,8 +27,10 @@
 	* Better parsing, e.g. 2>&1 works the same as 2> &1 does now; echo a>b writes 'a' to the file 'b' even without the space in between, etc.
 
 * ext2:
-	* Further work on symlinks, especially in expanding them prior to applying .. etc
 	* ext2_read()
+
+* VFS:
+	* Improve /etc/mounts and fs_mount to specify disk+partition instead of the current system of autodetecting and only supporting 1 initrd, 1 FAT and 1 ext2 partition
 
 * FAT: write support!
 * DMA for ATA transfers?

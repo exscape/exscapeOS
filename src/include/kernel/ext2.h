@@ -19,6 +19,13 @@ bool ext2_detect(ata_device_t *dev, uint8 part);
 #define	EXT2_S_IFCHR	0x2000	/* character device */
 #define	EXT2_S_IFIFO	0x1000	/* fifo */
 
+// Note that these bits are not mutually exclusive, so simply testing
+// e.g. if (i_mode & EXT2_S_IFLNK) doesn't work. That will return true on
+// regular files, since EXT2_S_IFLNK == EXT2_S_IFREG | EXT2_S_IFCHR!
+#define EXT2_ISDIR(i_mode) ((i_mode & EXT2_S_IFDIR) == EXT2_S_IFDIR)
+#define EXT2_ISLNK(i_mode) ((i_mode & EXT2_S_IFLNK) == EXT2_S_IFLNK)
+#define EXT2_ISREG(i_mode) ((i_mode & EXT2_S_IFREG) == EXT2_S_IFREG)
+
 /* inode i_mode flags: permission bits */
 #define	EXT2_S_ISUID	0x0800	/* SUID */
 #define	EXT2_S_ISGID	0x0400	/* SGID */

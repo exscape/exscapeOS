@@ -70,8 +70,20 @@ bool fs_mount(void) {
 		path[ap] = 0;
 		while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
 
+		// Calculate the "depth" of this mountpount.
+		// E.g. 0 for /, 1 for /mnt, 2 for /mnt/ext2 and so on.
+		int depth = 0;
+		char *depth_p = path + 1;
+		while (depth_p && *depth_p) {
+			depth++;
+			depth_p = strchr(depth_p, '/');
+			if (depth_p)
+				depth_p++;
+		}
+
 		list_foreach(mountpoints, it) {
 			mountpoint_t *mp = (mountpoint_t *)it->data;
+			mp->depth = depth;
 			if (strcmp(mount, "fat") == 0) {
 				if (devtable[mp->dev] != 0 && devtable[mp->dev] != (void *)0xffffffff) {
 					if (strcmp(path, "/") == 0)

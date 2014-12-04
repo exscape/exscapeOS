@@ -14,6 +14,8 @@ uint32 next_dev = 0;
 
 list_t *mountpoints = NULL;
 
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
+
 struct open_file *do_get_filp(int fd, task_t *task) {
 	if (fd < 0 || fd > MAX_OPEN_FILES)
 		return NULL;
@@ -63,11 +65,57 @@ void destroy_filp(int fd) {
 	current_task->fdtable[fd] = NULL;
 }
 
+// Resolve any symbolic links, and return the "true" path into the buffer.
+// Paths must be absolute.
+bool resolve_actual_path(char *out_path, size_t bufsize) {
+	assert(out_path != NULL);
+	assert(bufsize >= strlen(out_path) + 1);
+	assert(*out_path == '/');
+
+	// TODO: test with multiple symlinks in one path
+
+	char path_buf[PATH_MAX+1] = {0};
+	strlcpy(path_buf, out_path, PATH_MAX+1);
+	char link_buf[PATH_MAX+1];
+	char verified[PATH_MAX+1] = {0};
+	strcpy(verified, "/");
+	strcpy(out_path, "/");
+
+	char *tmp;
+	int ret;
+	char *token = NULL;
+	for (token = strtok_r(path_buf, "/", &tmp); token != NULL; (token = strtok_r(NULL, "/", &tmp))) {
+		path_join(verified, token);
+
+		memset(link_buf, 0, PATH_MAX+1);
+		ret = readlink(verified, link_buf, PATH_MAX);
+		if (ret == -EINVAL) {
+			// The most likely cause for this errno is that this token wasn't a symlink, which means we should
+			// append it to the output address.
+			path_join(out_path, token);
+		}
+		else if (ret >= 0) {
+			// This was a valid link, and link_buf now contains its contents.
+			path_join(verified, "..");
+
+			if (*link_buf == '/')
+				strlcpy(verified, link_buf, PATH_MAX+1);
+			else
+				path_join(verified, link_buf);
+		}
+		else
+			panic("Unhandled error in resolve_actual_path; could include e.g. -ENOENT! Return value: %d\n", ret);
+	}
+
+	strlcpy(out_path, verified, bufsize);
+
+	return true;
+}
+
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
-	// Transforms the path to a function (currently open, opendir and stat)
-	// into a path relative to the mountpoint. E.g. /initrd/mounts would turn in to
-	// just "/mounts" if the initrd is mounted under /initrd, and the initrd would then
-	// open /mounts seen from the "initrd root".
+	// Transforms the path to a function into a path relative to the mountpoint.
+	// E.g. /initrd/mounts would turn in to just "/mounts" if the initrd is mounted under /initrd,
+	// and the initrd would then open /mounts seen from the "initrd root".
 
 	char *path = kmalloc(PATH_MAX+1);
 	memset(path, 0, PATH_MAX+1);
@@ -75,17 +123,30 @@ bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
 	assert(in_path != NULL);
 	if (in_path[0] != '/') {
 		// This is a relative path (which is unrelated to the name of this function, ugh),
-		// e.g. "file.ext", "./file.ext" or "dir/file.ext"
+		// e.g. "file.ext", "../file.ext" or "dir/file.ext"
 		// Use $PWD to construct an absolute path, which we need below.
 		if (current_task->pwd)
 			strlcpy(path, current_task->pwd, PATH_MAX+1);
 		else
 			strcpy(path, "/");
 
+		// In case there are symlinks in $PWD, the mountpoint may be misleading.
+		// For example, we could have a path like PWD = /ext2/somelink, where somelink points to ../somedir.
+		// In that case, the "true" PWD is on the / mountpoint, *not* the ext2 one.
+		// Note that this will call find_relpath again, however, that time on an absolute path, so this
+		// code path (in_path[0] != '/) won't run, and there should be no risk of an infinite recursion.
+		resolve_actual_path(path, PATH_MAX+1);
+
 		path_join(path, in_path);
 	}
 	else
 		strlcpy(path, in_path, PATH_MAX+1);
+
+	// TODO(?): This does not act exactly as other OSes (e.g. Linux) do.
+	// For example, if one does "cd somerandomstring/..", this code will simply act as
+	// "cd .", while e.g. Linux will give you -ENOENT.
+	if (!path_collapse_dots(path))
+		panic("path_collapse_dots(\"%s\") failed!", path);
 
 	mountpoint_t *mp = find_mountpoint_for_path(path);
 	assert(mp != NULL);
@@ -194,7 +255,7 @@ int lstat(const char *path, struct stat *buf) {
 	if (mp->mpops.lstat != NULL)
 		ret = mp->mpops.lstat(mp, relpath, buf);
 	else if (mp->mpops.stat != NULL) {
-		// TODO: untested workaround/hack or no lstat support for FAT and initrd
+		// TODO: untested workaround/hack: there's no lstat support for FAT and initrd
 		ret = mp->mpops.stat(mp, relpath, buf);
 	}
 	else
@@ -229,8 +290,13 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
 	ssize_t ret = -1;
 	if (mp->mpops.readlink != NULL)
 		ret = mp->mpops.readlink(mp, relpath, buf, bufsiz);
-	else
-		panic("readlink not supported on this mountpoint (%s)", mp->path);
+	else {
+		// I'm not sure how correct this is. readlink on nonexisting paths will
+		// obviously return EINVAL with this; I don't know whether they should return
+		// ENOENT instead. However, since this FS (as of this writing initrd and FAT)
+		// has no symlink support, EINVAL seems reasonable... but Linux returns ENOENT.
+		ret = -EINVAL;
+	}
 
 	kfree(relpath);
 	return ret;
@@ -376,6 +442,22 @@ struct dirent *readdir(DIR *dir) {
 	return dir->dops.readdir(dir);
 }
 
+// Checks that a path exists and that it can be accessed.
+// Returns 0 on success, -errno on failure.
+int validate_path(const char *in_path) {
+	assert(in_path != NULL);
+	struct stat st;
+
+	int err = stat(in_path, &st);
+	if (err < 0)
+		return err;
+
+	if (S_ISDIR(st.st_mode))
+		return 0;
+	else
+		return -ENOTDIR;
+}
+
 int chdir(const char *in_path) {
 	assert(in_path != NULL);
 	assert(current_task->pwd != NULL);
@@ -391,57 +473,13 @@ int chdir(const char *in_path) {
 		path_join(path, in_path);
 	}
 
-	int err = 0;
-
-	char *old_pwd = kmalloc(strlen(current_task->pwd) + 1);
-	strcpy(old_pwd, current_task->pwd);
-
-	strlcpy(current_task->pwd, path, PATH_MAX + 1);
-
-	// Now that we can modify "path" freely, let's validate it (yes, after setting it!)
-	char *tmp;
-	char *token = NULL;
-	char verified[PATH_MAX+1] = {0}; // starts as /, and builds up to the full path (if it's OK)
-	strcpy(verified, "/");
-	struct dirent *dent = NULL;
-	size_t len = 0;
-	for (token = strtok_r(path, "/", &tmp); token != NULL; token = strtok_r(NULL, "/", &tmp)) {
-		len = strlen(token);
-		DIR *dir = opendir(verified);
-		if (!dir) {
-			err = -ENOENT; // TODO: probably?
-			goto error;
-		}
-		while ((dent = readdir(dir)) != NULL) {
-			if (len == dent->d_namlen && stricmp(dent->d_name, token) == 0) {
-				// This is the token
-				if (dent->d_type != DT_DIR) {
-					if (dent->d_type == DT_LNK) {
-						printk("chdir: warning: path subpart %s is a symlink, which is not yet supported\n", token);
-					}
-					closedir(dir);
-					err = -ENOTDIR;
-					goto error;
-				}
-				path_join(verified, token);
-				break;
-			}
-		}
-		closedir(dir);
+	int err;
+	if ((err = validate_path(path)) == 0) {
+		strlcpy(current_task->pwd, path, PATH_MAX + 1);
+		return 0;
 	}
-
-	if (stricmp(verified, current_task->pwd) != 0) {
-		err = -ENOENT;
-		goto error;
-	}
-
-	kfree(old_pwd);
-	return 0;
-
-error:
-	strlcpy(current_task->pwd, old_pwd, PATH_MAX+1);
-	kfree(old_pwd);
-	return err;
+	else
+		return err;
 }
 
 char *sys_getcwd(char *buf, size_t size) {

@@ -62,6 +62,7 @@ typedef struct mountpoint {
 
 	uint32 dev;
 	struct mp_ops mpops;
+	int depth; // 0 for a path of /, 1 for /mnt, 2 for /mnt/ext2 and so on.
 } mountpoint_t;
 
 /* A list of the mountpoints currently used */
@@ -101,6 +102,9 @@ void destroy_filp(int fd);
 
 struct open_file *do_get_filp(int fd, struct task *task);
 int do_close(int fd, struct task *task);
+
+// Resolves all symlinks in a given path.
+bool resolve_actual_path(char *out_path, size_t bufsize);
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);

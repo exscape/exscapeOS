@@ -46,6 +46,27 @@ bool path_join(char *path, const char *right) {
 	return true;
 }
 
+// Removes . and .. from the path, converting it as necessary.
+// For example, the input "/a/b/../c/./d" should become "/a/c/d".
+bool path_collapse_dots(char *path) {
+	if (*path != '/')
+		return false;
+
+	char buf[PATH_MAX+1] = {0};
+	strcpy(buf, "/");
+
+	char *tmp;
+	char *token = NULL;
+	for (token = strtok_r(path, "/", &tmp); token != NULL; (token = strtok_r(NULL, "/", &tmp))) {
+		path_join(buf, token);
+	}
+
+	// The output string should never be longer than the input, so this should be OK.
+	strcpy(path, buf);
+
+	return true;
+}
+
 void path_dirname(char *path) {
 	size_t path_len = strlen(path);
 	if (path[path_len - 1] == '/')

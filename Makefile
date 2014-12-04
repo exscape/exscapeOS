@@ -9,7 +9,7 @@ PREFIX = /usr/local/cross
 GCCINC = $(PREFIX)/lib/gcc/i586-pc-exscapeos/4.9.2/include
 TOOLCHAININC = $(PREFIX)/i586-pc-exscapeos/include
 
-CC = i586-pc-exscapeos-gcc
+CC = ccache i586-pc-exscapeos-gcc
 CFLAGS := -O0 -nostdlib -nostdinc -I./src/include -I$(GCCINC) -I$(TOOLCHAININC) -std=gnu99 -march=i586 $(WARNINGS) -ggdb3 -D__DYNAMIC_REENT__ -D_EXSCAPEOS_KERNEL -fdiagnostics-color=auto
 LD = i586-pc-exscapeos-ld
 NATIVECC = gcc # Compiler for the HOST OS, e.g. Linux, Mac OS X

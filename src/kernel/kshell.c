@@ -163,8 +163,9 @@ static void pwd(void *data, uint32 length) {
 }
 
 static void cd(void *data, uint32 length) {
-	if (chdir(data) != 0)
-		printk("Unable to chdir() to %s\n", data);
+	int ret;
+	if ((ret = chdir(data)) != 0)
+		printk("Unable to chdir() to %s: errno %d\n", data, -ret);
 }
 
 static void print_1_sec(void *data, uint32 length) {
