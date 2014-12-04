@@ -104,7 +104,7 @@ struct open_file *do_get_filp(int fd, struct task *task);
 int do_close(int fd, struct task *task);
 
 // Resolves all symlinks in a given path.
-bool resolve_actual_path(char *out_path, size_t bufsize);
+int resolve_actual_path(char *out_path, size_t bufsize);
 
 int open(const char *path, int mode);
 int read(int fd, void *buf, int length);
@@ -119,6 +119,7 @@ int chdir(const char *path);
 off_t lseek(int fd, off_t offset, int whence);
 int getdents (int fd, void *dp, int count);
 //int lstat(const char *path, struct stat *buf);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
 
 int dup(int);
 int dup2(int, int);

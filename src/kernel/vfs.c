@@ -14,8 +14,6 @@ uint32 next_dev = 0;
 
 list_t *mountpoints = NULL;
 
-ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
-
 struct open_file *do_get_filp(int fd, task_t *task) {
 	if (fd < 0 || fd > MAX_OPEN_FILES)
 		return NULL;
@@ -67,47 +65,84 @@ void destroy_filp(int fd) {
 
 // Resolve any symbolic links, and return the "true" path into the buffer.
 // Paths must be absolute.
-bool resolve_actual_path(char *out_path, size_t bufsize) {
+int resolve_actual_path(char *out_path, size_t bufsize) {
 	assert(out_path != NULL);
-	assert(bufsize >= strlen(out_path) + 1);
 	assert(*out_path == '/');
 
-	char path_buf[PATH_MAX+1] = {0};
-	strlcpy(path_buf, out_path, PATH_MAX+1);
-	char link_buf[PATH_MAX+1];
-	char verified[PATH_MAX+1] = {0};
-	strcpy(verified, "/");
-	strcpy(out_path, "/");
+	// Used for ELOOP detection
+	int loops = 0;
 
-	char *tmp;
+	char *tmp_buf = kmalloc(PATH_MAX+1);
+	strlcpy(tmp_buf, out_path, PATH_MAX+1);
+
+	// We need a full path to call readlink(), so we build it up from the tokens
+	char *path_to_test = kmalloc(PATH_MAX+1);
+
+	// Holds the result of the most recent readlink() call
+	char *link_buf = kmalloc(PATH_MAX+1);
+
+	// What we have built up so far
+	char *cur_path = kmalloc(PATH_MAX+1);
+
 	int ret;
-	char *token = NULL;
-	for (token = strtok_r(path_buf, "/", &tmp); token != NULL; (token = strtok_r(NULL, "/", &tmp))) {
-		path_join(verified, token);
+	char *token;
+	char *tmp;
+	bool found_symlink;
+	do {
+		found_symlink = false;
+		strcpy(path_to_test, "/");
+		strcpy(cur_path, "/");
+		for (token = strtok_r(tmp_buf, "/", &tmp); token != NULL; (token = strtok_r(NULL, "/", &tmp))) {
+			path_join(path_to_test, token);
+			if ((ret = readlink(path_to_test, link_buf, PATH_MAX+1)) == -EINVAL) {
+				// This token is not a symlink, so we can safely add it as is
+				path_join(cur_path, token);
+			}
+			else if (ret == -ELOOP) {
+				strcpy(out_path, "");
+				kfree(cur_path);
+				kfree(tmp_buf);
+				kfree(path_to_test);
+				kfree(link_buf);
+				return -ELOOP;
+			}
+			else {
+				// This token IS a symlink.
+				// If it's a symlink to another symlink, that will be resolved in the
+				// next iteration of the outer loop.
+				found_symlink = true;
 
-		memset(link_buf, 0, PATH_MAX+1);
-		ret = readlink(verified, link_buf, PATH_MAX);
-		if (ret == -EINVAL) {
-			// The most likely cause for this errno is that this token wasn't a symlink, which means we should
-			// append it to the output address.
-			path_join(out_path, token);
-		}
-		else if (ret >= 0) {
-			// This was a valid link, and link_buf now contains its contents.
-			path_join(verified, "..");
+				assert(ret > 0);
+				link_buf[ret] = 0; // readlink does not null terminate
 
-			if (*link_buf == '/')
-				strlcpy(verified, link_buf, PATH_MAX+1);
-			else
-				path_join(verified, link_buf);
+				if (*link_buf == '/')
+					strlcpy(cur_path, link_buf, PATH_MAX+1);
+				else
+					path_join(cur_path, link_buf);
+			}
 		}
-		else
-			panic("Unhandled error in resolve_actual_path; could include e.g. -ENOENT! Return value: %d\n", ret);
+
+		// If we need to start over (below), start over with what we've resolved so far
+		strlcpy(tmp_buf, cur_path, PATH_MAX+1);
+		loops++;
+	} while (found_symlink && loops <= 6);
+
+	if (found_symlink && loops > 6) {
+		kfree(cur_path);
+		kfree(tmp_buf);
+		kfree(path_to_test);
+		kfree(link_buf);
+		return -ELOOP;
 	}
 
-	strlcpy(out_path, verified, bufsize);
+	strlcpy(out_path, cur_path, PATH_MAX+1);
 
-	return true;
+	kfree(cur_path);
+	kfree(tmp_buf);
+	kfree(path_to_test);
+	kfree(link_buf);
+
+	return 0;
 }
 
 bool find_relpath(const char *in_path, char *relpath, mountpoint_t **mp_out) {
