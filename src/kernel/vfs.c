@@ -72,8 +72,6 @@ bool resolve_actual_path(char *out_path, size_t bufsize) {
 	assert(bufsize >= strlen(out_path) + 1);
 	assert(*out_path == '/');
 
-	// TODO: test with multiple symlinks in one path
-
 	char path_buf[PATH_MAX+1] = {0};
 	strlcpy(path_buf, out_path, PATH_MAX+1);
 	char link_buf[PATH_MAX+1];

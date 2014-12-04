@@ -37,7 +37,7 @@ struct ext2_getdents_info {
 	uint32 pos;
 };
 
-// Used by inode_for_path and functions that use it (currently ext2_open and ext2_stat).
+// Used by inode_for_path and functions that use it (e.g. ext2_open and ext2_stat).
 // If inode_for_path encounters a symlink, it needs to re-call open() or stat(), VFS-wide
 // (since the symlink may be to a different and even non-ext2 partition).
 // It does this by setting setting "value" to the result of open() or stat(), and
@@ -370,16 +370,34 @@ struct parent_info {
 	int depth;
 };
 
+static char *calculate_parent(ext2_partition_t *part, const struct parent_info *parent_info) {
+	assert(part != NULL);
+	assert(parent_info->full_path != NULL);
+
+	char *parent_dir = kmalloc(PATH_MAX+1);
+	memset(parent_dir, 0, PATH_MAX+1);
+
+	// Calculate the parent directory from the full path, and the recursion depth (0 for the first call)
+	strlcpy(parent_dir, parent_info->full_path, PATH_MAX+1);
+	char *p = parent_dir;
+	for (int i = 0; i < parent_info->depth + part->mp->depth; i++) {
+		assert(p != NULL);
+		p++;
+		p = strchr(p, '/');
+	}
+	assert(p != NULL && p > (char *)0x1000);
+	*p = 0;
+
+	return parent_dir;
+}
+
 // Find the inode number for a given path by looking recursively, starting at,
 // with help from inode_for_path(), the root directory.
 static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path, struct parent_info *parent_info, uint32 parent_inode, int operation, uint32 op_param) {
 	assert(part != NULL);
 	assert(path != NULL);
-	assert(parent_info != NULL);
-	assert(parent_info->full_path != NULL);
+	assert(parent_inode >= EXT2_ROOT_INO);
 	assert(current_task->link_count >= 0);
-
-	assert(strlen(path) <= 255 || strchr(path+1, '/') - path <= 255);
 
 	char *cur_entry = kmalloc(PATH_MAX+1);
 	memset(cur_entry, 0, PATH_MAX+1);
@@ -387,22 +405,7 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 
 	// For relative symbolic links, we need to know the full path to the parent directory
 	// of the link, so that we can apply relative paths relative to that.
-	char *parent_dir = kmalloc(PATH_MAX+1);
-	memset(parent_dir, 0, PATH_MAX+1);
-
-	// Calculate the parent directory from the full path, and the recursion depth (0 for the first call)
-	{
-		strlcpy(parent_dir, parent_info->full_path, PATH_MAX+1);
-		char *p = parent_dir;
-		for (int i = 0; i < parent_info->depth + part->mp->depth; i++) {
-			assert(p != NULL);
-			p++;
-			p = strchr(p, '/');
-		}
-		assert(p != NULL && p > (char *)0x1000);
-		*p = 0;
-	}
-
+	char *parent_dir = calculate_parent(part, parent_info);
 	assert(*parent_dir == '/');
 
 	if (strchr(cur_entry, '/'))
@@ -423,11 +426,12 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 			// Absolute path
 			strcpy(full_path, link_path);
 		}
-		else {
+		else
 			strcpy(full_path, parent_dir);
-			resolve_actual_path(full_path, PATH_MAX+1);
-		}
 
+		resolve_actual_path(full_path, PATH_MAX+1);
+
+		// Join the symlinked path with the rest (e.g. the file name to open, "c" in the example above)
 		path_join(full_path, path);
 		kfree(link_path); link_path = NULL;
 		kfree(inode); inode = NULL;
