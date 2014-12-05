@@ -29,6 +29,9 @@
 * ext2:
 	* ext2_read()
 
+* ls: add -R option
+* create basic "find" utility, with little more than -name and/or -iname to begin with
+
 * VFS:
 	* Improve /etc/mounts and fs_mount to specify disk+partition instead of the current system of autodetecting and only supporting 1 initrd, 1 FAT and 1 ext2 partition
 
