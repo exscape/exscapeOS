@@ -193,6 +193,65 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	// Test everything again, but with absolute paths, and with PWD != the ext2 root
+
+	assert(chdir("/bin/tests") == 0);
+
+	test_open_read("/ext2/abslinketc", 0);
+	test_open_read("/ext2/abslinkroot", 0);
+	test_open_read("/ext2/nestlink/5/mountslink", 0);
+	test_open_read("/ext2/nestedlinksdir/5/file", 0);
+
+	test_open_read("/ext2/nestedlinksdir/1/file", ELOOP);
+	test_open_read("/ext2/inf1", ELOOP);
+	test_open_read("/ext2/broken/relfile", ENOENT);
+
+	test_opendir_getdents("/ext2/bin", 0);
+	test_opendir_getdents("/ext2/nestedlinksdir/6", 0);
+
+	test_opendir_getdents("/ext2/nestedlinksdir/2", ELOOP);
+	test_opendir_getdents("/ext2/inf1", ELOOP);
+	test_opendir_getdents("/ext2/broken/absdir", ENOENT);
+
+	test_readlink("/ext2/longlink", 0, "this_is_a_very_long_link_value/which_certainly_is_longer_than_the_60_char_limit_on_fast_symbolic_links");
+	test_readlink("/ext2/shortlink_absolute", 0, "/bin/ls");
+	test_readlink("/ext2/nestedlinksdir", EINVAL, NULL);
+	test_readlink("/ext2/broken/absfile", 0, "/doesnotexist");
+
+	printf("testing stat on shortlink_relative... ");
+	ret = stat("/ext2/shortlink_relative", &st);
+	if (ret != 0) {
+		printf("failed, error = %s\n", strerror(errno));
+		failures++;
+	}
+	else {
+		if (st.st_size == 292) {
+			printf("success\n");
+			successes++;
+		}
+		else {
+			printf("failed! size != 292\n");
+			failures++;
+		}
+	}
+
+	printf("testing lstat on shortlink_relative... ");
+	ret = lstat("/ext2/shortlink_relative", &st);
+	if (ret != 0) {
+		printf("failed, error = %s\n", strerror(errno));
+		failures++;
+	}
+	else {
+		if (st.st_size == 7) {
+			printf("success\n");
+			successes++;
+		}
+		else {
+			printf("failed! size != 7\n");
+			failures++;
+		}
+	}
+
 	printf("done testing! %d successes, %d failures\n", successes, failures);
 
 	return failures; // hopefully equivalent to return 0
