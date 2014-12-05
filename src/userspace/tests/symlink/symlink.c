@@ -154,8 +154,10 @@ int main(int argc, char **argv) {
 
 	test_readlink("longlink", 0, "this_is_a_very_long_link_value/which_certainly_is_longer_than_the_60_char_limit_on_fast_symbolic_links");
 	test_readlink("shortlink_absolute", 0, "/bin/ls");
-	test_readlink("nestedlinksdir", EINVAL, NULL);
 	test_readlink("broken/absfile", 0, "/doesnotexist");
+	test_readlink("nestedlinksdir", EINVAL, NULL);
+	test_readlink("/ext2/numbers", EINVAL, NULL);
+	test_readlink("doesnotexist", ENOENT, NULL);
 
 	struct stat st;
 
@@ -215,8 +217,10 @@ int main(int argc, char **argv) {
 
 	test_readlink("/ext2/longlink", 0, "this_is_a_very_long_link_value/which_certainly_is_longer_than_the_60_char_limit_on_fast_symbolic_links");
 	test_readlink("/ext2/shortlink_absolute", 0, "/bin/ls");
-	test_readlink("/ext2/nestedlinksdir", EINVAL, NULL);
 	test_readlink("/ext2/broken/absfile", 0, "/doesnotexist");
+	test_readlink("/ext2/nestedlinksdir", EINVAL, NULL);
+	test_readlink("/ext2/numbers", EINVAL, NULL);
+	test_readlink("/ext2/doesnotexist", ENOENT, NULL);
 
 	printf("testing stat on shortlink_relative... ");
 	ret = stat("/ext2/shortlink_relative", &st);
