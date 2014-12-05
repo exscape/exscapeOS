@@ -506,6 +506,9 @@ int chdir(const char *in_path) {
 		path_join(path, in_path);
 	}
 
+	if (!path_collapse_dots(path))
+		panic("path_collapse_dots(\"%s\") failed!", path);
+
 	int err;
 	if ((err = validate_path(path)) == 0) {
 		strlcpy(current_task->pwd, path, PATH_MAX + 1);
