@@ -400,7 +400,7 @@ static char *calculate_parent(ext2_partition_t *part, const struct parent_info *
 	// If full_path is /mnt/ext2/dir1/dir2/file, this would return:
 	// /mnt/ext2 if depth = 0,
 	// /mnt/ext2/dir1 if depth = 1, and
-	// /mnt/ext2/dir2/dir2 if depth = 2.
+	// /mnt/ext2/dir1/dir2 if depth = 2.
 	// depth > 2 would be invalid in this case.
 	strlcpy(parent_dir, parent_info->full_path, PATH_MAX+1);
 	char *p = parent_dir;
@@ -566,7 +566,6 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 	ext2_direntry_t * const orig_ptr = dir; // required for kfree, as we modify dir() below, and thus can't pass it to kfree
 
 	uint32 i = 0;
-	uint32 num = 0;
 	do {
 		if (i < size && dir->inode == 0) {
 			// This directory entry is empty, but we haven't read
@@ -660,7 +659,6 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 
 		i += dir->rec_len;
 		dir = (ext2_direntry_t *)((char *)dir + dir->rec_len);
-		num++;
 	} while(i < size);
 
 	kfree(orig_ptr);
