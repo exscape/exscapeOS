@@ -241,6 +241,7 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 			// Found it!
 			file->ino = i;
 			file->dev = dev;
+			file->mode = initrd_files[i].mode;
 			file->cur_block = i;
 			file->offset = 0;
 			file->size = initrd_files[i].length;
@@ -268,7 +269,11 @@ int initrd_open(uint32 dev __attribute__((unused)), const char *path, int mode) 
 }
 
 int initrd_close(int fd, struct open_file *file) {
-	// close() does everything required by itself
+	//close() does everything required by itself, unless this is a directory
+	if (file->mode & _IFDIR && file->data) {
+		initrd_closedir(file->data);
+		file->data = NULL;
+	}
 
 	return 0;
 }

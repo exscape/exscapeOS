@@ -90,6 +90,7 @@ typedef struct open_file {
 	ino_t cur_block; // current cluster number for FAT
 	off_t offset;
 	off_t size;
+	int mode;
 	mountpoint_t *mp;
 	char *path;
 	struct open_file_ops fops;

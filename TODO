@@ -32,6 +32,8 @@
 * VFS:
 	* Improve /etc/mounts and fs_mount to specify disk+partition instead of the current system of autodetecting and only supporting 1 initrd, 1 FAT and 1 ext2 partition
 
+* if getdents() is called *again* after returning 0, it will likely start over again; test this behaviour (also under Linux) and fix if necessary
+
 * FAT: write support!
 * DMA for ATA transfers?
 * Signal support
