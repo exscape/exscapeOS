@@ -356,6 +356,11 @@ ssize_t ext2_readlink(struct mountpoint *mp, const char *pathname, char *buf, si
 	if (_ino.type == TYPE_RETVAL)
 		return _ino.value;
 
+	assert(_ino.type == TYPE_INODE);
+
+	if (_ino.value < EXT2_ROOT_INO)
+		return -ENOENT;
+
 	// OK, we have _ino.value; use it to read the inode data for this inode number
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, _ino.value, inode);
