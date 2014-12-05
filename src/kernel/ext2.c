@@ -341,8 +341,7 @@ ssize_t ext2_readlink(struct mountpoint *mp, const char *pathname, char *buf, si
 	assert(bufsiz > 0);
 
 	// Note: This function must NOT null terminate, as per the spec.
-	// ext2_readlink_node does, and also doesn't handle small buffers gracefully.
-	// (It was written prior to ext2_readlink, for internal use only.)
+	// ext2_readlink_inode does.
 
 	ext2_partition_t *part = (ext2_partition_t *)devtable[mp->dev];
 	assert(part != NULL);
@@ -365,7 +364,7 @@ ssize_t ext2_readlink(struct mountpoint *mp, const char *pathname, char *buf, si
 	ext2_inode_t *inode = kmalloc(sizeof(ext2_inode_t));
 	ext2_read_inode(part, _ino.value, inode);
 
-	char *link = kmalloc(PATH_MAX + 1);
+	char *link = kmalloc(PATH_MAX+1);
 	memset(link, 0, PATH_MAX+1);
 	ssize_t size = ext2_readlink_inode(part, _ino.value, inode, link, PATH_MAX);
 	kfree(inode);
@@ -395,7 +394,13 @@ static char *calculate_parent(ext2_partition_t *part, const struct parent_info *
 	char *parent_dir = kmalloc(PATH_MAX+1);
 	memset(parent_dir, 0, PATH_MAX+1);
 
-	// Calculate the parent directory from the full path, and the recursion depth (0 for the first call)
+	// Calculate the parent directory from the full path, and the recursion depth in _inode_for_path (0 for the first call)
+	// For example: With a FS mounted on /mnt/ext2, mp->depth = 2 (/ would be 0, /mnt would be 1).
+	// If full_path is /mnt/ext2/dir1/dir2/file, this would return:
+	// /mnt/ext2 if depth = 0,
+	// /mnt/ext2/dir1 if depth = 1, and
+	// /mnt/ext2/dir2/dir2 if depth = 2.
+	// depth > 2 would be invalid in this case.
 	strlcpy(parent_dir, parent_info->full_path, PATH_MAX+1);
 	char *p = parent_dir;
 	for (int i = 0; i < parent_info->depth + part->mp->depth; i++) {
@@ -403,7 +408,7 @@ static char *calculate_parent(ext2_partition_t *part, const struct parent_info *
 		p++;
 		p = strchr(p, '/');
 	}
-	assert(p != NULL && p > (char *)0x1000);
+	assert(p != NULL);
 	*p = 0;
 
 	return parent_dir;
@@ -411,6 +416,7 @@ static char *calculate_parent(ext2_partition_t *part, const struct parent_info *
 
 // Find the inode number for a given path by looking recursively, starting at,
 // with help from inode_for_path(), the root directory.
+// This should only ever be called by inode_for_path.
 static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path, struct parent_info *parent_info, uint32 parent_inode_num, int operation, struct param *op_param) {
 	assert(part != NULL);
 	assert(path != NULL);
@@ -470,7 +476,6 @@ static struct inode_ret _inode_for_path(ext2_partition_t *part, const char *path
 			struct inode_ret ret;
 			ret.value = -ELOOP;
 			ret.type = TYPE_RETVAL;
-//			current_task->link_count = 0;
 			kfree(full_path);
 			kfree(parent_dir);
 			kfree(cur_entry);
@@ -712,8 +717,9 @@ static struct inode_ret inode_for_path(ext2_partition_t *part, const char *path,
 		return ret;
 	}
 	else if (*path == '/') {
-		// Figure out the absolute path (relative to the real /, not relative to the partition)
-		// and send that info along to _inode_for_path
+		// Figure out the absolute path (where / is the true root, i.e. not relative to the mountpoint)
+		// and send that info along to _inode_for_path. The "path" argument itself *is* relative
+		// to the mountpoint, however; only parent_info is not.
 		struct parent_info parent_info;
 		parent_info.full_path = kmalloc(PATH_MAX+1);
 		memset(parent_info.full_path, 0, PATH_MAX+1);
@@ -726,7 +732,7 @@ static struct inode_ret inode_for_path(ext2_partition_t *part, const char *path,
 		return ret;
 	}
 	else
-		panic("Invalid path in inode_for_path");
+		panic("Invalid path %s given to inode_for_path (paths must be absolute)", path);
 }
 
 // Used by ext2_stat and ext2_fstat to avoid code duplication.
@@ -962,7 +968,6 @@ static int ext2_open(uint32 dev, const char *path, int mode) {
 	assert(dev <= MAX_DEVS - 1);
 	assert(devtable[dev] != NULL);
 	assert(path != NULL);
-	mode=mode; // still unused
 
 	int fd;
 	struct open_file *file = new_filp(&fd);
