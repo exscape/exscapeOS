@@ -25,44 +25,45 @@ int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_type = 0, opt_inode = 0;
 int current_year = 0;
 int line_used = 0; // used for standard mode only
 
-int do_file(const char *fullname, const char *name) {
+int do_file(const char *fullname, const char *name, struct stat *st) {
+	/*
 	struct stat st;
 	if (lstat(fullname, &st) != 0) {
 		fprintf(stderr, "ls: ");
 		perror(name);
 		return 1;
 	}
+	*/
 
 	if (opt_singlecol) {
-		printf("%s%s\n", name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		printf("%s%s\n", name, (opt_type && S_ISDIR(st->st_mode)) ? "/" : "");
 		return 0;
 	}
 	else if (opt_list) {
-
 		char perm_str[11] = "-rwxrwxrwx";
-		if (S_ISDIR(st.st_mode))
+		if (S_ISDIR(st->st_mode))
 			perm_str[0] = 'd';
-		else if (S_ISCHR(st.st_mode))
+		else if (S_ISCHR(st->st_mode))
 			perm_str[0] = 'c';
-		else if (S_ISBLK(st.st_mode))
+		else if (S_ISBLK(st->st_mode))
 			perm_str[0] = 'b';
-		else if (S_ISLNK(st.st_mode))
+		else if (S_ISLNK(st->st_mode))
 			perm_str[0] = 'l';
-		else if (S_ISFIFO(st.st_mode))
+		else if (S_ISFIFO(st->st_mode))
 			perm_str[0] = 'p';
-		else if (S_ISSOCK(st.st_mode))
+		else if (S_ISSOCK(st->st_mode))
 			perm_str[0] = 's';
-		else if ( ! S_ISREG(st.st_mode) ) {
+		else if ( ! S_ISREG(st->st_mode) ) {
 			fprintf(stderr, "ls: warning: unknown permission for file %s\n", name);
 		}
 
 		for (int i=0; i<9; i++) {
-			if (!(st.st_mode & (1 << i))) {
+			if (!(st->st_mode & (1 << i))) {
 				perm_str[9 - i] = '-';
 			}
 		}
 
-		time_t tmp = st.st_mtime;
+		time_t tmp = st->st_mtime;
 		struct tm *tm = localtime(&tmp);
 		char date_buf[16] = {0};
 		if (tm->tm_year + 1900 == current_year)
@@ -71,15 +72,15 @@ int do_file(const char *fullname, const char *name) {
 			strftime(date_buf, 16, "%d %b  %Y", tm);
 
 		if (opt_inode) {
-			printf("%7u ", (unsigned int)st.st_ino);
+			printf("%7u ", (unsigned int)st->st_ino);
 		}
-		printf("%s %2d root  root %8u %s %s%s", perm_str, st.st_nlink, (unsigned int)st.st_size, date_buf, name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		printf("%s %2d root  root %8u %s %s%s", perm_str, st->st_nlink, (unsigned int)st->st_size, date_buf, name, (opt_type && S_ISDIR(st->st_mode)) ? "/" : "");
 
 #ifndef PATH_MAX
 #define PATH_MAX 1024
 #endif
 
-		if (S_ISLNK(st.st_mode)) {
+		if (S_ISLNK(st->st_mode)) {
 			char link_target[PATH_MAX+1] = {0};
 			readlink(fullname, link_target, PATH_MAX);
 			printf(" -> %s", link_target);
@@ -93,7 +94,7 @@ int do_file(const char *fullname, const char *name) {
 			printf("\n");
 			line_used = 0;
 		}
-		line_used += printf("%s%s    ", name, (opt_type && S_ISDIR(st.st_mode)) ? "/" : "");
+		line_used += printf("%s%s    ", name, (opt_type && S_ISDIR(st->st_mode)) ? "/" : "");
 	}
 
 	return 0;
@@ -119,12 +120,19 @@ int do_dir(const char *dirname) {
 			strlcat(name, "/", 1024);
 		strlcat(name, dent->d_name, 1024);
 
-		do_file(name, dent->d_name);
+		struct stat st = {0};
+		if (lstat(name, &st) != 0) {
+			// TODO: test this
+			fprintf(stderr, "ls: ");
+			perror(name);
+			continue;
+		}
+
+		do_file(name, dent->d_name, &st);
 	}
 
 	return 0;
 }
-
 
 int main(int argc, char **argv) {
 	assert(argv[argc] == NULL);
@@ -180,7 +188,7 @@ int main(int argc, char **argv) {
 
 	do {
 		struct stat st;
-		if (stat(*files, &st) != 0) {
+		if (lstat(*files, &st) != 0) {
 			fprintf(stderr, "ls: ");
 			perror(*files);
 			continue;
@@ -190,11 +198,25 @@ int main(int argc, char **argv) {
 			printf("%s:\n", *files);
 		}
 
+		// TODO: sort arguments so that all files are printed
+		// prior to directories
+
 		if (S_ISDIR(st.st_mode)) {
 			do_dir(*files);
 		}
+		else if (S_ISLNK(st.st_mode)) {
+			struct stat linkst;
+			if (stat(*files, &linkst) != 0) {
+				fprintf(stderr, "ls: ");
+				perror(*files);
+				continue;
+			}
+
+			if (S_ISDIR(linkst.st_mode))
+				do_dir(*files);
+		}
 		else
-			do_file(*files, *files);
+			do_file(*files, *files, &st);
 
 		if (errno) {
 			fprintf(stderr, "ls: %s: %s\n", *files, strerror(errno));
