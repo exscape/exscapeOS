@@ -356,6 +356,9 @@ void kshell(void *data, uint32 length) {
 	assert(current_task != &kernel_task);
 	assert(strlen((char *)current_task->name) >= 8 && strncmp((char *)current_task->name, "[kshell]", 8) == 0);
 
+	// Hack: start the userspace shell automatically
+	task = create_task_elf("/bin/sh", current_task->console, (char *)"/bin/sh", strlen("/bin/sh"));
+
 	while (true) {
 		// Wait until the "child" task is still running
 		while (task != NULL) {
