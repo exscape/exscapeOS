@@ -483,6 +483,8 @@ static struct inode_ret ext2_handle_symlink_in_path(ext2_partition_t *part, cons
 	else
 		strcpy(full_path, parent_dir);
 
+	// Resolve *all* possible symlinks in the path and check for symlink loops and
+	// overly nested links
 	if (resolve_actual_path(full_path, PATH_MAX+1) == -ELOOP) {
 		struct inode_ret ret;
 		ret.value = -ELOOP;

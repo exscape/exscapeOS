@@ -10,6 +10,7 @@ bootable.iso
 testing_area
 *.dSYM
 tags
+Session.vim
 
 serial-output
 
