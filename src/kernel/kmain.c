@@ -43,7 +43,8 @@ extern nethandler_t *nethandler_icmp;
 
 extern volatile list_t ready_queue;
 
-//char *kernel_cmdline = NULL;
+char *kernel_cmdline = NULL;
+bool quiet = false;
 //char *rootdev = NULL;
 
 extern heap_t *kheap;
@@ -96,11 +97,29 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	}
 
 	printc(BLACK, RED, "exscapeOS starting up...\n");
+
+	// Parse the kernel command line
+	if (mbd->flags & (1 << 2)) {
+		// Duplicate it, so that we know that the address will be mapped when paging is enabled
+		assert(mbd->cmdline != 0);
+		kernel_cmdline = strdup((char *)mbd->cmdline);
+
+		char *p = strstr(kernel_cmdline, "quiet");
+		if (p) {
+			if (*(p+5) == ' ' || *(p+5) == 0) {}
+				quiet = true;
+		}
+	}
+
 	if (mbd->flags & 1) {
-		printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n", mbd->mem_lower, mbd->mem_upper);
+		if (!quiet)
+			printk("Memory info (thanks, GRUB!): %u kiB lower, %u kiB upper\n", mbd->mem_lower, mbd->mem_upper);
 	}
 	else
 		panic("mbd->flags bit 0 is unset!");
+
+	if(!quiet)
+		printk("Kernel command line: %s\n", kernel_cmdline);
 
 	// Ensure that the CPU has the necessary features: FPU and MMX support.
 	// Since there are no CPUs with MMX but withut x87 FPU as far as I know,
@@ -122,58 +141,16 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	if ((edx & (1 << 24)) == 0)
 		panic("Your CPU doesn't support the FXSAVE/FXRSTOR instructions!");
 
-	printk("Initializing serial port... ");
-	init_serial();
-	printc(BLACK, GREEN, "done\n");
-
-//	serial_send("Hello world!\n");
+#define do_init(str, func) do { if (!quiet) printk(str); func; if (!quiet) printc(BLACK, GREEN, "done\n"); } while(0);
 
 	/* Time to get started initializing things! */
-	printk("Initializing GDTs... ");
-	gdt_install();
-	printc(BLACK, GREEN, "done\n");
-
-	/* Load the IDT */
-	printk("Initializing IDTs... ");
-	idt_install();
-	printc(BLACK, GREEN, "done\n");
-
-	/* Enable interrupts */
-	printk("Initializing ISRs and enabling interrupts... ");
-	enable_interrupts();
-	printc(BLACK, GREEN, "done\n");
-
-	// Parse the kernel command line
-	// This turned out to be unused, in favor of a config file in the initrd
-#if 0
-	if (mbd->flags & (1 << 2)) {
-		// Duplicate it, so that we know that the address will be mapped when paging is enabled
-		assert(mbd->cmdline != 0);
-		kernel_cmdline = strdup((char *)mbd->cmdline);
-		if (strstr(kernel_cmdline, "root=")) {
-			rootdev = strdup(strstr(kernel_cmdline, "root=") + 5);
-			char *p = rootdev;
-			while (*p != 0 && *p != ' ') p++;
-			*p = 0;
-		}
-	}
-
-	printk("Parsed kernel command line; rootdev = %s\n", rootdev == NULL ? "NULL" : rootdev);
-#endif
-
-	/* Set up the keyboard callback */
-	printk("Setting up the keyboard handler... ");
-	init_keyboard();
-	printc(BLACK, GREEN, "done\n");
-
-	/* Set up the PIT and start counting ticks */
-	printk("Initializing the PIT... ");
-	timer_install();
-	printc(BLACK, GREEN, "done\n");
-
-	printk("Initializing the FPU... ");
-	fpu_init();
-	printc(BLACK, GREEN, "done\n");
+	do_init("Initializing serial port... ", init_serial());
+	do_init("Initializing GDTs... ", gdt_install());
+	do_init("Initializing IDTs... ", idt_install());
+	do_init("Initializing ISRs and enabling interrupts... ", enable_interrupts());
+	do_init("Initializing keyboard... ", init_keyboard());
+	do_init("Initializing the PIT... ", timer_install());
+	do_init("Initializing the FPU... ", fpu_init());
 
 	/* Initialize the initrd */
 	/* (do this before paging, so that it doesn't end up in the kernel heap) */
@@ -185,7 +162,8 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_symbols(mbd->u.elf_sec.num, mbd->u.elf_sec.size, mbd->u.elf_sec.addr, mbd->u.elf_sec.shndx);
 
 	/* Set up paging and the kernel heap */
-	printk("Initializing paging and setting up the kernel heap... ");
+	if (!quiet)
+		printk("Initializing paging and setting up the kernel heap... ");
 
 	//mbd->flags &= ~(1<<6); // Uncomment to test with no memory map
 	if (mbd->flags & (1 << 6)) {
@@ -195,40 +173,16 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	else
 		init_paging(0, 0, mbd->mem_upper);
 
-	printc(BLACK, GREEN, "done\n");
-
-	printk("Detecting and initializing PCI devices... ");
-	init_pci();
-	printc(BLACK, GREEN, "done\n");
-
-	/* Set up the syscall interface */
-	printk("Initializing syscalls... ");
-	init_syscalls();
-	printc(BLACK, GREEN, "done\n");
-
-	printk("Initializing multitasking and setting up the kernel task... ");
-	init_tasking(init_esp0);
-	printc(BLACK, GREEN, "done\n");
-
-	printk("Starting network data handlers... ");
-	nethandler_arp = nethandler_create("nethandler_arp", arp_handle_packet);
-	nethandler_icmp = nethandler_create("nethandler_icmp", handle_icmp);
-	if (nethandler_arp && nethandler_icmp)
+	if (!quiet)
 		printc(BLACK, GREEN, "done\n");
-	else
-		printc(BLACK, RED, "failed!\n");
+
+	do_init("Detecting and initializing PCI devices... ", init_pci());
+	do_init("Initializing syscalls... ", init_syscalls());
+	do_init("Initializing multitasking and setting up the kernel task... ", init_tasking(init_esp0));
 
 #if 1
-	printk("Detecting ATA devices and initializing them... ");
-	ata_init();
-	printc(BLACK, GREEN, "done\n");
-
-	printk("Parsing MBRs... ");
-	/* Read the MBRs of the disks and set up the partitions array (devices[i].partitions[0...3]) */
-	for (int i=0; i<3; i++)
-		parse_mbr(&devices[i]);
-
-	printc(BLACK, GREEN, "done\n");
+	do_init("Detecting ATA devices and initializing them... ", ata_init());
+	do_init("Parsing MBRs... ", for (int i=0; i<3; i++) parse_mbr(&devices[i]));
 
 	/* Detect FAT and ext2 filesystems on all partitions */
 	for (int disk = 0; disk < 4; disk++) {
@@ -244,25 +198,10 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 				fat_detect(&devices[disk], part);
 			}
 			else if (devices[disk].partition[part].exists && devices[disk].partition[part].type == PART_LINUX) {
-				printk("calling ext2_detect on disk %u part %u\n... ", disk, part);
 				ext2_detect(&devices[disk], part);
-				printc(BLACK, GREEN, "done\n");
 			}
 		}
 	}
-
-	//assert(fat32_partitions !=  NULL);
-	//assert(fat32_partitions->count == 1);
-#endif
-
-#if 0
-	uint8 buf[512] = {0};
-	ata_device_t *ata_dev = &devices[0];
-	ata_read(ata_dev, 0, buf, 1);
-	printk("Buffer contents LBA0: \"%s\"\n", (char *)buf);
-
-	((char *)buf)[0] = 'Y';
-	ata_write(ata_dev, 0, buf, 1);
 #endif
 
 #if 0
@@ -294,10 +233,21 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 		printc(BLACK, RED, "failed!\n");
 
 #if 1
-	printk("Initializing RTL8139 network adapter... ");
-	if (init_rtl8139())
-		printc(BLACK, GREEN, "done\n");
-	else
+	if (!quiet)
+		printk("Initializing RTL8139 network adapter... ");
+	if (init_rtl8139()) {
+		if (!quiet)
+			printc(BLACK, GREEN, "done\n");
+
+		printk("Starting network data handlers... ");
+		nethandler_arp = nethandler_create("nethandler_arp", arp_handle_packet);
+		nethandler_icmp = nethandler_create("nethandler_icmp", handle_icmp);
+		if (nethandler_arp && nethandler_icmp)
+			printc(BLACK, GREEN, "done\n");
+		else
+			printc(BLACK, RED, "failed!\n");
+	}
+	else if (!quiet)
 		printc(BLACK, RED, "none found!\n");
 #endif
 
