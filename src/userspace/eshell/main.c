@@ -13,7 +13,7 @@ extern char **environ;
 #include <pwd.h>
 #include <glob.h>
 
-#define DEBUG_PARSING
+//#define DEBUG_PARSING
 //#define USE_SIGNALS
 //#define USE_READLINE
 
@@ -539,7 +539,7 @@ int process_input(char *cmd) {
 			}
 		}
 		if (redir_stdout) {
-			if (freopen(redir_stdout, (redir_append_stderr ? "a" : "w"), stdout) == NULL) {
+			if (freopen(redir_stdout, (redir_append_stdout ? "a" : "w"), stdout) == NULL) {
 				fprintf(stderr, "eshell: ");
 				perror(redir_stdout);
 				exit(-1);
