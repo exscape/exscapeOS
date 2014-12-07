@@ -437,7 +437,7 @@ struct dirent *initrd_readdir(DIR *dir) {
 /* Frees the memory associated with a directory entry. */
 int initrd_closedir(DIR *dir) {
 	if (dir == NULL)
-		return -EINVAL; // TODO: what should closedir return here?
+		return -EBADF;
 
 	if (dir->buf != NULL) {
 		kfree(dir->buf);
@@ -454,6 +454,8 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st);
 int initrd_fstat(int fd, struct stat *st) {
 	struct open_file *file = get_filp(fd);
 	assert(file != NULL);
+	assert(file->path != NULL);
+	assert(*(file->path) == '/');
 
 	char relpath[PATH_MAX+1] = {0};
 	find_relpath(file->path, relpath, NULL);
@@ -485,7 +487,6 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 
 	int i = file->ino;
 
-	uint32 blocks = (initrd_files[i].length % 4096 == 0) ? initrd_files[i].length / 4096 : (initrd_files[i].length / 4096) + 1;
 	st->st_ino = i;
 	st->st_mode = initrd_files[i].mode;
 	st->st_nlink = 1;
@@ -493,8 +494,49 @@ int initrd_stat(mountpoint_t *mp, const char *in_path, struct stat *st) {
 	st->st_mtime = initrd_files[i].mtime;
 	st->st_ctime = initrd_files[i].mtime;
 	st->st_atime = initrd_files[i].mtime;
+
+	// If this is a directory, calculate an approximate (overestimated)
+	// size for it. Newlib depends on this (in scandir, at least), and
+	// will call divide the size by 24, then call malloc on that number
+	// times the size of a pointer, to store dirent* pointers in.
+	// If this is too small (especially if its below 24!), it will
+	// malloc 0 bytes and cause memory corruption and eventually crash.
+
+	if (S_ISDIR(st->st_mode)) {
+		st->st_size = 0;
+
+		for (uint32 j = INITRD_ROOT_INODE + 1; j < initrd_header->nfiles; j++) {
+			if (initrd_files[j].parent == i) {
+				// This file belongs to this directory.
+				// The logic behind this: struct dirent is >256 bytes, since
+				// MAXNAMLEN is 256. However, this directory isn't
+				// num_files * sizeof(struct dirent) bytes, but rather approximately
+				// sizeof(struct dirent), minus MAXNAMLEN, plus the *actual*
+				// length of each file inside.
+				// Add 8 bytes per file for alignment and a bit of a safety margin.
+				size_t size = sizeof(struct dirent) - MAXNAMLEN + strlen(initrd_files[j].name) + 8;
+				if (size & 3) {
+					// DWORD "align" the size
+					size &= ~3;
+					size += 4;
+				}
+
+				st->st_size += size;
+			}
+		}
+
+		// If one uses st_size to malloc, make sure the last dirent fits entirely
+		// within the buffer
+		st->st_size += sizeof(struct dirent);
+		assert((st->st_size & 3) == 0);
+		if (st->st_size < 4096) {
+			// It wouldn't surprise me if some userspace apps break without this.
+			st->st_size = 4096;
+		}
+	}
+
 	st->st_blksize = 4096; // Doesn't matter
-	st->st_blocks = blocks;
+	st->st_blocks = (st->st_size % 4096 == 0) ? st->st_size / 4096 : (st->st_size / 4096) + 1;
 
 	close(fd);
 
@@ -548,8 +590,8 @@ int initrd_getdents(int fd, void *dp, int count) {
 		struct dirent *dent = (struct dirent *)(dir->buf + dir->pos);
 		if (written + dent->d_reclen > count) {
 			if (dent->d_reclen > count) {
-				// Won't fit the next time around, either!
-				return -EINVAL; // TODO: memory leak if we don't clean up somewhere
+				initrd_closedir(dir);
+				return -EINVAL;
 			}
 			else {
 				// This won't fit! Read it the next time around.
