@@ -29,8 +29,12 @@
 * ext2:
 	* ext2_read()
 
+
+* sbrk: support negative arguments (to test: scandir in ext2/hugedir)
+
 * ls: add -R option
 * create basic "find" utility, with little more than -name and/or -iname to begin with
+* scandir on FAT returns < 0, but errno is not set! Why does it fail?
 
 * VFS:
 	* Improve /etc/mounts and fs_mount to specify disk+partition instead of the current system of autodetecting and only supporting 1 initrd, 1 FAT and 1 ext2 partition
