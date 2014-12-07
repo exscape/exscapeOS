@@ -36,7 +36,10 @@ int do_file(const char *fullname, const char *name, struct stat *st) {
 	*/
 
 	if (opt_singlecol) {
-		printf("%s%s\n", name, (opt_type && S_ISDIR(st->st_mode)) ? "/" : "");
+		const char *sigil = "";
+		if (opt_type)
+			sigil = (S_ISDIR(st->st_mode) ? "/" : (S_ISLNK(st->st_mode) ? "@" : ""));
+		printf("%s%s\n", name, sigil);
 		return 0;
 	}
 	else if (opt_list) {
