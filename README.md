@@ -76,16 +76,18 @@ If you want to boot it manually, isofiles/boot/kernel.bin and isofiles/boot/init
 
 Using exscapeOS
 ---------------
-As of this writing (2013-01-01 -- updated a bit 2014-11-15), the OS boots to a kernel-mode shell.
-There is a fair amount of userspace support, but the user mode shell was added literally yesterday [as of the 2013 writing], so it's very incomplete.
-(The kernel mode "shell" is even worse, but it was never meant to be permanent, so little time is spent on it!)
+As of this writing (2013-01-01 -- updated a bit 2014-12-07), the OS boots to a kernel-mode shell, except for the first virtual terminal, which starts the user-mode shell. "exit" in the user-mode shell returns to the kernel-mode shell (kshell), which has more commands (e.g. "help").
 
-Either way... "help" works (in the kernel mode shell, kshell, only), as does "ls".
-"eshell" (or "sh") starts the user mode shell. Don't let the new name fool you; it's not at all POSIX compatible yet. It does support very basic redirects and such, but the parsing is very sub-par.
+kshell is not intended to be a permanent thing; the OS naturally evolved that way. After adding print support and keyboard support, I obviously wanted a way to enter commands, so I started on a basic shell.
+Many months later, I had multitasking, user mode support, ELF loading and a C library, so I started work on a more proper (but not scriptable) shell, sh (or eshell).
+
+Anayway... "help" works (in the kernel mode shell, kshell, only), as does "ls" (try ls /bin).
+sh starts the user mode shell. Don't let the new name fool you; it's not at all POSIX compatible yet. It does support very basic redirects and such, but the parsing is very sub-par. I have no plans to support scripting, but I do have plans to port e.g bash (or perhaps something simpler) in the future.
 
 The OS has basic FAT32 support - read-only, however. The VFS is barely existent and
 needs a rewrite from the ground up, but that shouldn't be overly obvious from a user's
 viewpoint.
+ext2 support is in the works; everything except actually reading files (using the read() syscall) seems to work now, including symlink parsing. There is a function which reads an entire file, but not one that can read arbitrary blocks (as of Dec 2014).
 
 The console system has a few nice features: Alt+F1 though Alt+F4 can be used to use multiple virtual consoles.  
 They support several (currently 150, see src/include/console.h) screens worth of scrollback: scroll using shift + arrow keys, or one screen at a time with shift + alt + arrow keys.
