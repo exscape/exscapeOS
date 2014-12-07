@@ -4,6 +4,7 @@ extern char **environ;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -115,7 +116,7 @@ void replace_variables(char *buf, int size) {
 }
 
 char **parse_command_line(char *cmdline, int *argc, char ***env_extras) {
-	// Count the worst-case number of arguments. There may be fewer due to quoting
+	// Count the worst-case number of arguments. There may be fewer due to quoting, comments etc
 	int max_args = 1; // the command name is always there
 	int max_env = 0; // extra environment variables
 	size_t len = strlen(cmdline);
@@ -163,6 +164,11 @@ char **parse_command_line(char *cmdline, int *argc, char ***env_extras) {
 	bool env_done = false; // set to true when we reach the first argument with no equals sign
 	while (c < cmdline + len) {
 		handled = false;
+
+		if (*c == '#' && !quote) {
+			break;
+		}
+
 		while ((*c > ' ' && *c != '"' && *c != 0) || (*c == ' ' && quote)) {
 			// Regular text, or stuff within a quote: just copy this
 			arg[ai++] = *c++;
@@ -237,9 +243,10 @@ void sigint_handler(int sig) {
 // Process an input string, e.g. "cmd1 2>/dev/null | cmd2 && cmd3"
 int process_input(char *cmd) {
 	// Pre-parse the command line and substitute variable values
-	char *buf = malloc(max(strlen(cmd) * 3, 2048));
-	strlcpy(buf, cmd, 2048);
-	replace_variables(buf, 2048);
+	int bufsize = max(strlen(cmd) * 3, 2048);
+	char *buf = malloc(bufsize);
+	strlcpy(buf, cmd, bufsize);
+	replace_variables(buf, bufsize);
 
 	// Parse it
 	char **argv = NULL;
@@ -651,6 +658,22 @@ int main(int my_argc, char **my_argv) {
 	}
 	my_argc -= optind;
 	my_argv += optind;
+
+	// Process shrc
+	FILE *rc = fopen("/etc/shrc", "r");
+	if (rc) {
+		char line[1024] = {0};
+		while (fgets(line, 1023, rc)) {
+			char *p = line;
+			while (*p && isspace((int)*p))
+				p++;
+			if (*p == '#' || *p == 0)
+				continue;
+
+			process_input(p);
+		}
+		fclose(rc);
+	}
 
 	while (true) {
 		//next_input:
