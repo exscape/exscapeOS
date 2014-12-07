@@ -342,6 +342,12 @@ extern list_t *ext2_partitions;
 char *ext2_read_file(ext2_partition_t *part, uint32 inode_num, uint32 *size);
 uint16 internet_checksum(void *data, uint32 len);
 
+// Debugging helpers (for setting breakpoints post-boot, in simics)
+int shells_started = 0;
+void boot_finished(void) {
+	return;
+}
+
 void kshell(void *data, uint32 length) {
 	unsigned char *buf = kmalloc(1024);
 	memset(buf, 0, 1024);
@@ -357,7 +363,16 @@ void kshell(void *data, uint32 length) {
 	assert(strlen((char *)current_task->name) >= 8 && strncmp((char *)current_task->name, "[kshell]", 8) == 0);
 
 	// Hack: start the userspace shell automatically
-	task = create_task_elf("/bin/sh", current_task->console, (char *)"/bin/sh", strlen("/bin/sh"));
+	if (current_task->console == &kernel_console) {
+		task = create_task_elf("/bin/sh", current_task->console, (char *)"/bin/sh", strlen("/bin/sh"));
+	}
+
+	shells_started++;
+
+	if (shells_started == 3) {
+		sleep(500);
+		boot_finished(); // No-op to help debugging
+	}
 
 	while (true) {
 		// Wait until the "child" task is still running

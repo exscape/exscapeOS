@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# Auto-execute commands on /bin/sh startup
+
+# ls -R bin etc
+# scandir
