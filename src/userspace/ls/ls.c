@@ -21,11 +21,11 @@
 				 ((m & (S_IXUSR | S_IXGRP | S_IXOTH)) ? "*" : ""))) : "")
 
 void print_help(void) {
-	fprintf(stderr, "Usage: ls [-alh] [files...]\n");
+	fprintf(stderr, "Usage: ls [-options] [files...]\n");
 	fprintf(stderr, "-1: display one file per line, with no additional details\n");
-	fprintf(stderr, "-a: show hidden files (that begin with a dot)\n");
-	fprintf(stderr, "-i: print each file's inode number (implies -l)\n");
+	fprintf(stderr, "-a: show hidden files (files that begin with a dot)\n");
 	fprintf(stderr, "-l: show details, one file per line\n");
+	fprintf(stderr, "-i: print each file's inode number (implies -l)\n");
 	fprintf(stderr, "-d: show directories instead of their contents\n");
 	fprintf(stderr, "-R: recurse into all subdirectories\n");
 	fprintf(stderr, "-F: show sigils, e.g. / for dirs, @ for symlinks\n");

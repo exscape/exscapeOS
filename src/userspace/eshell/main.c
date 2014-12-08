@@ -175,6 +175,8 @@ char **parse_command_line(char *cmdline, int *argc, char ***env_extras) {
 			handled = true;
 		}
 
+		// TODO: support backslash escaping of at least " and #
+
 		if (*c == '"') {
 			// We hit a quotemark. Change the quote status, skip the character (don't copy it), and continue
 			quote = !quote;
