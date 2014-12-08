@@ -31,6 +31,8 @@ void print_help(void) {
 	fprintf(stderr, "-h: display this help message\n");
 }
 
+int do_dir(const char *dirname);
+
 // TODO: add support for human-readable sizes (-H? or use getopt_long and support --help? the help argument needs to remain as either -h or --help!)
 
 int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_sigil = 0, opt_inode = 0, opt_recurse = 0;
@@ -102,43 +104,28 @@ static int dir_alphasort (const struct dirent **a, const struct dirent **b) {
 	return strcmp((*a)->d_name, (*b)->d_name);
 }
 
-int do_dir(const char *dirname) {
-	struct dirent **entries;
-	struct stat **st_entries;
-	int *errnos;
-	int n; // number of directory entries total
+void print_entries(char **names, const char *dirname, int n) {
+	struct stat **st_entries; // stat results for each entry
+	int *errnos; // errnos for each stat call
 	int num_entries = 0; // # of entries to print; smaller than n unless the -a option is used
-	size_t longest = 0;
-	char relpath[PATH_MAX+1] = {0};
-
-	if (opt_recurse) {
-		if (!first) printf("\n");
-		printf("%s:\n", dirname);
-	}
-
-	first = false;
-
-	if ((n = scandir(dirname, &entries, NULL, dir_alphasort)) < 0) {
-		fprintf(stderr, "\nls: ");
-		perror(dirname);
-		return 1;
-	}
+	size_t longest = 0; // longest name in this directory
+	char relpath[PATH_MAX+1] = {0}; // re-used as a temporary buffer for paths
 
 	st_entries = malloc(n * sizeof(struct stat *));
 	errnos = malloc(n * sizeof(errno));
 	for (int i = 0; i < n; i++) {
 		// Keep track of the longest name; used for the "normal" mode (not -1 and not -l)
-		if (strlen(entries[i]->d_name) > longest)
-			longest = strlen(entries[i]->d_name);
+		if (strlen(names[i]) > longest)
+			longest = strlen(names[i]);
 
-		// Count the number of entries we're going to print
-		if (opt_all || entries[i]->d_name[0] != '.')
+		// Count the number of names we're going to print
+		if (opt_all || names[i][0] != '.')
 			num_entries++;
 
 		// stat everything; scandir copies the results from getdents and doesn't set d_type,
 		// so we need to stat to find out whether something is a dir/link to dir or a file
 		st_entries[i] = malloc(sizeof(struct stat));
-		snprintf(relpath, PATH_MAX, "%s/%s", dirname, entries[i]->d_name);
+		snprintf(relpath, PATH_MAX, "%s/%s", dirname, names[i]);
 		if (stat(relpath, st_entries[i]) != 0) {
 			errnos[i] = errno;
 		}
@@ -155,12 +142,12 @@ int do_dir(const char *dirname) {
 	if (opt_singlecol || opt_list) {
 		// Ahh, easy.
 		for (int i = 0; i < n; i++) {
-			if (!opt_all && entries[i]->d_name[0] == '.')
+			if (!opt_all && names[i][0] == '.')
 				continue;
-			snprintf(relpath, PATH_MAX, "%s/%s", dirname, entries[i]->d_name);
+			snprintf(relpath, PATH_MAX, "%s/%s", dirname, names[i]);
 			struct stat linkst;
 			if (lstat(relpath, &linkst) == 0)
-				do_file(relpath, entries[i]->d_name, &linkst);
+				do_file(relpath, names[i], &linkst);
 			else
 				perror(relpath);
 		}
@@ -175,7 +162,6 @@ int do_dir(const char *dirname) {
 		// Instead of doing the math, I figured I could simply store it in a 2D array,
 		// as it should be displayed on screen, and go from there. The results
 		// aren't as good, but it does work.
-
 		int cols = screen_width/(longest + 1);
 		if (cols == 0)
 			cols = 1;
@@ -190,7 +176,7 @@ int do_dir(const char *dirname) {
 		if (longest > screen_width)
 			longest = screen_width;
 
-		struct dirent **grid = malloc(sizeof(struct dirent *) * cols * rows);
+		char **grid = malloc(sizeof(struct dirent *) * cols * rows);
 		for (int i=0; i<cols*rows;i++) grid[i] = NULL;
 
 		// Fill the grid; note that this is done "backwards" (the outer loop would
@@ -199,11 +185,11 @@ int do_dir(const char *dirname) {
 		for (int col = 0, i = 0; col < cols; col++) {
 			for (int row = 0; row < rows; row++) {
 				if (i < n) {
-					while (!opt_all && i < n && entries[i]->d_name[0] == '.') {
+					while (!opt_all && i < n && names[i][0] == '.') {
 						// Skip dotfiles
 						i++;
 					}
-					grid[col + row*cols] = entries[i++];
+					grid[col + row*cols] = names[i++];
 				}
 			}
 		}
@@ -215,44 +201,77 @@ int do_dir(const char *dirname) {
 				if (grid[ind] != NULL) {
 					char name[1024] = {0};
 					size_t j = 0;
-					for (size_t i = 0; i < strlen(grid[ind]->d_name); i++) {
-						if (grid[ind]->d_name[i] >= ' ')
-							name[j++] = grid[ind]->d_name[i];
+					for (size_t i = 0; i < strlen(grid[ind]); i++) {
+						if (grid[ind][i] >= ' ')
+							name[j++] = grid[ind][i];
 					}
 					name[j] = 0;
 
 					printf("%-*s", (int)longest, name);
 				}
-				//else
-				//printf("what do?");
 				if (col + 1 < cols)
 					printf(" ");
 			}
 			printf("\n");
 		}
+
+		free(grid);
 	}
 
 	// Next, recurse into the directories, in order
 	if (opt_recurse) {
 		for (int i = 0; i < n; i++) {
-			if (!opt_all && entries[i]->d_name[0] == '.')
+			if (!opt_all && names[i][0] == '.')
 				continue;
-			if (strcmp(entries[i]->d_name, ".") == 0 || strcmp(entries[i]->d_name, "..") == 0)
+			if (strcmp(names[i], ".") == 0 || strcmp(names[i], "..") == 0)
 				continue;
 			if (S_ISDIR(st_entries[i]->st_mode)) {
-				snprintf (relpath, PATH_MAX, "%s/%s", dirname, entries[i]->d_name);
+				snprintf (relpath, PATH_MAX, "%s/%s", dirname, names[i]);
 				do_dir(relpath);
 			}
 		}
 	}
 
 	// Free everything we've allocated
-	for (int i = 0; i < n; i++) {
-		free(entries[i]);
+	for (int i = 0; i < n; i++)
 		free(st_entries[i]);
-	}
-	free(entries);
+
 	free(st_entries);
+	free(errnos);
+}
+
+int do_dir(const char *dirname) {
+	struct dirent **d_entries;
+	char **names; // d_name entries from the above
+	int n; // number of directory entries total
+
+	if (opt_recurse) {
+		if (!first) printf("\n");
+		printf("%s:\n", dirname);
+	}
+
+	first = false;
+
+	if ((n = scandir(dirname, &d_entries, NULL, dir_alphasort)) < 0) {
+		fprintf(stderr, "\nls: ");
+		perror(dirname);
+		return 1;
+	}
+
+	names = malloc(n * sizeof(char *));
+	for (int i = 0; i < n; i++) {
+		names[i] = strdup(d_entries[i]->d_name);
+		free(d_entries[i]);
+	}
+	free(d_entries);
+
+	print_entries(names, dirname, n);
+
+	// The d_entries array is freed above, so this is all we need to free now
+	for (int i = 0; i < n; i++) {
+		free(names[i]);
+	}
+	free(names);
 
 	return 0;
 }
@@ -298,12 +317,13 @@ int main(int argc, char **argv) {
 	argc -= optind;
 	argv += optind;
 
-	const char **files = malloc((argc + 2) * sizeof(char *));
-	memset(files, 0, (argc + 2) * sizeof(char *));
+	const char **files = malloc((argc + 1) * sizeof(char *));
+	memset(files, 0, (argc + 1) * sizeof(char *));
 
 	if (argc == 0) {
 		// no files/directories were passed as arguments
 		files[0] = ".";
+		argc = 1;
 	}
 	else
 		memcpy(files, argv, argc * sizeof(char *));
