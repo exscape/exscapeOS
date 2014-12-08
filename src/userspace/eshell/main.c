@@ -678,7 +678,6 @@ int main(int my_argc, char **my_argv) {
 	}
 
 	while (true) {
-		//next_input:
 #ifdef USE_SIGNALS
 		setjmp(loop, 1);
 		signal(SIGINT, sigint_handler);
