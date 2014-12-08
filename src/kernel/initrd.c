@@ -51,7 +51,6 @@ bool fs_mount(void) {
 	buf[header.length] = 0;
 
 	char *p = buf;
-	while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
 	assert(*p != 0);
 	char mount[16] = {0};
 	char path[256] = {0};
@@ -60,6 +59,15 @@ bool fs_mount(void) {
 	bool root_mounted = false;
 
 	while (true) {
+		while (*p <= ' ' && *p != 0) p++; // skip whitespace and other junk
+		if (*p == '#'){
+			// skip to the next line
+			while (*p != 0 && *p != '\n') p++;
+			p++;
+		}
+		if (!*p)
+			break;
+
 		ap = 0;
 		while (*p > ' ') { mount[ap++] = *p++; }
 		mount[ap] = 0;

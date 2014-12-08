@@ -133,11 +133,15 @@ if __name__ == '__main__':
 	add_entry(found, 'initrd', '/')
 
 	# loop through stuff
-	for root, subdirs, files in os.walk('initrd'):
+	for root, subdirs, files in os.walk('initrd', topdown=True):
 		for dir in subdirs:
 			add_entry(found, root, dir)
 		for file in files:
 			add_entry(found, root, file)
+
+		# Don't recurse into fat or ext2 in case stuff's mounted there
+		# in the host OS; however, the empty directories are added above
+		subdirs[:] = [d for d in subdirs if d not in ['ext2', 'fat']]
 
 	create_image('isofiles/boot/initrd.img', found)
 
