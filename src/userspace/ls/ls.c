@@ -26,6 +26,7 @@ void print_help(void) {
 	fprintf(stderr, "-a: show hidden files (that begin with a dot)\n");
 	fprintf(stderr, "-i: print each file's inode number (implies -l)\n");
 	fprintf(stderr, "-l: show details, one file per line\n");
+	fprintf(stderr, "-d: show directories instead of their contents\n");
 	fprintf(stderr, "-R: recurse into all subdirectories\n");
 	fprintf(stderr, "-F: show sigils, e.g. / for dirs, @ for symlinks\n");
 	fprintf(stderr, "-h: display this help message\n");
@@ -35,7 +36,7 @@ int do_dir(const char *dirname);
 
 // TODO: add support for human-readable sizes (-H? or use getopt_long and support --help? the help argument needs to remain as either -h or --help!)
 
-int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_sigil = 0, opt_inode = 0, opt_recurse = 0;
+int opt_all = 0, opt_list = 0, opt_singlecol = 0, opt_sigil = 0, opt_inode = 0, opt_recurse = 0, opt_show_dir = 0;
 int current_year = 0;
 const unsigned int screen_width = 80;
 bool first = true;
@@ -63,7 +64,7 @@ int do_file(const char *fullname, const char *name, struct stat *st) {
 			fprintf(stderr, "ls: warning: unknown permission for file %s\n", name);
 		}
 
-		for (int i=0; i<9; i++) {
+		for (int i = 0; i < 9; i++) {
 			if (!(st->st_mode & (1 << i))) {
 				perm_str[9 - i] = '-';
 			}
@@ -104,7 +105,7 @@ static int dir_alphasort (const struct dirent **a, const struct dirent **b) {
 	return strcmp((*a)->d_name, (*b)->d_name);
 }
 
-void print_entries(char **names, const char *dirname, int n) {
+void print_entries(const char **names, const char *dirname, int n) {
 	struct stat **st_entries; // stat results for each entry
 	int *errnos; // errnos for each stat call
 	int num_entries = 0; // # of entries to print; smaller than n unless the -a option is used
@@ -176,8 +177,8 @@ void print_entries(char **names, const char *dirname, int n) {
 		if (longest > screen_width)
 			longest = screen_width;
 
-		char **grid = malloc(sizeof(struct dirent *) * cols * rows);
-		for (int i=0; i<cols*rows;i++) grid[i] = NULL;
+		const char **grid = malloc(sizeof(struct dirent *) * cols * rows);
+		for (int i = 0; i < cols*rows; i++) grid[i] = NULL;
 
 		// Fill the grid; note that this is done "backwards" (the outer loop would
 		// typically be rows), to transpose it. So we first fill the the first column,
@@ -226,7 +227,7 @@ void print_entries(char **names, const char *dirname, int n) {
 			if (strcmp(names[i], ".") == 0 || strcmp(names[i], "..") == 0)
 				continue;
 			if (S_ISDIR(st_entries[i]->st_mode)) {
-				snprintf (relpath, PATH_MAX, "%s/%s", dirname, names[i]);
+				snprintf(relpath, PATH_MAX, "%s/%s", dirname, names[i]);
 				do_dir(relpath);
 			}
 		}
@@ -258,14 +259,14 @@ int do_dir(const char *dirname) {
 		return 1;
 	}
 
-	names = malloc(n * sizeof(char *));
+	names = malloc(n * sizeof(const char *));
 	for (int i = 0; i < n; i++) {
 		names[i] = strdup(d_entries[i]->d_name);
 		free(d_entries[i]);
 	}
 	free(d_entries);
 
-	print_entries(names, dirname, n);
+	print_entries((const char **)names, dirname, n);
 
 	// The d_entries array is freed above, so this is all we need to free now
 	for (int i = 0; i < n; i++) {
@@ -280,7 +281,7 @@ int main(int argc, char **argv) {
 	assert(argv[argc] == NULL);
 
 	int c;
-	while ((c = getopt(argc, argv, "1aFhlRi")) != -1) {
+	while ((c = getopt(argc, argv, "1aFhlRid")) != -1) {
 		switch(c) {
 			case 'a':
 				opt_all = 1;
@@ -297,6 +298,9 @@ int main(int argc, char **argv) {
 			case '1': /* overrides -l, if used later on in the command line */
 				opt_singlecol = 1;
 				opt_list = 0;
+				break;
+			case 'd':
+				opt_show_dir = 1;
 				break;
 			case 'R':
 				opt_recurse = 1;
@@ -317,62 +321,95 @@ int main(int argc, char **argv) {
 	argc -= optind;
 	argv += optind;
 
-	const char **files = malloc((argc + 1) * sizeof(char *));
-	memset(files, 0, (argc + 1) * sizeof(char *));
+	const char **names = malloc((argc + 1) * sizeof(char *));
+	memset(names, 0, (argc + 1) * sizeof(char *));
 
 	if (argc == 0) {
 		// no files/directories were passed as arguments
-		files[0] = ".";
+		names[0] = ".";
 		argc = 1;
 	}
 	else
-		memcpy(files, argv, argc * sizeof(char *));
+		memcpy(names, argv, argc * sizeof(char *));
 
 	time_t tmp = time(NULL);
 	struct tm *tm = localtime(&tmp);
 	current_year = tm->tm_year + 1900;
 
-	int num_processed = 0;
-	do {
-		struct stat st;
-		if (lstat(*files, &st) != 0) {
+	// First off, stat all arguments. That way,
+	// we know which are files, and which are
+	// directories (or links to directories).
+	// Files should be printed first.
+	struct stat **st = calloc(argc, sizeof(struct stat *));
+	int *errnos = calloc(argc, sizeof(int));
+
+	for (int i = 0; i < argc; i++) {
+		st[i] = malloc(sizeof(struct stat));
+		if (stat(names[i], st[i]) != 0) {
 			fprintf(stderr, "ls: ");
-			perror(*files);
-			num_processed++;
-			continue;
-		}
-
-		if (argc > 1 && S_ISDIR(st.st_mode) && !opt_recurse) {
-			// if opt_recurse is set, we'd print this twice
-			printf("%s:\n", *files);
-		}
-
-		// TODO: sort arguments so that all files are printed
-		// prior to directories
-
-		if (S_ISDIR(st.st_mode)) {
-			do_dir(*files);
-		}
-		else if (S_ISLNK(st.st_mode)) {
-			struct stat linkst;
-			if (stat(*files, &linkst) != 0) {
-				fprintf(stderr, "ls: ");
-				perror(*files);
-				continue;
-			}
-
-			if (S_ISDIR(linkst.st_mode))
-				do_dir(*files);
+			perror(names[i]);
+			errnos[i] = errno;
 		}
 		else
-			do_file(*files, *files, &st);
+			errnos[i] = 0;
+	}
 
-		if (argc > num_processed + 1 && S_ISDIR(st.st_mode) && !opt_recurse) {
-			printf("\n");
+	// Eh... we could count them first, but that wastes time.
+	// This wastes AT MOST a few kiB of RAM instead.
+	const char **dirs = calloc(argc, sizeof(char *));
+	const char **files = calloc(argc, sizeof(char *));
+
+	int num_dirs = 0;
+	int num_files = 0;
+	for (int i = 0; i < argc; i++) {
+		if (errnos[i] == 0) {
+			if (S_ISDIR(st[i]->st_mode))
+				dirs[num_dirs++] = names[i];
+			else
+				files[num_files++] = names[i];
 		}
+	}
 
-		num_processed++;
-	} while (*(++files));
+	// Finally, start showing stuff!
+	// First, all command line arguments that were actually files.
+	if (num_files > 0) {
+		print_entries(files, ".", num_files);
+		if (num_dirs > 0)
+			printf("\n");
+	}
+
+	// Next, directories.
+	// if -d is set, just print their names. Otherwise, print their contents.
+	if (opt_show_dir)
+		print_entries(dirs, ".", num_dirs);
+	else {
+		for (int i = 0; i < num_dirs; i++) {
+			if (argc > 1 && !opt_recurse) {
+				// Print the dir name prior to the contents, if there are more
+				// than one to show
+				printf("%s:\n", dirs[i]);
+			}
+			do_dir(dirs[i]);
+
+			// If more dirs remain, separate them with a newline
+			if (num_dirs > i + 1 && !opt_recurse)
+				printf("\n");
+		}
+	}
+
+	// We're done! Start freeing memory.
+	// (Though we ARE about to exit...)
+	for (int i = 0; i < argc; i++) {
+		free(st[i]);
+	}
+
+	// The top three consist of pointers from argv and "" strings, so don't
+	// free their contents!
+	// We should only free the arrays themselves.
+	free(names);
+	free(dirs);
+	free(files);
+	free(st);
 
 	fflush(stdout);
 
