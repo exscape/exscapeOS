@@ -35,6 +35,9 @@
 * create basic "find" utility, with little more than -name and/or -iname to begin with...?
 * scandir on FAT returns < 0, but errno is not set! Why does it fail?
 
+* serial input as a supplement to the keyboard? interrupt-driven, of course.
+  Could be nice to use the native keymap inside the OS easily!
+
 * VFS:
 	* Improve /etc/mounts and fs_mount to specify disk+partition instead of the current system of autodetecting and only supporting 1 initrd, 1 FAT and 1 ext2 partition
 
