@@ -13,13 +13,14 @@ diff -Naur newlib-1.20.0/config.sub newlib-1.20.0-exscapeos/config.sub
 diff -Naur newlib-1.20.0/newlib/configure.host newlib-1.20.0-exscapeos/newlib/configure.host
 --- newlib-1.20.0/newlib/configure.host	2011-11-29 07:33:48.000000000 +0100
 +++ newlib-1.20.0-exscapeos/newlib/configure.host	2012-12-20 16:38:45.000000000 +0100
-@@ -406,6 +406,11 @@
+@@ -406,6 +406,12 @@
    h8500-*-elf*)
  	sys_dir=h8500hms
  	;;
 +  i[3-7]86-*-exscapeos*)
 +	sys_dir=exscapeos
-+	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -D__DYNAMIC_REENT__ -DHAVE_NANOSLEEP -O0 -gstabs+"
++   # __NETBSD_SYSCALLS and _ELIX_LEVEL are to allow glob to compile; we don't have getpwnam and related functions
++	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -D__DYNAMIC_REENT__ -DHAVE_NANOSLEEP -D__NETBSD_SYSCALLS -D_ELIX_LEVEL=3 -O0 -gstabs+"
 +	posix_dir=posix
 +	;;
    i[34567]86-*-rdos*)

@@ -70,7 +70,9 @@ void replace_variables(char *buf, int size) {
 		p++;
 	}
 
+// This section is fairly useless without multi-user support
 #if 0
+
 	// Do the same, but for ~ and ~user
 	p = buf;
 	while ((p = strchr(p, '~')) != NULL) {
@@ -480,8 +482,8 @@ int process_input(char *cmd) {
 #endif
 
 		// Take care of globbing, if necessary
-#if 0
 		for (i = 0; i < argc; i++) {
+			char *p = NULL;
 			if (argv[i] && (p = strchr(argv[i], '*')) != NULL) {
 				if (p > argv[i] && *(p-1) == '\\') {
 					// Escape this one
@@ -536,7 +538,6 @@ int process_input(char *cmd) {
 				i    += (gl.gl_pathc - 1);
 			}
 		}
-#endif
 
 #if 1
 		// Set up redirects

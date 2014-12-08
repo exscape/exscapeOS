@@ -79,7 +79,7 @@ unsigned char kbdse_shift[128] =
     0,          /* 29   - Control */
   'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'O', /* 39 */
  '\'', '>',   0,        /* Left shift */
- '>', 'Z', 'X', 'C', 'V', 'B', 'N',            /* 49 */
+ '*', 'Z', 'X', 'C', 'V', 'B', 'N',            /* 49 */
   'M', ';', ':', '_',   0,              /* Right shift */
 
   '*',
