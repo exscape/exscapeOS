@@ -142,3 +142,15 @@ diff -Naur newlib-1.20.0/newlib/libc/sys/configure.in newlib-1.20.0-exscapeos/ne
  lib_a-opendir.o: opendir.c
  	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(lib_a_CFLAGS) $(CFLAGS) -c -o lib_a-opendir.o `test -f 'opendir.c' || echo '$(srcdir)/'`opendir.c
  
+diff -Naur newlib-1.20.0-orig/newlib/libc/posix/execvp.c newlib-1.20.0/newlib/libc/posix/execvp.c
+--- newlib-1.20.0/newlib/libc/posix/execvp.c	2008-10-31 22:03:41.000000000 +0100
++++ newlib-1.20.0/newlib/libc/posix/execvp.c	2014-12-09 13:50:31.538891498 +0100
+@@ -44,7 +44,7 @@
+   char buf[MAXNAMLEN];
+ 
+   /* If $PATH doesn't exist, just pass FILE on unchanged.  */
+-  if (!path)
++  if (!path || *path == 0)
+     return execv (file, argv);
+ 
+   /* If FILE contains a directory, don't search $PATH.  */
