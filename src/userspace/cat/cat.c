@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
 		int fd;
 
 		if (argc == 1 || (argc > 1 && !strcmp(argv[i], "-"))) {
-			filename = "stdin";
+			filename = "(stdin)";
 			fd = fileno(stdin);
 		}
 		else {
@@ -30,6 +30,17 @@ int main(int argc, char **argv) {
 			fd = open(filename, O_RDONLY);
 			if (fd < 0) {
 				fprintf(stderr, "%s: %s: %s\n", argv[0], filename, strerror(errno));
+				error = true;
+				continue;
+			}
+			struct stat st;
+			if (fstat(fd, &st) != 0) {
+				fprintf(stderr, "cat: %s: %s\n", filename, strerror(errno));
+				error = true;
+				continue;
+			}
+			if (S_ISDIR(st.st_mode)) {
+				fprintf(stderr, "cat: %s: %s\n", filename, strerror(EISDIR));
 				error = true;
 				continue;
 			}
