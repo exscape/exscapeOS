@@ -14,9 +14,11 @@ extern char **environ;
 #include <pwd.h>
 #include <glob.h>
 
+#ifndef _EXSCAPEOS
+#define USE_SIGNALS
+#define USE_READLINE
+#endif
 //#define DEBUG_PARSING
-//#define USE_SIGNALS
-//#define USE_READLINE
 
 #ifdef USE_READLINE
 #include <readline/readline.h>
@@ -84,8 +86,7 @@ void replace_variables(char *buf, int size) {
 	}
 
 // This section is fairly useless without multi-user support
-#if 0
-
+#ifndef _EXSCAPEOS
 	// Do the same, but for ~ and ~user
 	p = buf;
 	while ((p = strchr(p, '~')) != NULL) {
@@ -643,8 +644,9 @@ int main(int my_argc, char **my_argv) {
 	char *cwd_str = NULL;
 
 	// Read the host name
+#ifdef _EXSCAPEOS
 	char hostname[] = "exscapeos";
-#if 0
+#else
 	char hostname[256] = {0};
 	gethostname(hostname, 256);
 	char *p = strchr(hostname, '.');
@@ -652,8 +654,10 @@ int main(int my_argc, char **my_argv) {
 		*p = 0;
 #endif
 
+#ifndef _EXSCAPEOS
 	// Read the user name (pwd->pw_name)
-	//struct passwd *pwd = getpwuid(geteuid());
+	struct passwd *pwd = getpwuid(geteuid());
+#endif
 
 	int c;
 	while ((c = getopt(my_argc, my_argv, "c:h")) != -1) {
@@ -693,7 +697,7 @@ int main(int my_argc, char **my_argv) {
 
 	while (true) {
 #ifdef USE_SIGNALS
-		setjmp(loop, 1);
+		sigsetjmp(loop, 1);
 		signal(SIGINT, sigint_handler);
 #endif
 
@@ -718,8 +722,11 @@ int main(int my_argc, char **my_argv) {
 
 		char prompt[256] = {0};
 		// Print the prompt (user@host cwd $)
-		//snprintf(prompt, 256, "\e[01;32m%s@\e[01;31m%s\e[01;34m %s (eshell!) %c\e[00m ", pwd->pw_name, hostname, cwd_str, (geteuid() == 0 ? '#' : '$'));
+#ifdef _EXSCAPEOS
 		snprintf(prompt, 256, "%s %s # ", hostname, cwd_str);
+#else
+		snprintf(prompt, 256, "\e[01;32m%s@\e[01;31m%s\e[01;34m %s (eshell!) %c\e[00m ", pwd->pw_name, hostname, cwd_str, (geteuid() == 0 ? '#' : '$'));
+#endif
 
 		// Read a command
 #ifdef USE_READLINE

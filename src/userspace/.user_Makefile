@@ -4,7 +4,7 @@ WARNINGS := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
 				-Wno-unused-parameter -Wno-cast-align -Werror
 
 CC = i586-pc-exscapeos-gcc
-CFLAGS := -O0 -std=gnu99 -march=i586 $(WARNINGS) -ggdb3 -static
+CFLAGS := -O0 -std=gnu99 -march=i586 $(WARNINGS) -ggdb3 -static -D_EXSCAPEOS
 LD = i586-pc-exscapeos-gcc
 LDFLAGS := -lc
 
