@@ -54,19 +54,32 @@ void replace_variables(char *buf, int size) {
 		char varname[256] = {0};
 		int vi = 0;
 		char *c = p;
-		while (*c != 0 && *c != ' ' && *c != '\n' && *c != '\t') {
+		while (c < p + 254 && /* prevent overflow */
+			  (isalnum((int)*c) || *c == '_' || /* allowed chars in var names */
+			    (*c == '$' && (c == p || *(c-1) == '$')) /* $ allowed as first char(s) only */
+			)) {
+
 			varname[vi++] = *c++;
 		}
 		varname[vi] = 0;
 
-		if (varname[1] == 0)
+		if (varname[1] == 0) {
+			p++;
 			continue;
+		}
 
-		const char *val = getenv(varname + 1);
-		if (val == NULL)
-			val = "";
+		if (strstr(varname, "$$")) {
+			char pidbuf[16] = {0};
+			sprintf(pidbuf, "%d", getpid());
+			str_replace(p, "$$", pidbuf, size - (p - buf));
+		}
+		else {
+			const char *val = getenv(varname + 1);
+			if (val == NULL)
+				val = "";
 
-		str_replace(p, varname, val, size - (p - buf));
+			str_replace(p, varname, val, size - (p - buf));
+		}
 		p++;
 	}
 
