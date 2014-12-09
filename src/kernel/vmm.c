@@ -105,6 +105,39 @@ done:
 	return;
 }
 
+void vmm_resize_area(uint32 start_virtual, uint32 new_end_virtual, struct task_mm *mm) {
+	// Grow or shrink the area that starts at (or contains!) start_virtual, to end at new_end_virtual.
+	// Note that growing can also be done by using vmm_alloc_user on the end address, e.g.
+	// to grow the range that spans [a, b), call vmm_alloc_user(b, c, ...), and the area
+	// will be expanded (a new area will not be written).
+
+	assert(new_end_virtual >= start_virtual + PAGE_SIZE);
+	assert(mm != NULL);
+	assert(mm->areas != NULL);
+
+	list_foreach(mm->areas, it) {
+		vm_area_t *area = (vm_area_t *)it->data;
+		uint32 area_end = (uint32)area->end;
+		assert(area_end != new_end_virtual);
+
+		if ((uint32)area->start <= start_virtual && (uint32)area->end > start_virtual) {
+			// Found it
+			if (new_end_virtual > area_end) {
+				// Grow the area
+				vmm_alloc_user(area_end, new_end_virtual, mm, area->writable);
+			}
+			else {
+				// Shrink it
+				for (uint32 i = new_end_virtual; i < area_end; i += PAGE_SIZE) {
+					vmm_free(i, mm->page_directory);
+				}
+				area->end = (void *)new_end_virtual;
+			}
+			break;
+		}
+	}
+}
+
 // Allocate physical memory for user space and map it to the selected virtual address range
 void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm, bool writable) {
 	assert(end_virtual > start_virtual);
@@ -416,11 +449,11 @@ struct task_mm *vmm_create_kernel_mm(void) {
 	return mm;
 }
 
-void *sbrk(sint32 incr) {
-	// Adds (at least) /incr/ bytes (negative values subtract) to this task's heap area.
+void *sbrk(sint32 delta) {
+	// Adds (at least) /delta/ bytes (negative values subtract) to this task's heap area.
 	// The initial heap area is always zero.
 	// Returns the *previous* break value, i.e. the start of the newly allocated region.
-	// (Or, if incr == 0, the current break value, since the new and the old are equal.)
+	// (Or, if delta == 0, the current break value, since the new and the old are equal.)
 	assert(current_task->privilege == 3);
 	assert(current_task->mm != NULL);
 	struct task_mm *mm = current_task->mm;
@@ -429,21 +462,20 @@ void *sbrk(sint32 incr) {
 
 	assert(IS_PAGE_ALIGNED(mm->brk));
 
-	if (incr == 0) {
+	if (delta == 0) {
 		// Return the current break value
 		return (void *)mm->brk;
 	}
 
-	if (incr > 0) {
-		uint32 new_end = mm->brk + incr;
+	if (delta > 0) {
+		uint32 new_end = mm->brk + delta;
 		if (!IS_PAGE_ALIGNED(new_end)) {
 			new_end &= 0xfffff000;
 			new_end += PAGE_SIZE;
 		}
 
-		assert(new_end < 0xb0000000); // TODO: use the actual user stack location here
-
-		vmm_alloc_user(mm->brk, new_end, current_task->mm, PAGE_RW);
+		assert(new_end < USER_STACK_START - USER_STACK_SIZE_MAX);
+		vmm_alloc_user(mm->brk, new_end, mm, PAGE_RW);
 
 		mm->brk = new_end;
 
@@ -453,9 +485,29 @@ void *sbrk(sint32 incr) {
 		return (void *)prev_brk;
 	}
 	else {
+		uint32 decr = -delta;
 		// Caller wants to decrease the heap
-		panic("sbrk with negative argument: TODO"); // TODO
-		return 0;
+		if (decr < PAGE_SIZE) {
+			// Nothing we can do for such a small decrease.
+			return (void *)prev_brk;
+		}
+
+		if (decr & 0xfff) {
+			// If they want to decrease e.g. 6325 bytes, we only do 4096;
+			// if they want 10495, we do 8192, and so on.
+			// We can't decrease *more* than they're asking, so the largest
+			// multiple of the page size will have to do.
+			decr &= 0xfffff000;
+		}
+
+		assert(decr > 0);
+		assert(prev_brk - decr >= mm->initial_brk);
+		assert(IS_PAGE_ALIGNED(prev_brk - decr));
+
+		vmm_resize_area(mm->brk_start, prev_brk - decr, mm);
+		mm->brk = prev_brk - decr;
+
+		return (void *)prev_brk;
 	}
 }
 

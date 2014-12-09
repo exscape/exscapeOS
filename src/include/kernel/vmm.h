@@ -81,6 +81,7 @@ struct task_mm {
 	uint32 text_end;
 	uint32 brk_start;
 	uint32 brk;
+	uint32 initial_brk; // current brk when userspace takes over; only sbrk may change it after that, and never to a value below initial_brk
 	page_directory_t *page_directory;
 	uint32 user_stack_guard_page; // Lowest address of the user stack (the lowest usable is this + PAGE_SIZE)
 };

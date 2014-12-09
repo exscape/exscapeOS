@@ -321,6 +321,10 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	assert(IS_PAGE_ALIGNED(task->mm->brk));
 	assert(task->mm->brk == task->mm->brk_start);
 
+	// The value brk has when the process starts;
+	// userspace may not decrease the brk point below this address
+	task->mm->initial_brk = task->mm->brk_start;
+
 	// Copy the argv data from the kernel heap to the task's address space
 	// This function updates argv to point to the new location.
 	uint32 argc = 0;
