@@ -12,10 +12,12 @@
 //#define ELF_DEBUG
 
 // Kernel symbols are stored here; userspace symbols are linked in
-// their task structs, so access them via current_task
-struct symbol **kernel_syms = NULL;
+// their task structs, so access them via current_task.
+// This is a pointer to an array of structs; the last entry contains eip=0 and name=NULL,
+// so it's safe to loop until that one is encountered. The same goes for the one in current_task.
+struct symbol *kernel_syms = NULL;
 
-int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol ***syms, uint32 num_syms);
+int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol **syms, uint32 num_syms);
 
 void load_kernel_symbols(void *addr, uint32 num, uint32 size, uint32 shndx) {
 	// These cryptic parameters are given to us by GRUB/multiboot.
@@ -76,20 +78,16 @@ void load_kernel_symbols(void *addr, uint32 num, uint32 size, uint32 shndx) {
 		panic("unable to load kernel symbols");
 }
 
-int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol ***syms, uint32 num_syms) {
+int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol **syms, uint32 num_syms) {
 	assert(syms != NULL);
 	assert(*syms == NULL);
 
-	*syms = kmalloc(sizeof(struct symbol *) * (num_syms + 1));
-	memset(*syms, 0, sizeof(struct symbol *) * (num_syms + 1));
+	*syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
 	assert(*syms != NULL);
-	for (uint32 i = 0; i < num_syms; i++) {
-		assert(((*syms)[i] = kmalloc(sizeof(struct symbol))) != NULL);
-	}
+	memset(*syms, 0, sizeof(struct symbol) * (num_syms + 1));
 
-	struct symbol **symp = *syms;
+	struct symbol *symp = *syms;
 
-	uint32 sym_num = 0;
 	for (uint32 i = 1; i <= num_syms; i++) {
 		symhdr++;
 
@@ -97,23 +95,26 @@ int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol 
 			continue;
 
 		const char *name;
-		if (symhdr->st_name != 0)
+		if (symhdr->st_name != 0) {
+			// Note: ensure that this sym_string_table is stored such that
+			// it remains valid to read long after elf_load etc. has finished!
+			// For the kernel, this happense automatically, as the entire binary
+			// is loaded into RAM and never moved.
+			// For userspace, the ELF loader duplicates the string table
+			// and stores t as a malloc'ed member of struct task.
 			name = (char *)&sym_string_table[symhdr->st_name];
+		}
 		else
 			name = "N/A";
 #if ELF_DEBUG
 		printk("%03d 0x%08x %s\n", i, (uint32)symhdr->st_value, name);
 #endif
 
-		assert(symp != NULL);
-		assert(symp[sym_num] != NULL);
-
-		struct symbol *this_sym = symp[sym_num];
-		this_sym->eip = symhdr->st_value;
-		this_sym->name = strdup(name);
-		sym_num++;
+		symp->eip = symhdr->st_value;
+		symp->name = name;
+		symp++;
 	}
-	symp[sym_num] = NULL;
+	assert(symp && symp->eip == 0 && symp->name == NULL);
 
 	return 0;
 }
@@ -144,7 +145,7 @@ void copy_argv_env_to_task(char ***argv, uint32 argc, task_t *task) {
 		size += PAGE_SIZE;
 	}
 
-	vmm_alloc_user(mm->brk_start, mm->brk_start + size, mm, true /* read-write */);
+	vmm_alloc_user(mm->brk_start, mm->brk_start + size, mm, PAGE_RW);
 	char *addr = (char *)mm->brk_start;
 	mm->brk += size;
 	mm->brk_start += size;
@@ -327,13 +328,13 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 	// Set up the reentrancy structure for Newlib
 	// (It is initialized below, after switching to the new page directory.)
-	uint32 size = sizeof(struct _reent);
-	if (size & 0xfff) {
-		size &= 0xfffff000;
-		size += PAGE_SIZE;
+	uint32 reent_size = sizeof(struct _reent);
+	if (reent_size & 0xfff) {
+		reent_size &= 0xfffff000;
+		reent_size += PAGE_SIZE;
 	}
 
-	vmm_alloc_user(task->mm->brk, task->mm->brk + size, mm, true);
+	vmm_alloc_user(task->mm->brk, task->mm->brk + reent_size, mm, true);
 
 	//assert(current_directory == kernel_directory);
 	page_directory_t *old_dir = current_directory;
@@ -341,8 +342,8 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 
 	task->reent = (struct _reent *)task->mm->brk;
 	_REENT_INIT_PTR(task->reent);
-	task->mm->brk += size;
-	task->mm->brk_start += size;
+	task->mm->brk += reent_size;
+	task->mm->brk_start += reent_size;
 
 	assert(IS_PAGE_ALIGNED(task->mm->brk));
 	assert(task->mm->brk == task->mm->brk_start);
@@ -427,6 +428,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	Elf32_Sym *symhdr = NULL;
 	uint32 num_syms = 0;
 	const char *sym_string_table = NULL;
+	uint32 string_table_size = 0;
 
 	for (uint32 i=1; i < header->e_shnum; i++) { // skip #0, which is always empty
 		Elf32_Shdr *shdr = (Elf32_Shdr *)((uint32)data + header->e_shoff + (header->e_shentsize * i));
@@ -435,14 +437,26 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 			symhdr = (Elf32_Sym *)(data + shdr->sh_offset);
 			num_syms = shdr->sh_size / shdr->sh_entsize;
 			Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)((uint32)data + header->e_shoff + shdr->sh_link * header->e_shentsize);
+			string_table_size = string_table_hdr->sh_size;
 			sym_string_table = (char *)(data + string_table_hdr->sh_offset);
 			break;
 		}
 	}
 
 	// Load symbols for this file, so that we can display them in backtraces
-	if (!symhdr || !sym_string_table || num_syms < 1 || load_symbols(symhdr, sym_string_table, &task->symbols, num_syms) != 0) {
+	if (!symhdr || !sym_string_table || num_syms < 1) {
 		printk("Warning: failed to load symbols for %s\n", path);
+	}
+	else {
+		// Clone the string table. Because load_symbols doesn't strdup() names
+		// for performance reasons, we need the string table to keep existing
+		// for as long as the task lives.
+		current_task->symbol_string_table = kmalloc(string_table_size);
+		memcpy(current_task->symbol_string_table, sym_string_table, string_table_size);
+
+		if (load_symbols(symhdr, current_task->symbol_string_table, &task->symbols, num_syms) != 0) {
+			printk("Warning: failed to load symbols for %s\n", path);
+		}
 	}
 
 	// If we're still here: set the program entry point
@@ -454,6 +468,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	/* fall through on success */
 
 err:
+
 	kfree(data);
 	assert(retval <= 0);
 	return retval;

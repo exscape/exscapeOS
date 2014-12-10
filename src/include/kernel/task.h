@@ -37,9 +37,11 @@ typedef struct task {
 
 	struct task *parent;
 	list_t *children;
-	struct symbol **symbols;
-	int exit_code;
 
+	struct symbol *symbols;
+	char *symbol_string_table;
+
+	int exit_code;
 	int link_count; // used to detect symlink loops
 } task_t;
 

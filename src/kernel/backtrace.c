@@ -3,7 +3,7 @@
 #include <kernel/console.h>
 #include <kernel/backtrace.h>
 
-extern struct symbol **kernel_syms;
+extern struct symbol *kernel_syms;
 
 // Translate an EIP value (e.g. 0x104e3c) to a function name
 struct symbol *addr_to_func(uint32 addr) {
@@ -17,16 +17,18 @@ struct symbol *addr_to_func(uint32 addr) {
 	struct symbol *best_match = &tmp;
 	uint32 min_diff = 0xffffffff;
 
-	struct symbol **all_syms[] = { kernel_syms, current_task->symbols, NULL };
+	struct symbol *all_syms[] = { kernel_syms, current_task->symbols, NULL };
 
-	// So this is a bit messy, but here's the idea behind each symbol pointer, whether *, ** or ***:
-	// kernel_syms: array of pointers to the kernel symbols
+	// So this is a bit messy, but here's the idea behind each symbol pointer, whether * or **
+	// kernel_syms: pointer to an array of struct symbol entries
 	// current_task->symbols: as above, for the current userspace task
 	// all_syms: contains pointers to both of the above, to make looping easier. might be extended in the future.
 	// symp (defined below): the current symbol we're testing
+	// Note that we loop until eip == 0; the array is "null terminated", so to speak, with
+	// a null strect entry (eip == 0, name == NULL).
 	for (int symlist = 0; all_syms[symlist] != NULL; symlist++) {
-		for (int sym_num = 0; all_syms[symlist][sym_num] && all_syms[symlist][sym_num]->eip; sym_num++) {
-			struct symbol *symp = all_syms[symlist][sym_num];
+		struct symbol *symp = all_syms[symlist];
+		while (symp->eip && symp->name) {
 			// Compare all symbols to the address, and see if there's a better match.
 			// "Better match" is defined as the symbol starting BEFORE the address, such
 			// that the address may be INSIDE the symbol function, *and* closer to it than
@@ -36,6 +38,7 @@ struct symbol *addr_to_func(uint32 addr) {
 				best_match = symp;
 				min_diff = addr - symp->eip;
 			}
+			symp++;
 		}
 	}
 
@@ -43,6 +46,10 @@ struct symbol *addr_to_func(uint32 addr) {
 	// Either that, or we DID find something, but it has no name.
 	//printk("best_match = 0x%p, name ADDRESS = 0x%p\n", best_match, &best_match->name);
 	if (best_match->eip == 0xffffffff || best_match->name == NULL || *(best_match->name) == 0)
+		return NULL;
+
+	// This "best" match is so bad that it's certain to be incorrect
+	if (addr - best_match->eip > 0x200000)
 		return NULL;
 
 	return best_match;

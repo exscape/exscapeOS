@@ -553,6 +553,7 @@ static task_t *create_task_int( void (*entry_point)(void *, uint32), const char 
 	task->children = list_create();
 
 	task->symbols = NULL; // Set up in elf_load
+	task->symbol_string_table = NULL; // As is this
 
 	/* All tasks are running by default */
 	task->state = TASK_RUNNING;
