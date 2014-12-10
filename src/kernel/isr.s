@@ -9,7 +9,7 @@ align 4
 ; ISR routines
 
 %macro ISR_NOERRCODE 1
-	[GLOBAL isr%1]
+	global isr%1:function
 	isr%1:
 		cli
 		push 0
@@ -18,7 +18,7 @@ align 4
 %endmacro
 
 %macro ISR_ERRCODE 1
-	[GLOBAL isr%1]
+	global isr%1:function
 	isr%1:
 		cli
 		push %1
@@ -63,6 +63,7 @@ ISR_NOERRCODE 128
 
 ; Our ISR stub. It saves the processor state, sets up for kernel mode segments,
 ; calls the C-level fault handler, and restores the stack frame.
+global isr_common_stub:function
 isr_common_stub:
 	mov byte [in_isr], 1
 	push eax
@@ -112,7 +113,7 @@ isr_common_stub:
 
 ; Create a stub handler, since each IRQ needs its own function
 %macro IRQ 2 ; 2 arguments, IRQ number and the ISR number we map it to
-	[GLOBAL irq%1]
+	global irq%1:function
 	irq%1:
 		cli
 		push byte 0 ; IRQ handlers (like ISR handlers) use the registers_t struct, so we need this dummy "error code"
@@ -140,6 +141,7 @@ IRQ  15,    47
 IRQ 126,    126 ; the task switch vector
 
 ; This is called/jumped to by the handlers created by the macros above.
+global irq_common_stub:function
 irq_common_stub:
 	; interrupts are already off
 	mov byte [in_isr], 1

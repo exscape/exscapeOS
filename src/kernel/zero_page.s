@@ -1,6 +1,6 @@
 section .text
 align 4
-global zero_page_physical
+global zero_page_physical:function
 
 zero_page_physical:
 	push esi    ; we can only trample eax, ecx and edx

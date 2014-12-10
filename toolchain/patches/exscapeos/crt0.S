@@ -1,4 +1,5 @@
 .global _start
+.type _start STT_FUNC
 .extern main
 .extern exit
 .extern environ

@@ -1,6 +1,6 @@
-global gdt_flush
-global idt_load
-global tss_flush
+global gdt_flush:function
+global idt_load:function
+global tss_flush:function
 extern gdt             ; pointer to the GDT null descriptor, where the GDT pointer is
 extern idtp            ; the IDT pointer, defined in kernel/idt.c
 

@@ -1,4 +1,4 @@
-global loader           ; making entry point visible to linker
+global loader:function  ; making entry point visible to linker
 extern kmain            ; kmain is defined elsewhere
 
 ; setting up the Multiboot header - see GRUB docs for details
