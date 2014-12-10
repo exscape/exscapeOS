@@ -80,8 +80,8 @@ void load_kernel_symbols(void *addr, uint32 num, uint32 size, uint32 shndx) {
 
 int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol **syms, uint32 num_syms) {
 	assert(syms != NULL);
-	assert(*syms == NULL);
 
+	struct symbol *old_syms = *syms;
 	*syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
 	assert(*syms != NULL);
 	memset(*syms, 0, sizeof(struct symbol) * (num_syms + 1));
@@ -115,6 +115,11 @@ int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol 
 		symp++;
 	}
 	assert(symp && symp->eip == 0 && symp->name == NULL);
+
+	if (old_syms) {
+		// Happens during execve
+		kfree(old_syms);
+	}
 
 	return 0;
 }
@@ -451,11 +456,17 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 		// Clone the string table. Because load_symbols doesn't strdup() names
 		// for performance reasons, we need the string table to keep existing
 		// for as long as the task lives.
-		current_task->symbol_string_table = kmalloc(string_table_size);
-		memcpy(current_task->symbol_string_table, sym_string_table, string_table_size);
+		char *old_table = task->symbol_string_table;
+		task->symbol_string_table = kmalloc(string_table_size);
+		task->symbol_string_table_size = string_table_size;
+		memcpy(task->symbol_string_table, sym_string_table, string_table_size);
 
-		if (load_symbols(symhdr, current_task->symbol_string_table, &task->symbols, num_syms) != 0) {
+		if (load_symbols(symhdr, task->symbol_string_table, &task->symbols, num_syms) != 0) {
 			printk("Warning: failed to load symbols for %s\n", path);
+		}
+		else if (old_table) {
+			// execve, so free the old one, or it'll leak
+			kfree(old_table);
 		}
 	}
 

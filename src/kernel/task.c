@@ -158,6 +158,16 @@ void destroy_task(task_t *task) {
 		task->children = NULL;
 	}
 
+	if (task->symbols) {
+		kfree(task->symbols);
+		task->symbols = NULL;
+	}
+
+	if (task->symbol_string_table) {
+		kfree(task->symbol_string_table);
+		task->symbol_string_table = NULL;
+	}
+
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
 		if (task->fdtable[i]) {
@@ -662,6 +672,32 @@ int fork(void) {
 
 	assert(parent->link_count == 0);
 	child->link_count = 0;
+
+	if (parent->symbols) {
+		// Clone symbols and symbol string tables
+		int num = 0;
+		for (struct symbol *sym = parent->symbols; sym->eip && sym->name; sym++) { num++; }
+		size_t size = sizeof(struct symbol) * (num + 1);
+		child->symbols = kmalloc(size);
+		memcpy(child->symbols, parent->symbols, size);
+
+		assert(parent->symbol_string_table != NULL);
+		child->symbol_string_table = kmalloc(parent->symbol_string_table_size);
+		memcpy(child->symbol_string_table, parent->symbol_string_table, parent->symbol_string_table_size);
+		child->symbol_string_table_size = parent->symbol_string_table_size;
+
+		// OK, so now we've cloned that... however, we have a problem.
+		// The ->name entries in each struct symbol is a *pointer*, which is still
+		// pointing towards the *parent's* string table... we need to update them.
+		// This works because the entire thing is one big allocation,
+		// and the offsets into the table is constant.
+		for (int i=0; i < num; i++) {
+			child->symbols[i].name -= (uint32)parent->symbol_string_table;
+			child->symbols[i].name += (uint32)child->symbol_string_table;
+		}
+	}
+	else
+		assert(parent->symbol_string_table == NULL);
 
 	/* Set up the kernel stack of the new process */
 	uint32 *kernelStack = child->stack;

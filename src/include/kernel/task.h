@@ -40,6 +40,9 @@ typedef struct task {
 
 	struct symbol *symbols;
 	char *symbol_string_table;
+	size_t symbol_string_table_size;
+
+	// XXX: when adding entries, remember to copy them in fork(), if necessary!
 
 	int exit_code;
 	int link_count; // used to detect symlink loops
