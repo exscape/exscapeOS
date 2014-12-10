@@ -3,13 +3,13 @@
 #include <kernel/console.h>
 #include <kernel/backtrace.h>
 
-extern struct symbol *syms;
+extern struct symbol *kernel_syms;
 
 // Translate a kernel EIP (e.g. 0x104e3c) to a function name
 struct symbol *addr_to_func(uint32 addr) {
 	if (addr <= 0x100000 || addr >= 0x130000)
 		return NULL;
-	struct symbol *symp = syms;
+	struct symbol *symp = kernel_syms;
 	struct symbol tmp = { .eip = 0xffffffff, .name = NULL };
 	struct symbol *best_match = &tmp;
 

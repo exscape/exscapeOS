@@ -9,11 +9,21 @@
 #include <sys/errno.h>
 #include <kernel/backtrace.h>
 
-#define ELF_DEBUG 0
+#define ELF_DEBUG 1
 
-struct symbol *syms = NULL;
+// Kernel symbols are stored here; userspace symbols are linked in
+// their task structs, so access them via current_task
+struct symbol *kernel_syms = NULL;
 
+int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symbol **syms); // TODO: tmp, move to .h
+
+// Load the kernel symbols
 void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
+	if (load_symbols(num, size, addr, shndx, &kernel_syms) != 0)
+		panic("unable to load kernel symbols");
+}
+
+int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symbol **syms) {
 	// Find the string table
 	Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)(addr + size * shndx);
 	char *sym_string_table = NULL;
@@ -36,7 +46,7 @@ void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
 			string_table_hdr = (Elf32_Shdr *)(addr + shdr->sh_link * size);
 			sym_string_table = (char *)(string_table_hdr->sh_addr);
 			if (symhdr == NULL) {
-				panic("Empty symbol table for kernel!");
+				return 1;
 			}
 #if ELF_DEBUG == 0
 			break;
@@ -63,12 +73,12 @@ void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
 	}
 
 	if (symhdr == NULL)
-		panic("No symbol table for kernel found!");
+		return 2;
 
-	syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
-	memset(syms, 0, sizeof(struct symbol) * (num_syms + 1));
+	*syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
+	memset(*syms, 0, sizeof(struct symbol) * (num_syms + 1));
 
-	struct symbol *symp = syms;
+	struct symbol *symp = *syms;
 
 	for (uint32 i = 1; i < num_syms; i++) {
 		symhdr++;
@@ -91,6 +101,8 @@ void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
 	}
 	symp->eip = 0;
 	symp->name = 0;
+
+	return 0;
 }
 
 // Takes an array of argument (argv or envp) and copies it *FROM THE KERNEL HEAP*
@@ -301,6 +313,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	}
 
 	// Set up the reentrancy structure for Newlib
+	// (It is initialized below, after switching to the new page directory.)
 	uint32 size = sizeof(struct _reent);
 	if (size & 0xfff) {
 		size &= 0xfffff000;
