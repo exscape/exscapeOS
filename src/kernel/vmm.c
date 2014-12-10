@@ -625,6 +625,8 @@ void init_paging(unsigned long mbd_mmap_addr, unsigned long mbd_mmap_length, uns
 	/* Initialize the kernel heap */
 	kheap = heap_create(KHEAP_START, KHEAP_INITIAL_SIZE, KHEAP_MAX_ADDR, 1, 0, NULL); /* supervisor, not read-only; mm arg is NULL for the kernel */
 
+	placement_address = 0; // This must not be used after this!
+
 #if HEAP_DEBUG >= 3
 	printk("init_paging() just finished; here's the current heap index\n");
 	print_heap_index();
