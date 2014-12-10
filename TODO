@@ -31,8 +31,6 @@
 
 * CHECK_ACCESS_* are very inadequate! It should be *trivial* to give an unmapped address and have the kernel page fault and panic! Not that this truly matters, since it's trivial to get the kernel to panic anyway -- I'm still doing that on purpose on every minor problem, so that bugs are not missed.
 
-* sbrk: support negative arguments (to test: scandir in ext2/hugedir)
-
 * create basic "find" utility, with little more than -name and/or -iname to begin with...?
 * scandir on FAT returns < 0, but errno is not set! Why does it fail?
 
@@ -48,6 +46,5 @@
 * DMA for ATA transfers?
 * Signal support
 * Proper VFS
-* Implement the remaining syscalls for Newlib
 * Implement queues for mutexes
 * Directory caching - searching and stat()ing a "large" (20+ entries) directory is slow! 100+ is *very* slow!
