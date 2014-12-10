@@ -440,8 +440,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 		}
 	}
 
-	// Load symbols for this file, so that we can display them
-	// in backtraces
+	// Load symbols for this file, so that we can display them in backtraces
 	if (!symhdr || !sym_string_table || num_syms < 1 || load_symbols(symhdr, sym_string_table, &task->symbols, num_syms) != 0) {
 		printk("Warning: failed to load symbols for %s\n", path);
 	}

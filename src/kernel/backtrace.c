@@ -58,28 +58,12 @@ void get_backtrace(uint32 _ebp, struct backtrace *bt) {
 	while (ebp != NULL) {
 		if (i >= BACKTRACE_MAX)
 			break;
-		if (ebp == NULL || ebp > (uint32 *)0xcfff0000 || ebp < (uint32 *)0x100000) {
-			//printk("breaking; ebp = %p\n", ebp);
+		if (ebp > (uint32 *)0xcfff0000 || ebp < (uint32 *)0x100000) {
 			break;
 		}
 
-		struct symbol *sym = addr_to_func(*(ebp + 1));
-		if (sym == NULL) {
-			bt->eip[i] = *(ebp + 1);
-		}
-		else {
-			// TODO: update this to something that works
-			if (strcmp(sym->name, "_exit") == 0 && *(ebp + 1) - sym->eip == 0) {
-				bt->eip[i] = 0;
-				//printk("[end of backtrace - task entry point was above]\n");
-			}
-			else {
-				bt->eip[i] = *(ebp + 1);
-				//printk("%s+0x%x\n", sym->name, *(ebp + 1) - sym->eip);
-			}
-		}
+		bt->eip[i] = *(ebp + 1);
 		ebp = (uint32 *)*ebp;
-
 		i++;
 	}
 }
@@ -93,12 +77,9 @@ void print_backtrace_struct(struct backtrace *bt) {
 
 		struct symbol *sym = addr_to_func(bt->eip[i]);
 		if (bt->eip[i] == 0xffffffff || sym == NULL)
-			printk("0x%08x in ??? %s\n", bt->eip[i], IS_USER_SPACE(bt->eip[i]) ? "(userspace)" : "");
+			printk("0x%08x in ???%s\n", bt->eip[i], IS_USER_SPACE(bt->eip[i]) ? " (userspace)" : "");
 		else if (sym != NULL) {
-			if (strcmp(sym->name, "_exit") == 0 && bt->eip[i] - sym->eip == 0)
-				printk("[end of backtrace - task entry point was above]\n");
-			else
-				printk("0x%08x in %s+0x%x%s\n", bt->eip[i], sym->name, bt->eip[i] - sym->eip, IS_USER_SPACE(bt->eip[i]) ? " (userspace)" : "");
+			printk("0x%08x in %s+0x%x%s\n", bt->eip[i], sym->name, bt->eip[i] - sym->eip, IS_USER_SPACE(bt->eip[i]) ? " (userspace)" : "");
 		}
 	}
 }
