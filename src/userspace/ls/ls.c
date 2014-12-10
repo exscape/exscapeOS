@@ -286,6 +286,10 @@ int main(int argc, char **argv) {
 			case 'a':
 				opt_all = 1;
 				break;
+			case '1':
+				opt_singlecol = 1;
+				opt_list = 0;
+				break;
 			case 'l':
 				opt_list = 1;
 				opt_singlecol = 0;
@@ -294,10 +298,6 @@ int main(int argc, char **argv) {
 				opt_inode = 1;
 				opt_list = 1;
 				opt_singlecol = 0;
-				break;
-			case '1': /* overrides -l, if used later on in the command line */
-				opt_singlecol = 1;
-				opt_list = 0;
 				break;
 			case 'd':
 				opt_show_dir = 1;
@@ -336,10 +336,18 @@ int main(int argc, char **argv) {
 	struct tm *tm = localtime(&tmp);
 	current_year = tm->tm_year + 1900;
 
+	if (opt_show_dir) {
+		// This option *really* simplifies things.
+		if (argc == 1 && !strcmp(names[0], "."))
+			opt_all = 1;
+		print_entries(names, ".", argc);
+		goto out_show_dir; // Better than nesting the following >50 lines
+	}
+
 	// First off, stat all arguments. That way,
 	// we know which are files, and which are
 	// directories (or links to directories).
-	// Files should be printed first.
+	// Files should be printed first (unless -d is specified, see above).
 	struct stat **st = calloc(argc, sizeof(struct stat *));
 	int *errnos = calloc(argc, sizeof(int));
 
@@ -354,7 +362,7 @@ int main(int argc, char **argv) {
 			errnos[i] = 0;
 	}
 
-	// Eh... we could count them first, but that wastes time.
+	// Eh... we could count them first, then allocate, then sort, but that wastes time.
 	// This wastes AT MOST a few kiB of RAM instead.
 	const char **dirs = calloc(argc, sizeof(char *));
 	const char **files = calloc(argc, sizeof(char *));
@@ -397,19 +405,19 @@ int main(int argc, char **argv) {
 		}
 	}
 
+
 	// We're done! Start freeing memory.
 	// (Though we ARE about to exit...)
 	for (int i = 0; i < argc; i++) {
 		free(st[i]);
 	}
 
-	// The top three consist of pointers from argv and "" strings, so don't
-	// free their contents!
-	// We should only free the arrays themselves.
-	free(names);
 	free(dirs);
 	free(files);
 	free(st);
+
+out_show_dir:
+	free(names);
 
 	fflush(stdout);
 
