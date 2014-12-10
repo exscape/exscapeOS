@@ -270,7 +270,7 @@ void dump_regs_and_bt(uint32 esp) {
 		printk("0x%08x in %s+0x%x (function that crashed)\n", regs->eip, sym->name, regs->eip - sym->eip);
 	}
 	else
-		printk("EIP not in any known kernel function\n");
+		printk("EIP not in any known function\n");
 
 	print_backtrace_ebp(regs->ebp);
 	printk("\n");

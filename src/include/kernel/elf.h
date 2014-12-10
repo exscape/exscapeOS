@@ -6,7 +6,7 @@
 #include <kernel/task.h>
 
 bool elf_load(const char *path, task_t *task, void *data /* command line stuff */);
-void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx);
+void load_kernel_symbols(void *addr, uint32 num, uint32 size, uint32 shndx);
 typedef uint32 Elf32_Addr;
 typedef uint16 Elf32_Half;
 typedef uint32 Elf32_Off;

@@ -180,8 +180,6 @@ int initrd_close(int fd, struct open_file *);
 off_t initrd_lseek(int fd, off_t offset, int whence) {
 	assert(fd <= MAX_OPEN_FILES);
 	struct open_file *file = get_filp(fd);
-
-
 	assert(file->ino < initrd_header->nfiles);
 
 	if (!S_ISREG(initrd_files[file->ino].mode))

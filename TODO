@@ -29,6 +29,7 @@
 * ext2:
 	* ext2_read()
 
+* CHECK_ACCESS_* are very inadequate! It should be *trivial* to give an unmapped address and have the kernel page fault and panic! Not that this truly matters, since it's trivial to get the kernel to panic anyway -- I'm still doing that on purpose on every minor problem, so that bugs are not missed.
 
 * sbrk: support negative arguments (to test: scandir in ext2/hugedir)
 

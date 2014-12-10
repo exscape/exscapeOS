@@ -9,24 +9,24 @@
 #include <sys/errno.h>
 #include <kernel/backtrace.h>
 
-#define ELF_DEBUG 1
+//#define ELF_DEBUG
 
 // Kernel symbols are stored here; userspace symbols are linked in
 // their task structs, so access them via current_task
-struct symbol *kernel_syms = NULL;
+struct symbol **kernel_syms = NULL;
 
-int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symbol **syms); // TODO: tmp, move to .h
+int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol ***syms, uint32 num_syms);
 
-// Load the kernel symbols
-void init_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx) {
-	if (load_symbols(num, size, addr, shndx, &kernel_syms) != 0)
-		panic("unable to load kernel symbols");
-}
+void load_kernel_symbols(void *addr, uint32 num, uint32 size, uint32 shndx) {
+	// These cryptic parameters are given to us by GRUB/multiboot.
+	// From testing, they appear to be (all e_* values are from the ELF header)
+	// addr: address of section header table (NOT address of ELF header!),
+	//       which is the ELF header's location + e_shoff
+	// num: number of section headers, which is e_shnum
+	// size: size of each entry, which is e_shentsize
+	// shndx: the string table's index into the SHT, which is e_shstrndx
 
-int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symbol **syms) {
-	// Find the string table
-	Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)(addr + size * shndx);
-	char *sym_string_table = NULL;
+	const char *sym_string_table = NULL;
 
 #if ELF_DEBUG
 	char *string_table = (char *)(string_table_hdr->sh_addr);
@@ -38,17 +38,17 @@ int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symb
 	uint32 num_syms = 0;
 
 	for (uint32 i=1; i < num; i++) { // skip #0, which is always empty
-		Elf32_Shdr *shdr = (Elf32_Shdr *)(addr + (size * i));
+		Elf32_Shdr *shdr = (Elf32_Shdr *)((uint32)addr + (size * i));
 
 		if (shdr->sh_type == SHT_SYMTAB) {
 			symhdr = (Elf32_Sym *)shdr->sh_addr;
 			num_syms = shdr->sh_size / shdr->sh_entsize;
-			string_table_hdr = (Elf32_Shdr *)(addr + shdr->sh_link * size);
+			Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)((uint32)addr + shdr->sh_link * size);
 			sym_string_table = (char *)(string_table_hdr->sh_addr);
 			if (symhdr == NULL) {
-				return 1;
+				panic("Unable to locate kernel symbols!");
 			}
-#if ELF_DEBUG == 0
+#ifndef ELF_DEBUG
 			break;
 #endif
 		}
@@ -72,15 +72,25 @@ int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symb
 #endif
 	}
 
-	if (symhdr == NULL)
-		return 2;
+	if (load_symbols(symhdr, sym_string_table, &kernel_syms, num_syms) != 0)
+		panic("unable to load kernel symbols");
+}
 
-	*syms = kmalloc(sizeof(struct symbol) * (num_syms + 1));
-	memset(*syms, 0, sizeof(struct symbol) * (num_syms + 1));
+int load_symbols(Elf32_Sym *symhdr, const char *sym_string_table, struct symbol ***syms, uint32 num_syms) {
+	assert(syms != NULL);
+	assert(*syms == NULL);
 
-	struct symbol *symp = *syms;
+	*syms = kmalloc(sizeof(struct symbol *) * (num_syms + 1));
+	memset(*syms, 0, sizeof(struct symbol *) * (num_syms + 1));
+	assert(*syms != NULL);
+	for (uint32 i = 0; i < num_syms; i++) {
+		assert(((*syms)[i] = kmalloc(sizeof(struct symbol))) != NULL);
+	}
 
-	for (uint32 i = 1; i < num_syms; i++) {
+	struct symbol **symp = *syms;
+
+	uint32 sym_num = 0;
+	for (uint32 i = 1; i <= num_syms; i++) {
 		symhdr++;
 
 		if (ELF32_ST_TYPE(symhdr->st_info) != STT_FUNC)
@@ -95,12 +105,15 @@ int load_symbols(uint32 num, uint32 size, uint32 addr, uint32 shndx, struct symb
 		printk("%03d 0x%08x %s\n", i, (uint32)symhdr->st_value, name);
 #endif
 
-		symp->eip = symhdr->st_value;
-		symp->name = name;
-		symp++;
+		assert(symp != NULL);
+		assert(symp[sym_num] != NULL);
+
+		struct symbol *this_sym = symp[sym_num];
+		this_sym->eip = symhdr->st_value;
+		this_sym->name = strdup(name);
+		sym_num++;
 	}
-	symp->eip = 0;
-	symp->name = 0;
+	symp[sym_num] = NULL;
 
 	return 0;
 }
@@ -383,6 +396,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	}
 
 	// Find the string table
+	assert(header->e_shoff != 0); // we need a section header
 	Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)(data + header->e_shoff + header->e_shentsize * header->e_shstrndx);
 	char *string_table = (char *)(data + string_table_hdr->sh_offset);
 
@@ -390,7 +404,6 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 	printk("Idx         Name Size     VMA      LMA      File off Align\n");
 	for (int i=1; i < header->e_shnum; i++) { // skip #0, which is always empty
 		Elf32_Shdr *shdr = (Elf32_Shdr *)(data + header->e_shoff + header->e_shentsize * i);
-		shdr=shdr;
 
 		char *name = (char *)&string_table[shdr->sh_name];
 
@@ -408,8 +421,30 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 		else
 			printk("DATA\n");
 	}
-	printk("done in elf_load\n");
 #endif // ELF_DEBUG
+
+	// Try to find symbols, so we can get nice backtrace displays
+	Elf32_Sym *symhdr = NULL;
+	uint32 num_syms = 0;
+	const char *sym_string_table = NULL;
+
+	for (uint32 i=1; i < header->e_shnum; i++) { // skip #0, which is always empty
+		Elf32_Shdr *shdr = (Elf32_Shdr *)((uint32)data + header->e_shoff + (header->e_shentsize * i));
+
+		if (shdr->sh_type == SHT_SYMTAB) {
+			symhdr = (Elf32_Sym *)(data + shdr->sh_offset);
+			num_syms = shdr->sh_size / shdr->sh_entsize;
+			Elf32_Shdr *string_table_hdr = (Elf32_Shdr *)((uint32)data + header->e_shoff + shdr->sh_link * header->e_shentsize);
+			sym_string_table = (char *)(data + string_table_hdr->sh_offset);
+			break;
+		}
+	}
+
+	// Load symbols for this file, so that we can display them
+	// in backtraces
+	if (!symhdr || !sym_string_table || num_syms < 1 || load_symbols(symhdr, sym_string_table, &task->symbols, num_syms) != 0) {
+		printk("Warning: failed to load symbols for %s\n", path);
+	}
 
 	// If we're still here: set the program entry point
 	// (This updates the value on the stack in task.c)

@@ -157,9 +157,9 @@ void kmain(multiboot_info_t *mbd, unsigned int magic, uint32 init_esp0) {
 	init_initrd(initrd_location);
 
 	if (!(mbd->flags & (1 << 5)))
-		panic("No kernel symbols!\n");
+		panic("No kernel symbols!");
 
-	init_symbols(mbd->u.elf_sec.num, mbd->u.elf_sec.size, mbd->u.elf_sec.addr, mbd->u.elf_sec.shndx);
+	load_kernel_symbols((void *)mbd->u.elf_sec.addr, mbd->u.elf_sec.num, mbd->u.elf_sec.size, mbd->u.elf_sec.shndx);
 
 	/* Set up paging and the kernel heap */
 	if (!quiet)

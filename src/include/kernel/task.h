@@ -4,6 +4,7 @@
 #include <kernel/vmm.h>
 #include <sys/types.h>
 #include <kernel/console.h>
+#include <kernel/backtrace.h>
 #include <kernel/vfs.h> /* struct open_file */
 #include <kernel/heap.h>
 #include <kernel/fpu.h>
@@ -36,6 +37,7 @@ typedef struct task {
 
 	struct task *parent;
 	list_t *children;
+	struct symbol **symbols;
 	int exit_code;
 
 	int link_count; // used to detect symlink loops
