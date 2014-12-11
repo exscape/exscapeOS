@@ -339,7 +339,7 @@ static int elf_load_int(const char *path, task_t *task, char *argv[], char *envp
 		reent_size += PAGE_SIZE;
 	}
 
-	vmm_alloc_user(task->mm->brk, task->mm->brk + reent_size, mm, true);
+	vmm_alloc_user(task->mm->brk, task->mm->brk + reent_size, mm, PAGE_RW);
 
 	//assert(current_directory == kernel_directory);
 	page_directory_t *old_dir = current_directory;

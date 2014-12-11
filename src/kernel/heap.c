@@ -336,9 +336,9 @@ void heap_expand(uint32 size_to_add, heap_t *heap) {
 
 	/* Now, finally... Physically allocate the new frames */
 	if (heap == kheap)
-		vmm_alloc_kernel(heap->end_address + PAGE_SIZE /* start */, new_end_address + PAGE_SIZE /* end */, PAGE_ANY_PHYS, (heap->readonly ? false : true) /* writable */);
+		vmm_alloc_kernel(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, PAGE_ANY_PHYS, (heap->readonly ? PAGE_RO : PAGE_RW));
 	else
-		vmm_alloc_user(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, current_task->mm, (heap->readonly ? false : true));
+		vmm_alloc_user(heap->end_address + PAGE_SIZE, new_end_address + PAGE_SIZE, current_task->mm, (heap->readonly ? PAGE_RO : PAGE_RW));
 
 	/* ... and, now that we have the space, expand the heap! */
 	heap->end_address = new_end_address;
@@ -808,10 +808,10 @@ heap_t *heap_create(uint32 start_address, uint32 initial_size, uint32 max_addres
 
 	/* Allocate pages for the heap's initial size */
 	if (start_address == KHEAP_START) {
-		vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, false /* continuous physical */, true /* writable */);
+		vmm_alloc_kernel(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE + PAGE_SIZE, PAGE_ANY_PHYS, PAGE_RW);
 	}
 	else {
-		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, mm, true);
+		vmm_alloc_user(USER_HEAP_START, USER_HEAP_START + USER_HEAP_INITIAL_SIZE + PAGE_SIZE, mm, PAGE_RW);
 	}
 
 	// Remember the first address used by the heap. Actual storage will start later,
