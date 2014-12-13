@@ -553,10 +553,9 @@ static bool ata_read_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int secto
 
 	/* Make sure no error occured */
 
-	status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
-
-	while (status & ATA_SR_BSY)
+	do {
 		status = ata_reg_read(dev->channel, ATA_REG_ALT_STATUS);
+	} while (status & ATA_SR_BSY);
 
 	assert(!(status & ATA_SR_BSY));
 	assert(!(status & ATA_SR_DF));
@@ -679,10 +678,11 @@ static bool ata_write_int(ata_device_t *dev, uint64 lba, uint8 *buffer, int sect
 	assert(ata_interrupts_handled == old_handled + 1);
 
 	/* The 400ns wait is in the interrupt handler */
-	uint8 status = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
+	uint8 status;
 
-	while (status & ATA_SR_BSY)
-		status = ata_reg_read(dev->channel, ATA_REG_STATUS);
+	do {
+		status = ata_reg_read(dev->channel, ATA_REG_STATUS); /* read the REGULAR status reg to clear the INTRQ */
+	} while (status & ATA_SR_BSY);
 
 	assert(!(status & ATA_SR_DF));
 
