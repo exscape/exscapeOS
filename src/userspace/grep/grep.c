@@ -15,6 +15,7 @@ void print_usage(char **argv) {
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "  -i for case insensitive search\n");
 	fprintf(stderr, "  -c to print number of matches only\n");
+	fprintf(stderr, "  -v to invert matching (print/count non-matching lines)\n");
 	fprintf(stderr, "Leave filename empty to search stdin, or do grep <str> -- -.\n");
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, "%s string file1 file2\n", argv[0]);
@@ -22,13 +23,13 @@ void print_usage(char **argv) {
 	fprintf(stderr, "cat file1 | %s string - file2\n", argv[0]);
 }
 
-int opt_case = 0, opt_count = 0;
+int opt_case = 0, opt_count = 0, opt_invert = 0;
 
 int main(int argc, char **argv) {
 	bool error = false;
 	bool match = false;
 	int c;
-	while ((c = getopt(argc, argv, "cih")) != -1) {
+	while ((c = getopt(argc, argv, "cihv")) != -1) {
 		switch (c) {
 			case 'h':
 				print_usage(argv);
@@ -39,6 +40,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'c':
 				opt_count = 1;
+				break;
+			case 'v':
+				opt_invert = 1;
 				break;
 			case 0:
 				fprintf(stderr, "getopt returned 0; if you used - for stdin, try -- - instead\n");
@@ -103,7 +107,11 @@ int main(int argc, char **argv) {
 		}
 
 		while ((p = fgets(line, 4096, f)) != NULL) {
-			if (opt_case ? strcasestr(line, needle) : strstr(line, needle)) {
+			bool result = opt_case ? strcasestr(line, needle) : strstr(line, needle);
+			if (opt_invert)
+				result = !result;
+
+			if (result) {
 				match = true;
 				matches++;
 				if (!opt_count) {
