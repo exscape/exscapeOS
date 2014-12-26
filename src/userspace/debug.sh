@@ -4,7 +4,7 @@
 # Examples: "gu userspace/helloworld", then start qemu, and run, to have debug symbols
 #           "gub userspace/helloworld main", to set a breakpoint in main and boot normally after qemu is started
 
-function gu() {
+gu() {
 	if [[ "$#" -ne 1 ]]; then
 		echo "Usage: gu <userspace ELF file>"
 		return
@@ -16,7 +16,7 @@ function gu() {
                       --eval-command "continue"
 }
 
-function gub() {
+gub() {
 	if [[ "$#" -ne 2 ]]; then
 		echo "Usage: gub <userspace ELF file> <function to break in>"
 		return
