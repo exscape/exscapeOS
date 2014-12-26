@@ -10,6 +10,7 @@
 #include <kernel/syscall.h>
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
+#include <kernel/ata.h>
 #include <kernel/fat.h>
 #include <kernel/ext2.h>
 #include <path.h>
@@ -81,6 +82,20 @@ static void create_pagefault(void *data, uint32 length) {
 static void create_pagefault_delay(void *data, uint32 length) {
 	sleep(2000);
 	create_pagefault(NULL, 0);
+}
+
+static void atabench(void *data, uint32 length) {
+	char *buf = kmalloc(64*512);
+	int start = gettickcount();
+	ata_device_t *dev = &devices[0];
+#define NUM_READS 10000
+	for (int i = 0; i < NUM_READS; i++) {
+		ata_read(dev, 0, buf, 64);
+	}
+
+	int end = gettickcount();
+
+	printk("Reading %d sectors (64 at a time) took %u ms\n", 64*NUM_READS, 10 * (end - start));
 }
 
 /*
@@ -557,6 +572,9 @@ void kshell(void *data, uint32 length) {
 		}
 		else if (strcmp(p, "pagefault_delay") == 0) {
 			task = create_task(&create_pagefault_delay, "create_pagefault_delay", con, NULL, 0);
+		}
+		else if (strcmp(p, "atabench") == 0) {
+			task = create_task(&atabench, "atabench", con, NULL, 0);
 		}
 		else if (strcmp(p, "uptime") == 0) {
 			uint32 up = uptime();
