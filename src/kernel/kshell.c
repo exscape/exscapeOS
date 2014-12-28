@@ -591,7 +591,7 @@ void kshell(void *data, uint32 length) {
 			INTERRUPT_LOCK;
 			node_t *cur_task_node = ready_queue.head;
 			int n = 0;
-			printk("%5s %10s %10s %6s %s\n", "PID", "STACK_BTM", "PAGEDIR", "STATE", "NAME");
+			printk("%5s %6s %10s %10s %6s %s\n", "PID", "RSS", "STACK_BTM", "PAGEDIR", "STATE", "NAME");
 			while (cur_task_node != NULL) {
 				task_t *cur_task = (task_t *)cur_task_node->data;
 				n++;
@@ -624,11 +624,11 @@ void kshell(void *data, uint32 length) {
 				if (cur_task->state != TASK_DEAD) {
 					assert(cur_task != NULL);
 					assert(cur_task->mm != NULL);
-					printk("% 5d 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
+					printk("% 5d % 5dk 0x%08x 0x%08x %06s %s\n", cur_task->id, cur_task->mm->frames_used * 4, cur_task->stack, cur_task->mm->page_directory, state_str, cur_task->name);
 				}
 				else {
 					assert(cur_task != NULL);
-					printk("% 5d 0x%08x NO DIR     %06s %s\n", cur_task->id, cur_task->stack, state_str, cur_task->name);
+					printk("% 5d ?????? 0x%08x NO DIR     %06s %s\n", cur_task->id, cur_task->stack, state_str, cur_task->name);
 				}
 
 				cur_task_node = cur_task_node->next;

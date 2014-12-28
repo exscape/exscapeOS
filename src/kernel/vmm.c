@@ -130,6 +130,7 @@ void vmm_resize_area(uint32 start_virtual, uint32 new_end_virtual, struct task_m
 				// Shrink it
 				for (uint32 i = new_end_virtual; i < area_end; i += PAGE_SIZE) {
 					vmm_free(i, mm->page_directory);
+					mm->frames_used--;
 				}
 				area->end = (void *)new_end_virtual;
 			}
@@ -152,6 +153,7 @@ void vmm_alloc_user(uint32 start_virtual, uint32 end_virtual, struct task_mm *mm
 
 	for (uint32 addr = start_virtual; addr < end_virtual; addr += PAGE_SIZE) {
 		uint32 phys = pmm_alloc();
+		mm->frames_used++;
 		_vmm_map(addr, phys, mm->page_directory, false /* user mode */, writable);
 	}
 
@@ -169,6 +171,7 @@ void vmm_destroy_task_mm(struct task_mm *mm) {
 			vm_area_t *area = (vm_area_t *)it->data;
 			for (uint32 addr = (uint32)area->start; addr < (uint32)area->end; addr += PAGE_SIZE) {
 				vmm_free(addr, mm->page_directory);
+				// There's little point in reducing frames_used here, since we destroy the mm anyway
 			}
 			kfree(area);
 		}
@@ -209,6 +212,7 @@ page_directory_t *clone_user_page_directory(page_directory_t *parent_dir, struct
 				if (page_orig->frame != 0) {
 					page_t *page_copy = &child_dir->tables[i]->pages[j];
 					uint32 phys = pmm_alloc();
+					child_mm->frames_used++;
 					copy_page_physical(page_orig->frame * PAGE_SIZE, phys); // copy the actual data for this page
 					*(uint32 *)page_copy = *(uint32 *)page_orig; // copy the page flags, etc.
 					page_copy->frame = phys / PAGE_SIZE;
@@ -427,6 +431,8 @@ struct task_mm *vmm_create_user_mm(void) {
 	memset(mm, 0, sizeof(struct task_mm));
 	mm->areas = list_create();
 	mm->page_directory = create_user_page_dir();
+
+	mm->frames_used = 0;
 
 	/* Set up a usermode stack for this task */
 	vmm_alloc_user(USER_STACK_START - (USER_STACK_SIZE + PAGE_SIZE), USER_STACK_START + PAGE_SIZE, mm, PAGE_RW);
