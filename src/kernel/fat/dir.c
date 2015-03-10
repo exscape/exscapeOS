@@ -478,7 +478,8 @@ void fat_parse_dir(DIR *dir, bool (*callback)(fat32_direntry_t *, DIR *, char *,
 	uint8 *disk_data = kmalloc(part->cluster_size);
 
 	/* Read the first cluster from disk */
-	assert(fat_read_cluster(part, cur_cluster, disk_data));
+	int ret = fat_read_cluster(part, cur_cluster, disk_data);
+	assert(ret != 0);
 
 	fat32_direntry_t *disk_direntry = (fat32_direntry_t *)disk_data;
 

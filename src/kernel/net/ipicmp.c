@@ -105,11 +105,13 @@ void send_ipv4_packet(uint8 *dst_ip, uint8 protocol, void *payload, uint16 paylo
 	// Is the target IP on the same subnet as we are?
 	if (same_subnet(dst_ip, ip_address)) {
 		// Yep - go ahead as usual
-		assert(arp_lookup(dst_ip, dst_mac));
+		int ret = arp_lookup(dst_ip, dst_mac);
+		assert(ret != 0);
 	}
 	else {
 		// No - send this packet to the gateway's MAC address instead
-		assert(arp_lookup(gateway, dst_mac));
+		int ret = arp_lookup(gateway, dst_mac);
+		assert(ret != 0);
 	}
 
 	// TODO: arp_lookup() needs writing!

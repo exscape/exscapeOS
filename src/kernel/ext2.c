@@ -102,7 +102,8 @@ static void ext2_read_inode(ext2_partition_t *part, uint32 inode, void *buf) {
 	assert(offset % sizeof(ext2_inode_t) == 0);
 
 	char *inode_buf = kmalloc(512);
-	assert(ata_read(part->dev, block_to_abs_lba(part, inode_table_block + block_offset) + offset/512, inode_buf, 1));
+	int ret = ata_read(part->dev, block_to_abs_lba(part, inode_table_block + block_offset) + offset/512, inode_buf, 1);
+	assert(ret != 0);
 	memcpy(buf, inode_buf + (offset % 512), sizeof(ext2_inode_t));
 	kfree(inode_buf);
 }
@@ -120,7 +121,8 @@ static uint32 read_direct_blocks(ext2_partition_t *part, uint32 *blocklist, uint
 		if (blocklist[i] == 0) {
 			continue;
 		}
-		assert(ata_read(part->dev, block_to_abs_lba(part, blocklist[i]), (char *)buf + i * part->blocksize, part->blocksize / 512));
+		int ret = ata_read(part->dev, block_to_abs_lba(part, blocklist[i]), (char *)buf + i * part->blocksize, part->blocksize / 512);
+		assert(ret != 0);
 	}
 
 	return num;
@@ -135,7 +137,8 @@ static uint32 read_singly_indirect_blocks(ext2_partition_t *part, uint32 singly_
 	// To begin with, we read the contents of the indirect block into a buffer;
 	// this is really just an array of uint32s.
 	uint32 *blocklist = kmalloc(part->blocksize);
-	assert(ata_read(part->dev, block_to_abs_lba(part, singly_block), blocklist, part->blocksize / 512));
+	int ret =ata_read(part->dev, block_to_abs_lba(part, singly_block), blocklist, part->blocksize / 512);
+	assert(ret != 0);
 
 	// Next, read the blocks.
 	read_direct_blocks(part, blocklist, max_num, buf);
@@ -152,7 +155,8 @@ static uint32 read_doubly_indirect_blocks(ext2_partition_t *part, uint32 doubly_
 	assert(buf != NULL);
 
 	uint32 *singly_blocks = kmalloc(part->blocksize);
-	assert(ata_read(part->dev, block_to_abs_lba(part, doubly_block), singly_blocks, part->blocksize / 512));
+	int ret = ata_read(part->dev, block_to_abs_lba(part, doubly_block), singly_blocks, part->blocksize / 512);
+	assert(ret != 0);
 
 	// Next, read through as many of these singly indirect blocks as required.
 	uint32 read_data_blocks = 0;
@@ -174,7 +178,8 @@ static uint32 read_triply_indirect_blocks(ext2_partition_t *part, uint32 triply_
 	assert(buf != NULL);
 
 	uint32 *doubly_blocks = kmalloc(part->blocksize);
-	assert(ata_read(part->dev, block_to_abs_lba(part, triply_block), doubly_blocks, part->blocksize / 512));
+	int ret = ata_read(part->dev, block_to_abs_lba(part, triply_block), doubly_blocks, part->blocksize / 512);
+	assert(ret != 0);
 
 	// Next, read through as many of these doubly indirect blocks as required.
 	uint32 read_data_blocks = 0;
@@ -249,7 +254,8 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 
 	uint8 buf[1024] = {0};
 	/* Read the superblock, 1024 bytes (2 sectors) in, 1024 bytes (2 sectors) long */
-	assert(ata_read(dev, dev->partition[part].start_lba + 2, buf, 2));
+	int ret = ata_read(dev, dev->partition[part].start_lba + 2, buf, 2);
+	assert(ret != 0);
 
 	/* Create the list of partitions if it doesn't already exist) */
 	if (ext2_partitions == NULL)
@@ -271,7 +277,8 @@ bool ext2_detect(ata_device_t *dev, uint8 part) {
 	uint32 num_bgdt_sectors = (bgdt_size % 512 == 0) ? bgdt_size/512 : bgdt_size/512 + 1;
 
 	ext2_bgd_t *bgd = kmalloc(num_bgdt_sectors * 512);
-	assert(ata_read(dev, block_to_abs_lba(part_info, part_info->super.s_log_block_size == 0 ? 2 : 1), bgd, num_bgdt_sectors));
+	ret = ata_read(dev, block_to_abs_lba(part_info, part_info->super.s_log_block_size == 0 ? 2 : 1), bgd, num_bgdt_sectors);
+	assert(ret != 0);
 	part_info->bgdt = bgd; // Array of block group descriptors
 
 	// Set up the mountpoint
@@ -875,7 +882,8 @@ static int ext2_read(int fd, void *buf, size_t length) {
 
 		uint32 nbytes_read_from_disk = continuous_blocks * part->blocksize;
 
-		assert(disk_read(part->dev, ext2_lba_from_block(part, file->cur_block), nbytes_read_from_disk, block_buf));
+		int ret = disk_read(part->dev, ext2_lba_from_block(part, file->cur_block), nbytes_read_from_disk, block_buf);
+		assert(ret != 0);
 		file->cur_block += continuous_blocks - 1; // the last one is taken care of later in all cases
 
 		// We need to stop if either the file size is up, or if the user didn't want more bytes.

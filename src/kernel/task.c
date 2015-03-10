@@ -171,7 +171,8 @@ void destroy_task(task_t *task) {
 	// Free stuff in the file descriptor table (the table itself is in struct task)
 	for (int i=0; i < MAX_OPEN_FILES; i++) {
 		if (task->fdtable[i]) {
-			assert(do_close(i, task) == 0); // only fails if there's a bug somewhere, since we only call it on non-NULL fds
+			int ret = do_close(i, task);
+			assert(ret == 0); // only fails if there's a bug somewhere, since we only call it on non-NULL fds
 			assert(task->fdtable[i] == NULL);
 		}
 	}

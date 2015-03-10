@@ -239,7 +239,8 @@ static void test_write(void *data, uint32 length) {
 	char *buf2 = kmalloc(st.st_size);
 	assert(buf2 != NULL);
 	uint32 start_t = gettickcount();
-	assert(read(fd, buf2, st.st_size) == st.st_size);
+	int ret = read(fd, buf2, st.st_size);
+	assert(ret == st.st_size);
 	uint32 end_t = gettickcount();
 	printk("read took %u ms. starting write...\n", (end_t - start_t) * 10);
 	ata_device_t *ata_dev = &devices[0];

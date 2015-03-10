@@ -103,7 +103,8 @@ static void process_frame(uint16 packetLength) {
 		//printk("checksum=%04x (correct: %04x)\n", internet_checksum(v4, sizeof(ipv4header_t)), check);
 
 		// TODO: this assumes packets will never be corrupt. Remove once the algorithm is tested!
-		assert(internet_checksum((void *)v4, sizeof(ipv4header_t)) == check);
+		uint16 ret = internet_checksum((void *)v4, sizeof(ipv4header_t));
+		assert(ret == check);
 	}
 	else if (header->ethertype == ETHERTYPE_IPV6) {
 		//printk("IPv6 packet\n");

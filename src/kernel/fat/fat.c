@@ -60,7 +60,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 
 	uint8 *buf = kmalloc(512);
 	/* Read the Volume ID sector */
-	assert(ata_read(dev, dev->partition[part].start_lba, buf, 1));
+	int ret = ata_read(dev, dev->partition[part].start_lba, buf, 1);
+	assert(ret != 0);
 
 	assert( *( (uint16 *)(buf + 510) ) == 0xAA55);
 
@@ -126,7 +127,8 @@ bool fat_detect(ata_device_t *dev, uint8 part) {
 	if (fat_bytes < pmm_bytes_free() / 2) {
 		// Cache the FAT in RAM if there's some room to spare
 		part_info->cached_fat = kmalloc(fat_bytes);
-		assert(disk_read(part_info->dev, part_info->fat_start_lba, fat_bytes, part_info->cached_fat));
+		ret = disk_read(part_info->dev, part_info->fat_start_lba, fat_bytes, part_info->cached_fat);
+		assert(ret != 0);
 	}
 	else
 		part_info->cached_fat = NULL;
@@ -319,7 +321,8 @@ int fat_read(int fd, void *buf, size_t length) {
 
 		uint32 nbytes_read_from_disk = continuous_clusters * part->cluster_size;
 
-		assert(disk_read(part->dev, fat_lba_from_cluster(part, file->cur_block), nbytes_read_from_disk, cluster_buf));
+		int ret = disk_read(part->dev, fat_lba_from_cluster(part, file->cur_block), nbytes_read_from_disk, cluster_buf);
+		assert(ret != 0);
 		file->cur_block += continuous_clusters - 1; // the last one is taken care of later in all cases
 
 		// We need to stop if either the file size is up, or if the user didn't want more bytes.
@@ -393,7 +396,8 @@ static uint32 fat_next_cluster(fat32_partition_t *part, uint32 cur_cluster) {
 
 		/* Read the FAT sector to RAM */
 		uint8 fat[512];
-		assert(disk_read(part->dev, fat_sector, 512, (uint8 *)fat));
+		int ret = disk_read(part->dev, fat_sector, 512, (uint8 *)fat);
+		assert(ret != 0);
 
 		/* Read the FAT */
 		val = *(uint32 *)(&fat[entry_offset]);
@@ -422,7 +426,8 @@ bool fat_read_next_cluster(fat32_partition_t *part, uint8 *buffer, uint32 *cur_c
 	*cur_cluster = next_cluster;
 
 	/* Read this cluster from disk */
-	assert(fat_read_cluster(part, *cur_cluster, buffer));
+	int ret = fat_read_cluster(part, *cur_cluster, buffer);
+	assert(ret != 0);
 
 	return true;
 }

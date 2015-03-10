@@ -39,7 +39,8 @@ void parse_mbr(ata_device_t *dev) {
 
 	/* Read the MBR from disk */
 	unsigned char *buf = kmalloc(512);
-	assert(ata_read(dev, /* LBA = */ 0, buf, 1));
+	int ret = ata_read(dev, /* LBA = */ 0, buf, 1);
+	assert(ret != 0);
 
 	/* Last 2 bytes of the MBR should be 0xAA55.
 	 * If they're not, set all partitions to not present and return. */
